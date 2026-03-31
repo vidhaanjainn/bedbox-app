@@ -119,7 +119,7 @@ export default function DashboardPage() {
         marginBottom: '32px'
       }}>
         {/* Occupancy */}
-        <div className="stat-card">
+        <div className="stat-card" onClick={() => router.push('/admin/rooms')} style={{ cursor: 'pointer' }}>
           <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '16px' }}>
             <div style={{
               width: '40px', height: '40px',
@@ -147,7 +147,7 @@ export default function DashboardPage() {
         </div>
 
         {/* Monthly Income */}
-        <div className="stat-card">
+        <div className="stat-card" onClick={() => router.push('/admin/rent')} style={{ cursor: 'pointer' }}>
           <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '16px' }}>
             <div style={{
               width: '40px', height: '40px',
@@ -165,7 +165,7 @@ export default function DashboardPage() {
         </div>
 
         {/* Pending Rent */}
-        <div className="stat-card">
+        <div className="stat-card" onClick={() => router.push('/admin/rent')} style={{ cursor: 'pointer' }}>
           <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '16px' }}>
             <div style={{
               width: '40px', height: '40px',
@@ -190,7 +190,7 @@ export default function DashboardPage() {
         </div>
 
         {/* Active Notices */}
-        <div className="stat-card">
+        <div className="stat-card" onClick={() => router.push('/admin/notices')} style={{ cursor: 'pointer' }}>
           <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '16px' }}>
             <div style={{
               width: '40px', height: '40px',
@@ -207,7 +207,7 @@ export default function DashboardPage() {
         </div>
 
         {/* Maintenance */}
-        <div className="stat-card">
+        <div className="stat-card" onClick={() => router.push('/admin/maintenance')} style={{ cursor: 'pointer' }}>
           <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '16px' }}>
             <div style={{
               width: '40px', height: '40px',
@@ -224,7 +224,7 @@ export default function DashboardPage() {
         </div>
 
         {/* Available Beds */}
-        <div className="stat-card">
+        <div className="stat-card" onClick={() => router.push('/admin/rooms')} style={{ cursor: 'pointer' }}>
           <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '16px' }}>
             <div style={{
               width: '40px', height: '40px',
