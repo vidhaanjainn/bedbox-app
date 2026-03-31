@@ -42,7 +42,7 @@ export default function DashboardPage() {
         supabase.from('residents').select('*, bed:beds(bed_number, room:rooms(room_number))').eq('status', 'active').order('created_at', { ascending: false }).limit(5),
         supabase.from('notice_periods').select('*, resident:residents(name, room_number)').eq('status', 'active'),
         supabase.from('maintenance_requests').select('*, resident:residents(name)').in('status', ['open', 'in_progress']).order('created_at', { ascending: false }).limit(5),
-        supabase.from('rent_payments').select('*, resident:residents(name, room_number)').in('status', ['pending', 'partial']),
+        supabase.from('rent_payments').select('*, resident:residents(name, room_number)'),
       ])
 
       const totalBeds = beds?.length || 0
