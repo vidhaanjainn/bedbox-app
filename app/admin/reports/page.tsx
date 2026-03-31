@@ -157,8 +157,8 @@ Be direct, specific to Bhopal PG market, and use ₹ for all currency. Keep it c
       const data = await res.json()
       const text = data.candidates?.[0]?.content?.parts?.[0]?.text || 'Could not generate report. Check your Gemini API key.'
       setAiReport(text)
-    } catch (err) {
-      setAiReport('Error generating AI report. Please check your NEXT_PUBLIC_GEMINI_API_KEY in .env.local')
+    } catch (err: any) {
+      setAiReport(`Error: ${err?.message || JSON.stringify(err)}`)
     } finally {
       setAiLoading(false)
     }
