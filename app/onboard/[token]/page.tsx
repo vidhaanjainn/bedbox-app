@@ -212,7 +212,17 @@ export default function OnboardPage() {
           <SectionLabel>Background</SectionLabel>
           <Field label="Hometown" value={form.hometown} onChange={v => setForm(f => ({ ...f, hometown: v }))} placeholder="Indore, Delhi, Mumbai..." />
           <Field label="Institution / Company" value={form.institution} onChange={v => setForm(f => ({ ...f, institution: v }))} placeholder="College or employer name" />
-          <Field label="Occupation" value={form.occupation} onChange={v => setForm(f => ({ ...f, occupation: v }))} placeholder="Student / Working professional" />
+          <div style={{ marginBottom: 14 }}>
+            <label style={{ display: 'block', fontSize: 12, color: 'rgba(255,255,255,0.5)', marginBottom: 6 }}>Occupation</label>
+            <select value={form.occupation} onChange={e => setForm(f => ({ ...f, occupation: e.target.value }))}
+              style={{ width: '100%', padding: '12px 14px', borderRadius: 10, fontSize: 14, background: 'rgba(255,255,255,0.06)', border: '1px solid rgba(255,255,255,0.1)', color: form.occupation ? '#fff' : 'rgba(255,255,255,0.3)', outline: 'none', boxSizing: 'border-box', cursor: 'pointer', appearance: 'none' }}>
+              <option value="" disabled>Select your occupation</option>
+              <option value="student">Student</option>
+              <option value="working_professional">Working Professional</option>
+              <option value="self_employed">Self Employed</option>
+              <option value="other">Other</option>
+            </select>
+          </div>
           <div style={{ display: 'flex', gap: 10, marginTop: 8 }}>
             <GhostBtn onClick={() => setStep('welcome')}>← Back</GhostBtn>
             <Btn onClick={() => setStep('docs')} disabled={!canStep1()}>Continue →</Btn>
