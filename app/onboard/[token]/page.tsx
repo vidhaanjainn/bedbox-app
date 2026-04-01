@@ -66,6 +66,7 @@ export default function OnboardPage() {
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState('')
   const [submitting, setSubmitting] = useState(false)
+  const [submitted, setSubmitted] = useState(false)
   const [uploadProgress, setUploadProgress] = useState({ front: false, back: false })
   const [form, setForm] = useState<FormData>({
     emergency_contact_name: '',
@@ -86,6 +87,7 @@ export default function OnboardPage() {
         .select('id, name, email, mobile, onboard_token_used, onboard_token_expires_at, onboarding_status')
         .eq('onboard_token', token)
         .single()
+      if (submitted) { setLoading(false); return }
       if (error || !data) { setError('This link is invalid or has expired.'); setLoading(false); return }
       if (data.onboard_token_used && data.onboarding_status !== 'submitted') { setError('This onboarding link has already been used.'); setLoading(false); return }
       if (new Date(data.onboard_token_expires_at) < new Date()) { setError('This link has expired. Please contact TheBedBox for a new link.'); setLoading(false); return }
@@ -129,6 +131,7 @@ export default function OnboardPage() {
         onboard_token_used: true,
       }).eq('id', resident.id)
       if (updateError) throw updateError
+      setSubmitted(true)
       setStep(4)
     } catch (err: any) {
       setError('Something went wrong. Please try again or contact TheBedBox.')
