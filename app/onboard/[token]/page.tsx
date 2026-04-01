@@ -111,6 +111,20 @@ export default function OnboardPage() {
 
       if (updateError) throw updateError
 
+      // Notify admin
+      try {
+        await fetch('/api/notify-admin', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            residentName: resident.name,
+            residentEmail: resident.email,
+            residentMobile: resident.mobile,
+            residentRoom: null,
+          })
+        })
+      } catch {}
+
       // Go to done FIRST before anything else can interfere
       setStep('done')
     } catch (err: any) {
