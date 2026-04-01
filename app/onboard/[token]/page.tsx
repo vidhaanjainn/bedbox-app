@@ -4,29 +4,6 @@ import { useEffect, useState } from 'react'
 import { useParams } from 'next/navigation'
 import { createClient } from '@/lib/supabase/client'
 
-type Resident = {
-  id: string
-  name: string
-  email: string
-  mobile: string
-  onboard_token_used: boolean
-  onboard_token_expires_at: string
-  onboarding_status: string
-}
-
-type FormData = {
-  emergency_contact_name: string
-  emergency_contact_phone: string
-  hometown: string
-  institution: string
-  occupation: string
-  aadhaar_front: File | null
-  aadhaar_back: File | null
-  agreement_agreed: boolean
-}
-
-const STEPS = ['Welcome', 'Your Details', 'Documents', 'Agreement', 'Done']
-
 const AGREEMENT_CLAUSES = [
   "Rent is payable on or before the 5th of each calendar month. A penalty of ₹200 per day shall be levied for each day of delay beyond the 5th. Non-payment by the 10th gives TheBedBox the right to repossess the room and remove the tenant's belongings.",
   "The security deposit paid at the time of check-in is non-adjustable against rent and is returnable without interest at the end of the tenancy, subject to deductions for unpaid dues, damages, missing items, or any other outstanding charges.",
@@ -58,65 +35,66 @@ const AGREEMENT_CLAUSES = [
   "By digitally agreeing, the tenant confirms they have read, understood, and unconditionally accept all clauses above, and that this agreement has not been made under duress, misrepresentation, or coercion.",
 ]
 
+type Step = 'loading' | 'error' | 'welcome' | 'details' | 'docs' | 'agreement' | 'done'
+
 export default function OnboardPage() {
   const { token } = useParams()
   const supabase = createClient()
-  const [step, setStep] = useState(0)
-  const [resident, setResident] = useState<Resident | null>(null)
-  const [loading, setLoading] = useState(true)
-  const [error, setError] = useState('')
+
+  const [step, setStep] = useState<Step>('loading')
+  const [resident, setResident] = useState<any>(null)
+  const [errorMsg, setErrorMsg] = useState('')
   const [submitting, setSubmitting] = useState(false)
-  const [submitted, setSubmitted] = useState(false)
-  const [uploadProgress, setUploadProgress] = useState({ front: false, back: false })
-  const [form, setForm] = useState<FormData>({
+  const [uploadProgress, setUploadProgress] = useState('')
+  const [form, setForm] = useState({
     emergency_contact_name: '',
     emergency_contact_phone: '',
     hometown: '',
     institution: '',
     occupation: '',
-    aadhaar_front: null,
-    aadhaar_back: null,
+    aadhaar_front: null as File | null,
+    aadhaar_back: null as File | null,
     agreement_agreed: false,
   })
 
   useEffect(() => {
-    async function validateToken() {
-      if (!token) return
-      const { data, error } = await supabase
-        .from('residents')
-        .select('id, name, email, mobile, onboard_token_used, onboard_token_expires_at, onboarding_status')
-        .eq('onboard_token', token)
-        .single()
-      if (submitted) { setLoading(false); return }
-      if (error || !data) { setError('This link is invalid or has expired.'); setLoading(false); return }
-      if (data.onboard_token_used && data.onboarding_status !== 'submitted') { setError('This onboarding link has already been used.'); setLoading(false); return }
-      if (new Date(data.onboard_token_expires_at) < new Date()) { setError('This link has expired. Please contact TheBedBox for a new link.'); setLoading(false); return }
-      if (data.onboarding_status === 'submitted' || data.onboarding_status === 'active') { setError('Your onboarding is already complete. Please log in to your portal.'); setLoading(false); return }
-      setResident(data)
-      setLoading(false)
-    }
-    validateToken()
+    if (!token) { setStep('error'); setErrorMsg('Invalid link.'); return }
+    supabase
+      .from('residents')
+      .select('id, name, email, mobile, onboard_token_used, onboard_token_expires_at, onboarding_status')
+      .eq('onboard_token', token)
+      .single()
+      .then(({ data, error }) => {
+        if (error || !data) { setErrorMsg('This link is invalid or has expired.'); setStep('error'); return }
+        if (new Date(data.onboard_token_expires_at) < new Date()) { setErrorMsg('This link has expired. Please contact TheBedBox for a new link.'); setStep('error'); return }
+        if (data.onboard_token_used) { setErrorMsg('This onboarding link has already been used. Contact TheBedBox if you need help.'); setStep('error'); return }
+        setResident(data)
+        setStep('welcome')
+      })
   }, [token])
-
-  const uploadFile = async (file: File, path: string): Promise<string> => {
-    const { data, error } = await supabase.storage.from('resident-docs').upload(path, file, { upsert: true })
-    if (error) throw error
-    return data.path
-  }
 
   const handleSubmit = async () => {
     if (!resident) return
     setSubmitting(true)
     try {
       let ip = 'unknown'
-      try { const r = await fetch('https://api.ipify.org?format=json'); const d = await r.json(); ip = d.ip } catch {}
-      setUploadProgress({ front: true, back: false })
+      try { const r = await fetch('https://api.ipify.org?format=json'); ip = (await r.json()).ip } catch {}
+
       let aadhaarFrontUrl = ''
       let aadhaarBackUrl = ''
-      if (form.aadhaar_front) { aadhaarFrontUrl = await uploadFile(form.aadhaar_front, `${resident.id}/aadhaar-front-${Date.now()}`) }
-      setUploadProgress({ front: false, back: true })
-      if (form.aadhaar_back) { aadhaarBackUrl = await uploadFile(form.aadhaar_back, `${resident.id}/aadhaar-back-${Date.now()}`) }
-      setUploadProgress({ front: false, back: false })
+
+      if (form.aadhaar_front) {
+        setUploadProgress('Uploading Aadhaar front...')
+        const { data } = await supabase.storage.from('resident-docs').upload(`${resident.id}/aadhaar-front-${Date.now()}`, form.aadhaar_front, { upsert: true })
+        aadhaarFrontUrl = data?.path || ''
+      }
+      if (form.aadhaar_back) {
+        setUploadProgress('Uploading Aadhaar back...')
+        const { data } = await supabase.storage.from('resident-docs').upload(`${resident.id}/aadhaar-back-${Date.now()}`, form.aadhaar_back, { upsert: true })
+        aadhaarBackUrl = data?.path || ''
+      }
+
+      setUploadProgress('Saving your details...')
       const { error: updateError } = await supabase.from('residents').update({
         emergency_contact_name: form.emergency_contact_name,
         emergency_contact_phone: form.emergency_contact_phone,
@@ -130,134 +108,224 @@ export default function OnboardPage() {
         onboarding_status: 'submitted',
         onboard_token_used: true,
       }).eq('id', resident.id)
+
       if (updateError) throw updateError
-      setSubmitted(true)
-      setStep(4)
+
+      // Go to done FIRST before anything else can interfere
+      setStep('done')
     } catch (err: any) {
-      setError('Something went wrong. Please try again or contact TheBedBox.')
+      alert('Something went wrong: ' + (err?.message || 'Please try again or contact TheBedBox.'))
     } finally {
       setSubmitting(false)
+      setUploadProgress('')
     }
   }
 
-  const canProceedStep1 = () => form.emergency_contact_name.trim() && form.emergency_contact_phone.trim() && form.hometown.trim() && form.occupation.trim()
-  const canProceedStep2 = () => form.aadhaar_front && form.aadhaar_back
+  const canStep1 = () => form.emergency_contact_name.trim() && form.emergency_contact_phone.trim() && form.hometown.trim() && form.occupation.trim()
+  const canStep2 = () => form.aadhaar_front && form.aadhaar_back
 
-  if (loading) return <div style={{minHeight:'100vh',background:'#070d1a',display:'flex',alignItems:'center',justifyContent:'center',fontFamily:"'DM Sans',sans-serif",color:'rgba(255,255,255,0.4)'}}>Verifying link...</div>
-  if (error) return (
-    <div style={{minHeight:'100vh',background:'#070d1a',display:'flex',flexDirection:'column',alignItems:'center',justifyContent:'center',fontFamily:"'DM Sans',sans-serif",padding:32,textAlign:'center'}}>
-      <link href="https://fonts.googleapis.com/css2?family=Syne:wght@700&family=DM+Sans:wght@400;500&display=swap" rel="stylesheet"/>
-      <div style={{fontSize:40,marginBottom:16}}>⚠️</div>
-      <h2 style={{fontFamily:"'Syne',sans-serif",fontWeight:700,fontSize:22,color:'#fff',margin:'0 0 12px'}}>Link unavailable</h2>
-      <p style={{color:'rgba(255,255,255,0.4)',fontSize:14,maxWidth:300,lineHeight:1.7}}>{error}</p>
-      <p style={{color:'rgba(255,255,255,0.3)',fontSize:13,marginTop:24}}>Contact TheBedBox: <a href="tel:+917999546362" style={{color:'#00d4c8'}}>+91 79995 46362</a></p>
-    </div>
+  const stepIndex = { welcome: 0, details: 1, docs: 2, agreement: 3, done: 4 }
+  const currentIndex = stepIndex[step as keyof typeof stepIndex] ?? -1
+
+  // ── LOADING ──────────────────────────────────────────────────────────────
+  if (step === 'loading') return (
+    <Shell>
+      <div style={{ textAlign: 'center', padding: '60px 24px', color: 'rgba(255,255,255,0.4)', fontSize: 14 }}>Verifying link...</div>
+    </Shell>
   )
 
-  return (
-    <div style={{minHeight:'100vh',background:'#070d1a',fontFamily:"'DM Sans',sans-serif",color:'#e8eaf0'}}>
-      <link href="https://fonts.googleapis.com/css2?family=Syne:wght@600;700&family=DM+Sans:wght@400;500&display=swap" rel="stylesheet"/>
-      <div style={{padding:'20px 24px 0',maxWidth:480,margin:'0 auto'}}>
-        <div style={{display:'flex',alignItems:'center',gap:10,marginBottom:32}}>
-          <div style={{width:36,height:36,borderRadius:10,background:'linear-gradient(135deg,#00d4c8,#0099ff)',display:'flex',alignItems:'center',justifyContent:'center',fontFamily:"'Syne',sans-serif",fontWeight:700,fontSize:16,color:'#070d1a'}}>B</div>
-          <span style={{fontFamily:"'Syne',sans-serif",fontWeight:600,fontSize:15,color:'#00d4c8'}}>TheBedBox</span>
-        </div>
-        {step < 4 && (
-          <div style={{display:'flex',gap:6,marginBottom:32}}>
-            {STEPS.slice(0,4).map((s,i) => (
-              <div key={i} style={{flex:1}}>
-                <div style={{height:3,borderRadius:2,background:i<=step?'#00d4c8':'rgba(255,255,255,0.1)',transition:'background 0.3s'}}/>
-                <div style={{fontSize:10,marginTop:4,color:i===step?'#00d4c8':'rgba(255,255,255,0.3)',fontWeight:i===step?600:400}}>{s}</div>
-              </div>
-            ))}
-          </div>
-        )}
+  // ── ERROR ─────────────────────────────────────────────────────────────────
+  if (step === 'error') return (
+    <Shell>
+      <div style={{ textAlign: 'center', padding: '60px 24px' }}>
+        <div style={{ fontSize: 40, marginBottom: 16 }}>⚠️</div>
+        <h2 style={{ fontFamily: "'Syne',sans-serif", fontWeight: 700, fontSize: 22, color: '#fff', margin: '0 0 12px' }}>Link unavailable</h2>
+        <p style={{ color: 'rgba(255,255,255,0.4)', fontSize: 14, maxWidth: 300, margin: '0 auto 24px', lineHeight: 1.7 }}>{errorMsg}</p>
+        <p style={{ color: 'rgba(255,255,255,0.3)', fontSize: 13 }}>Call TheBedBox: <a href="tel:+917999546362" style={{ color: '#00d4c8' }}>+91 79995 46362</a></p>
       </div>
-      <div style={{padding:'0 24px 40px',maxWidth:480,margin:'0 auto'}}>
-        <style>{`@keyframes fadeIn{from{opacity:0;transform:translateY(12px)}to{opacity:1;transform:translateY(0)}}`}</style>
+    </Shell>
+  )
 
-        {step===0&&<div style={{animation:'fadeIn 0.4s ease'}}>
-          <h1 style={{fontFamily:"'Syne',sans-serif",fontWeight:700,fontSize:28,margin:'0 0 8px',lineHeight:1.2}}>Hey {resident?.name?.split(' ')[0]} 👋</h1>
-          <p style={{color:'rgba(255,255,255,0.5)',fontSize:15,margin:'0 0 32px',lineHeight:1.6}}>Welcome to TheBedBox. Complete your onboarding in 4 quick steps.</p>
-          <div style={{background:'rgba(0,212,200,0.06)',border:'1px solid rgba(0,212,200,0.15)',borderRadius:12,padding:20,marginBottom:24}}>
-            <div style={{fontSize:12,color:'#00d4c8',marginBottom:12,fontWeight:600,letterSpacing:'0.05em',textTransform:'uppercase'}}>Your booking</div>
-            {[['Name',resident?.name||''],['Email',resident?.email||''],['Mobile',resident?.mobile||'']].map(([l,v])=>(
-              <div key={l} style={{display:'flex',justifyContent:'space-between',padding:'6px 0',borderBottom:'1px solid rgba(255,255,255,0.05)',fontSize:13}}>
-                <span style={{color:'rgba(255,255,255,0.4)'}}>{l}</span><span style={{color:'#fff',fontWeight:500}}>{v}</span>
+  // ── DONE ──────────────────────────────────────────────────────────────────
+  if (step === 'done') return (
+    <Shell>
+      <div style={{ textAlign: 'center', padding: '60px 24px' }}>
+        <div style={{ width: 72, height: 72, borderRadius: '50%', background: 'linear-gradient(135deg,#00d4c8,#0099ff)', display: 'flex', alignItems: 'center', justifyContent: 'center', margin: '0 auto 24px', fontSize: 32 }}>✓</div>
+        <h1 style={{ fontFamily: "'Syne',sans-serif", fontWeight: 700, fontSize: 26, margin: '0 0 12px' }}>You're all done!</h1>
+        <p style={{ color: 'rgba(255,255,255,0.5)', fontSize: 15, lineHeight: 1.7, maxWidth: 320, margin: '0 auto 32px' }}>
+          Your onboarding has been submitted to TheBedBox. You'll hear back once it's approved — usually within a few hours.
+        </p>
+        <div style={{ background: 'rgba(0,212,200,0.06)', border: '1px solid rgba(0,212,200,0.15)', borderRadius: 12, padding: 20, textAlign: 'left', maxWidth: 320, margin: '0 auto' }}>
+          <div style={{ fontSize: 12, color: '#00d4c8', marginBottom: 12, fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.05em' }}>What's next</div>
+          {['TheBedBox reviews your details', 'You receive approval via call/message', 'Portal login link sent to your email'].map((t, i) => (
+            <div key={i} style={{ display: 'flex', gap: 10, padding: '6px 0', fontSize: 13, color: 'rgba(255,255,255,0.6)' }}>
+              <span style={{ color: '#00d4c8', fontWeight: 700, fontSize: 11, minWidth: 20 }}>{String(i + 1).padStart(2, '0')}</span>
+              <span>{t}</span>
+            </div>
+          ))}
+        </div>
+      </div>
+    </Shell>
+  )
+
+  // ── FORM STEPS ────────────────────────────────────────────────────────────
+  return (
+    <Shell>
+      {/* Progress bar */}
+      <div style={{ display: 'flex', gap: 6, marginBottom: 32 }}>
+        {['Welcome', 'Details', 'Documents', 'Agreement'].map((s, i) => (
+          <div key={i} style={{ flex: 1 }}>
+            <div style={{ height: 3, borderRadius: 2, background: i <= currentIndex ? '#00d4c8' : 'rgba(255,255,255,0.1)', transition: 'background 0.3s' }} />
+            <div style={{ fontSize: 10, marginTop: 4, color: i === currentIndex ? '#00d4c8' : 'rgba(255,255,255,0.3)', fontWeight: i === currentIndex ? 600 : 400 }}>{s}</div>
+          </div>
+        ))}
+      </div>
+
+      <style>{`@keyframes fadeIn{from{opacity:0;transform:translateY(10px)}to{opacity:1;transform:translateY(0)}}`}</style>
+
+      {/* WELCOME */}
+      {step === 'welcome' && (
+        <div style={{ animation: 'fadeIn 0.3s ease' }}>
+          <h1 style={{ fontFamily: "'Syne',sans-serif", fontWeight: 700, fontSize: 28, margin: '0 0 8px' }}>Hey {resident?.name?.split(' ')[0]} 👋</h1>
+          <p style={{ color: 'rgba(255,255,255,0.5)', fontSize: 15, margin: '0 0 28px', lineHeight: 1.6 }}>Welcome to TheBedBox. Complete your onboarding in 4 quick steps.</p>
+          <div style={{ background: 'rgba(0,212,200,0.06)', border: '1px solid rgba(0,212,200,0.15)', borderRadius: 12, padding: 20, marginBottom: 28 }}>
+            <div style={{ fontSize: 12, color: '#00d4c8', marginBottom: 10, fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.05em' }}>Your booking</div>
+            {[['Name', resident?.name], ['Email', resident?.email], ['Mobile', resident?.mobile]].map(([l, v]) => (
+              <div key={l} style={{ display: 'flex', justifyContent: 'space-between', padding: '6px 0', borderBottom: '1px solid rgba(255,255,255,0.05)', fontSize: 13 }}>
+                <span style={{ color: 'rgba(255,255,255,0.4)' }}>{l}</span>
+                <span style={{ color: '#fff', fontWeight: 500 }}>{v}</span>
               </div>
             ))}
           </div>
-          <button onClick={()=>setStep(1)} style={{width:'100%',padding:'14px 20px',borderRadius:12,fontSize:15,fontWeight:600,background:'linear-gradient(135deg,#00d4c8,#0099ff)',color:'#070d1a',border:'none',cursor:'pointer',fontFamily:"'DM Sans',sans-serif"}}>Start Onboarding →</button>
-        </div>}
+          <Btn onClick={() => setStep('details')}>Start Onboarding →</Btn>
+        </div>
+      )}
 
-        {step===1&&<div style={{animation:'fadeIn 0.4s ease'}}>
-          <h2 style={{fontFamily:"'Syne',sans-serif",fontWeight:700,fontSize:24,margin:'0 0 6px'}}>Your details</h2>
-          <p style={{color:'rgba(255,255,255,0.4)',fontSize:14,margin:'0 0 28px'}}>We need a few things from you</p>
-          {[['Emergency contact name','emergency_contact_name','Parent / sibling / friend','text'],['Their mobile number','emergency_contact_phone','+91 98765 43210','tel'],['Hometown','hometown','Indore, Jabalpur, Delhi...','text'],['Institution / Company','institution','College or employer name','text'],['Occupation','occupation','Student / Working professional / Other','text']].map(([label,field,placeholder,type])=>(
-            <div key={field} style={{marginBottom:16}}>
-              <label style={{display:'block',fontSize:12,color:'rgba(255,255,255,0.5)',marginBottom:6}}>{label}</label>
-              <input type={type} value={(form as any)[field]} onChange={e=>setForm(f=>({...f,[field]:e.target.value}))} placeholder={placeholder}
-                style={{width:'100%',padding:'12px 14px',borderRadius:10,fontSize:14,background:'rgba(255,255,255,0.06)',border:'1px solid rgba(255,255,255,0.1)',color:'#fff',outline:'none',boxSizing:'border-box'}}
-                onFocus={e=>e.target.style.borderColor='#00d4c8'} onBlur={e=>e.target.style.borderColor='rgba(255,255,255,0.1)'}/>
-            </div>
-          ))}
-          <div style={{display:'flex',gap:12,marginTop:8}}>
-            <button onClick={()=>setStep(0)} style={{padding:'14px 20px',borderRadius:12,fontSize:15,fontWeight:500,background:'transparent',color:'rgba(255,255,255,0.5)',border:'1px solid rgba(255,255,255,0.12)',cursor:'pointer',fontFamily:"'DM Sans',sans-serif"}}>← Back</button>
-            <button onClick={()=>setStep(2)} disabled={!canProceedStep1()} style={{flex:1,padding:'14px 20px',borderRadius:12,fontSize:15,fontWeight:600,background:canProceedStep1()?'linear-gradient(135deg,#00d4c8,#0099ff)':'rgba(255,255,255,0.08)',color:canProceedStep1()?'#070d1a':'rgba(255,255,255,0.3)',border:'none',cursor:canProceedStep1()?'pointer':'not-allowed',fontFamily:"'DM Sans',sans-serif"}}>Continue →</button>
+      {/* DETAILS */}
+      {step === 'details' && (
+        <div style={{ animation: 'fadeIn 0.3s ease' }}>
+          <h2 style={{ fontFamily: "'Syne',sans-serif", fontWeight: 700, fontSize: 24, margin: '0 0 6px' }}>Your details</h2>
+          <p style={{ color: 'rgba(255,255,255,0.4)', fontSize: 14, margin: '0 0 24px' }}>We need a few things from you</p>
+          <SectionLabel>Emergency contact</SectionLabel>
+          <Field label="Contact person name" value={form.emergency_contact_name} onChange={v => setForm(f => ({ ...f, emergency_contact_name: v }))} placeholder="Parent / sibling / friend" />
+          <Field label="Their mobile number" value={form.emergency_contact_phone} onChange={v => setForm(f => ({ ...f, emergency_contact_phone: v }))} placeholder="+91 98765 43210" type="tel" />
+          <SectionLabel>Background</SectionLabel>
+          <Field label="Hometown" value={form.hometown} onChange={v => setForm(f => ({ ...f, hometown: v }))} placeholder="Indore, Delhi, Mumbai..." />
+          <Field label="Institution / Company" value={form.institution} onChange={v => setForm(f => ({ ...f, institution: v }))} placeholder="College or employer name" />
+          <Field label="Occupation" value={form.occupation} onChange={v => setForm(f => ({ ...f, occupation: v }))} placeholder="Student / Working professional" />
+          <div style={{ display: 'flex', gap: 10, marginTop: 8 }}>
+            <GhostBtn onClick={() => setStep('welcome')}>← Back</GhostBtn>
+            <Btn onClick={() => setStep('docs')} disabled={!canStep1()}>Continue →</Btn>
           </div>
-        </div>}
+        </div>
+      )}
 
-        {step===2&&<div style={{animation:'fadeIn 0.4s ease'}}>
-          <h2 style={{fontFamily:"'Syne',sans-serif",fontWeight:700,fontSize:24,margin:'0 0 6px'}}>Upload Aadhaar</h2>
-          <p style={{color:'rgba(255,255,255,0.4)',fontSize:14,margin:'0 0 28px'}}>Required for identity verification. Stored securely.</p>
-          {[['Aadhaar front side','aadhaar_front','Clear photo or scan — name & photo side'],['Aadhaar back side','aadhaar_back','Address side']].map(([label,field,hint])=>(
-            <div key={field} style={{marginBottom:16}}>
-              <label style={{display:'block',fontSize:12,color:'rgba(255,255,255,0.5)',marginBottom:6}}>{label}</label>
-              <label style={{display:'flex',flexDirection:'column',alignItems:'center',justifyContent:'center',padding:'20px 16px',borderRadius:10,cursor:'pointer',textAlign:'center',border:(form as any)[field]?'2px solid #00d4c8':'2px dashed rgba(255,255,255,0.15)',background:(form as any)[field]?'rgba(0,212,200,0.06)':'rgba(255,255,255,0.03)'}}>
-                <input type="file" accept="image/*,.pdf" style={{display:'none'}} onChange={e=>e.target.files?.[0]&&setForm(f=>({...f,[field]:e.target.files![0]}))}/>
-                {(form as any)[field]?<><span style={{fontSize:22,marginBottom:6}}>✓</span><span style={{fontSize:13,color:'#00d4c8',fontWeight:500}}>{(form as any)[field].name}</span></>:<><span style={{fontSize:24,marginBottom:8,opacity:0.4}}>📎</span><span style={{fontSize:13,color:'rgba(255,255,255,0.6)'}}>Tap to upload</span><span style={{fontSize:11,color:'rgba(255,255,255,0.3)',marginTop:3}}>{hint}</span></>}
-              </label>
-            </div>
-          ))}
-          <div style={{background:'rgba(255,200,0,0.06)',border:'1px solid rgba(255,200,0,0.15)',borderRadius:10,padding:14,marginBottom:24,fontSize:13,color:'rgba(255,200,100,0.8)',lineHeight:1.6}}>🔒 Stored in private encrypted storage. Only accessible to TheBedBox management.</div>
-          <div style={{display:'flex',gap:12}}>
-            <button onClick={()=>setStep(1)} style={{padding:'14px 20px',borderRadius:12,fontSize:15,fontWeight:500,background:'transparent',color:'rgba(255,255,255,0.5)',border:'1px solid rgba(255,255,255,0.12)',cursor:'pointer',fontFamily:"'DM Sans',sans-serif"}}>← Back</button>
-            <button onClick={()=>setStep(3)} disabled={!canProceedStep2()} style={{flex:1,padding:'14px 20px',borderRadius:12,fontSize:15,fontWeight:600,background:canProceedStep2()?'linear-gradient(135deg,#00d4c8,#0099ff)':'rgba(255,255,255,0.08)',color:canProceedStep2()?'#070d1a':'rgba(255,255,255,0.3)',border:'none',cursor:canProceedStep2()?'pointer':'not-allowed',fontFamily:"'DM Sans',sans-serif"}}>Continue →</button>
+      {/* DOCS */}
+      {step === 'docs' && (
+        <div style={{ animation: 'fadeIn 0.3s ease' }}>
+          <h2 style={{ fontFamily: "'Syne',sans-serif", fontWeight: 700, fontSize: 24, margin: '0 0 6px' }}>Upload Aadhaar</h2>
+          <p style={{ color: 'rgba(255,255,255,0.4)', fontSize: 14, margin: '0 0 24px' }}>Required for identity verification. Stored securely.</p>
+          <FileUpload label="Aadhaar front side" hint="Name & photo side" file={form.aadhaar_front} onFile={f => setForm(fm => ({ ...fm, aadhaar_front: f }))} />
+          <FileUpload label="Aadhaar back side" hint="Address side" file={form.aadhaar_back} onFile={f => setForm(fm => ({ ...fm, aadhaar_back: f }))} />
+          <div style={{ background: 'rgba(255,200,0,0.06)', border: '1px solid rgba(255,200,0,0.15)', borderRadius: 10, padding: 14, marginBottom: 20, fontSize: 13, color: 'rgba(255,200,100,0.8)', lineHeight: 1.6 }}>
+            🔒 Stored in private encrypted storage. Only TheBedBox management can access it.
           </div>
-        </div>}
+          <div style={{ display: 'flex', gap: 10 }}>
+            <GhostBtn onClick={() => setStep('details')}>← Back</GhostBtn>
+            <Btn onClick={() => setStep('agreement')} disabled={!canStep2()}>Continue →</Btn>
+          </div>
+        </div>
+      )}
 
-        {step===3&&<div style={{animation:'fadeIn 0.4s ease'}}>
-          <h2 style={{fontFamily:"'Syne',sans-serif",fontWeight:700,fontSize:24,margin:'0 0 6px'}}>Tenancy agreement</h2>
-          <p style={{color:'rgba(255,255,255,0.4)',fontSize:14,margin:'0 0 20px'}}>Read all 28 clauses before agreeing</p>
-          <div style={{background:'rgba(255,255,255,0.04)',border:'1px solid rgba(255,255,255,0.08)',borderRadius:12,padding:'4px 16px',maxHeight:340,overflowY:'auto',marginBottom:20}}>
-            {AGREEMENT_CLAUSES.map((clause,i)=>(
-              <div key={i} style={{padding:'12px 0',borderBottom:i<AGREEMENT_CLAUSES.length-1?'1px solid rgba(255,255,255,0.05)':'none',display:'flex',gap:12,fontSize:13,lineHeight:1.6,color:'rgba(255,255,255,0.7)'}}>
-                <span style={{color:'#00d4c8',fontWeight:600,minWidth:24,fontSize:11,paddingTop:2}}>{String(i+1).padStart(2,'0')}</span>
+      {/* AGREEMENT */}
+      {step === 'agreement' && (
+        <div style={{ animation: 'fadeIn 0.3s ease' }}>
+          <h2 style={{ fontFamily: "'Syne',sans-serif", fontWeight: 700, fontSize: 24, margin: '0 0 6px' }}>Tenancy agreement</h2>
+          <p style={{ color: 'rgba(255,255,255,0.4)', fontSize: 14, margin: '0 0 16px' }}>Read all {AGREEMENT_CLAUSES.length} clauses before agreeing</p>
+          <div style={{ background: 'rgba(255,255,255,0.04)', border: '1px solid rgba(255,255,255,0.08)', borderRadius: 12, padding: '4px 16px', maxHeight: 340, overflowY: 'auto', marginBottom: 20 }}>
+            {AGREEMENT_CLAUSES.map((clause, i) => (
+              <div key={i} style={{ padding: '12px 0', borderBottom: i < AGREEMENT_CLAUSES.length - 1 ? '1px solid rgba(255,255,255,0.05)' : 'none', display: 'flex', gap: 10, fontSize: 13, lineHeight: 1.6, color: 'rgba(255,255,255,0.7)' }}>
+                <span style={{ color: '#00d4c8', fontWeight: 600, minWidth: 22, fontSize: 11, paddingTop: 2 }}>{String(i + 1).padStart(2, '0')}</span>
                 <span>{clause}</span>
               </div>
             ))}
           </div>
-          <label style={{display:'flex',gap:12,alignItems:'flex-start',cursor:'pointer',marginBottom:24}}>
-            <div onClick={()=>setForm(f=>({...f,agreement_agreed:!f.agreement_agreed}))} style={{width:20,height:20,borderRadius:5,marginTop:1,flexShrink:0,border:`2px solid ${form.agreement_agreed?'#00d4c8':'rgba(255,255,255,0.2)'}`,background:form.agreement_agreed?'#00d4c8':'transparent',display:'flex',alignItems:'center',justifyContent:'center',transition:'all 0.2s'}}>
-              {form.agreement_agreed&&<span style={{fontSize:12,color:'#070d1a',fontWeight:700}}>✓</span>}
+          <label style={{ display: 'flex', gap: 12, alignItems: 'flex-start', cursor: 'pointer', marginBottom: 20 }}>
+            <div onClick={() => setForm(f => ({ ...f, agreement_agreed: !f.agreement_agreed }))} style={{ width: 20, height: 20, borderRadius: 5, marginTop: 1, flexShrink: 0, border: `2px solid ${form.agreement_agreed ? '#00d4c8' : 'rgba(255,255,255,0.2)'}`, background: form.agreement_agreed ? '#00d4c8' : 'transparent', display: 'flex', alignItems: 'center', justifyContent: 'center', transition: 'all 0.2s' }}>
+              {form.agreement_agreed && <span style={{ fontSize: 12, color: '#070d1a', fontWeight: 700 }}>✓</span>}
             </div>
-            <span style={{fontSize:13,color:'rgba(255,255,255,0.6)',lineHeight:1.6}}>I, <strong style={{color:'#fff'}}>{resident?.name}</strong>, have read and understood all 28 clauses and agree to be bound by them.</span>
+            <span style={{ fontSize: 13, color: 'rgba(255,255,255,0.6)', lineHeight: 1.6 }}>
+              I, <strong style={{ color: '#fff' }}>{resident?.name}</strong>, have read and understood all {AGREEMENT_CLAUSES.length} clauses and agree to be bound by them. I acknowledge this is a legally binding digital agreement.
+            </span>
           </label>
-          {error&&<div style={{fontSize:13,color:'#ff6b6b',marginBottom:16,padding:'10px 12px',background:'rgba(255,107,107,0.08)',borderRadius:8}}>{error}</div>}
-          <div style={{display:'flex',gap:12}}>
-            <button onClick={()=>setStep(2)} style={{padding:'14px 20px',borderRadius:12,fontSize:15,fontWeight:500,background:'transparent',color:'rgba(255,255,255,0.5)',border:'1px solid rgba(255,255,255,0.12)',cursor:'pointer',fontFamily:"'DM Sans',sans-serif"}}>← Back</button>
-            <button onClick={handleSubmit} disabled={!form.agreement_agreed||submitting} style={{flex:1,padding:'14px 20px',borderRadius:12,fontSize:15,fontWeight:600,background:!form.agreement_agreed||submitting?'rgba(255,255,255,0.08)':'linear-gradient(135deg,#00d4c8,#0099ff)',color:!form.agreement_agreed||submitting?'rgba(255,255,255,0.3)':'#070d1a',border:'none',cursor:'pointer',fontFamily:"'DM Sans',sans-serif"}}>
-              {submitting?(uploadProgress.front?'Uploading front...':uploadProgress.back?'Uploading back...':'Submitting...'):'Submit & Complete ✓'}
-            </button>
+          <div style={{ display: 'flex', gap: 10 }}>
+            <GhostBtn onClick={() => setStep('docs')}>← Back</GhostBtn>
+            <Btn onClick={handleSubmit} disabled={!form.agreement_agreed || submitting}>
+              {submitting ? (uploadProgress || 'Submitting...') : 'Submit & Complete ✓'}
+            </Btn>
           </div>
-        </div>}
+        </div>
+      )}
+    </Shell>
+  )
+}
 
-        {step===4&&<div style={{animation:'fadeIn 0.4s ease',textAlign:'center',paddingTop:40}}>
-          <div style={{width:72,height:72,borderRadius:'50%',background:'linear-gradient(135deg,#00d4c8,#0099ff)',display:'flex',alignItems:'center',justifyContent:'center',margin:'0 auto 24px',fontSize:32}}>✓</div>
-          <h1 style={{fontFamily:"'Syne',sans-serif",fontWeight:700,fontSize:26,margin:'0 0 12px'}}>You're all done!</h1>
-          <p style={{color:'rgba(255,255,255,0.5)',fontSize:15,lineHeight:1.7,maxWidth:320,margin:'0 auto 32px'}}>Your onboarding has been submitted to TheBedBox. You'll receive a confirmation once approved.</p>
-        </div>}
+// ── Sub-components ────────────────────────────────────────────────────────────
+
+function Shell({ children }: { children: React.ReactNode }) {
+  return (
+    <div style={{ minHeight: '100vh', background: '#070d1a', fontFamily: "'DM Sans',sans-serif", color: '#e8eaf0' }}>
+      <link href="https://fonts.googleapis.com/css2?family=Syne:wght@600;700&family=DM+Sans:wght@400;500&display=swap" rel="stylesheet" />
+      <div style={{ maxWidth: 480, margin: '0 auto', padding: '28px 24px 40px' }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 32 }}>
+          <div style={{ width: 36, height: 36, borderRadius: 10, background: 'linear-gradient(135deg,#00d4c8,#0099ff)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontFamily: "'Syne',sans-serif", fontWeight: 700, fontSize: 16, color: '#070d1a' }}>B</div>
+          <span style={{ fontFamily: "'Syne',sans-serif", fontWeight: 600, fontSize: 15, color: '#00d4c8' }}>TheBedBox</span>
+        </div>
+        {children}
       </div>
     </div>
+  )
+}
+
+function SectionLabel({ children }: { children: React.ReactNode }) {
+  return <div style={{ fontSize: 11, fontWeight: 600, letterSpacing: '0.08em', textTransform: 'uppercase', color: '#00d4c8', marginBottom: 10, marginTop: 4 }}>{children}</div>
+}
+
+function Field({ label, value, onChange, placeholder, type = 'text' }: { label: string; value: string; onChange: (v: string) => void; placeholder?: string; type?: string }) {
+  return (
+    <div style={{ marginBottom: 14 }}>
+      <label style={{ display: 'block', fontSize: 12, color: 'rgba(255,255,255,0.5)', marginBottom: 6 }}>{label}</label>
+      <input type={type} value={value} onChange={e => onChange(e.target.value)} placeholder={placeholder}
+        style={{ width: '100%', padding: '12px 14px', borderRadius: 10, fontSize: 14, background: 'rgba(255,255,255,0.06)', border: '1px solid rgba(255,255,255,0.1)', color: '#fff', outline: 'none', boxSizing: 'border-box' }}
+        onFocus={e => e.target.style.borderColor = '#00d4c8'} onBlur={e => e.target.style.borderColor = 'rgba(255,255,255,0.1)'} />
+    </div>
+  )
+}
+
+function FileUpload({ label, hint, file, onFile }: { label: string; hint: string; file: File | null; onFile: (f: File) => void }) {
+  return (
+    <div style={{ marginBottom: 14 }}>
+      <label style={{ display: 'block', fontSize: 12, color: 'rgba(255,255,255,0.5)', marginBottom: 6 }}>{label}</label>
+      <label style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', padding: '18px 16px', borderRadius: 10, cursor: 'pointer', textAlign: 'center', border: file ? '2px solid #00d4c8' : '2px dashed rgba(255,255,255,0.15)', background: file ? 'rgba(0,212,200,0.06)' : 'rgba(255,255,255,0.03)' }}>
+        <input type="file" accept="image/*,.pdf" style={{ display: 'none' }} onChange={e => e.target.files?.[0] && onFile(e.target.files[0])} />
+        {file ? <><span style={{ fontSize: 20, marginBottom: 4 }}>✓</span><span style={{ fontSize: 13, color: '#00d4c8', fontWeight: 500 }}>{file.name}</span></> : <><span style={{ fontSize: 22, marginBottom: 6, opacity: 0.4 }}>📎</span><span style={{ fontSize: 13, color: 'rgba(255,255,255,0.6)' }}>Tap to upload</span><span style={{ fontSize: 11, color: 'rgba(255,255,255,0.3)', marginTop: 3 }}>{hint}</span></>}
+      </label>
+    </div>
+  )
+}
+
+function Btn({ children, onClick, disabled }: { children: React.ReactNode; onClick?: () => void; disabled?: boolean }) {
+  return (
+    <button onClick={onClick} disabled={disabled} style={{ flex: 1, width: '100%', padding: '14px 20px', borderRadius: 12, fontSize: 15, fontWeight: 600, background: disabled ? 'rgba(255,255,255,0.08)' : 'linear-gradient(135deg,#00d4c8,#0099ff)', color: disabled ? 'rgba(255,255,255,0.3)' : '#070d1a', border: 'none', cursor: disabled ? 'not-allowed' : 'pointer', fontFamily: "'DM Sans',sans-serif", transition: 'opacity 0.2s' }}>
+      {children}
+    </button>
+  )
+}
+
+function GhostBtn({ children, onClick }: { children: React.ReactNode; onClick?: () => void }) {
+  return (
+    <button onClick={onClick} style={{ padding: '14px 20px', borderRadius: 12, fontSize: 15, fontWeight: 500, background: 'transparent', color: 'rgba(255,255,255,0.5)', border: '1px solid rgba(255,255,255,0.12)', cursor: 'pointer', fontFamily: "'DM Sans',sans-serif" }}>
+      {children}
+    </button>
   )
 }
