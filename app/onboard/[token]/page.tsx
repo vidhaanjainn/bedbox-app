@@ -87,7 +87,7 @@ export default function OnboardPage() {
         .eq('onboard_token', token)
         .single()
       if (error || !data) { setError('This link is invalid or has expired.'); setLoading(false); return }
-      if (data.onboard_token_used) { setError('This onboarding link has already been used.'); setLoading(false); return }
+      if (data.onboard_token_used && data.onboarding_status !== 'submitted') { setError('This onboarding link has already been used.'); setLoading(false); return }
       if (new Date(data.onboard_token_expires_at) < new Date()) { setError('This link has expired. Please contact TheBedBox for a new link.'); setLoading(false); return }
       if (data.onboarding_status === 'submitted' || data.onboarding_status === 'active') { setError('Your onboarding is already complete. Please log in to your portal.'); setLoading(false); return }
       setResident(data)
