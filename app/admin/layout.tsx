@@ -7,7 +7,7 @@ import { createClient } from '@/lib/supabase/client'
 import {
   LayoutDashboard, Users, BookOpen, Hotel, Bed,
   CreditCard, Zap, Bell, Wrench, BarChart3,
-  Settings, LogOut, Menu, X, Building2, ChevronRight
+  Receipt, Settings, LogOut, Menu, X, Building2, ChevronRight
 } from 'lucide-react'
 
 const navItems = [
@@ -21,6 +21,7 @@ const navItems = [
   { href: '/admin/notices', label: 'Notice Periods', icon: Bell },
   { href: '/admin/maintenance', label: 'Maintenance', icon: Wrench },
   { href: '/admin/reports', label: 'Reports', icon: BarChart3 },
+  { href: '/admin/receipts', label: 'Receipts', icon: Receipt },
   { href: '/admin/settings', label: 'Settings', icon: Settings },
 ]
 

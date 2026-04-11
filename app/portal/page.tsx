@@ -23,12 +23,29 @@ export default function PortalLoginPage() {
   const handleSendOTP = async () => {
     setError(''); setLoading(true)
     const clean = mobile.replace(/\s/g,'').replace('+91','')
-    const { data: resident, error: fetchError } = await supabase.from('residents').select('email,onboarding_status').eq('mobile',clean).single()
-    if (fetchError||!resident) { setError('No resident found with this mobile. Contact TheBedBox.'); setLoading(false); return }
-    if (resident.onboarding_status!=='active') { setError('Your account is not yet active. Contact TheBedBox.'); setLoading(false); return }
-    const { error: otpError } = await supabase.auth.signInWithOtp({ email: resident.email, options: { shouldCreateUser: false } })
+
+    // Ensure the resident has an auth.users entry (creates one via service role if missing)
+    let residentEmail = ''
+    try {
+      const res = await fetch('/api/ensure-portal-user', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ mobile: clean }),
+      })
+      const json = await res.json()
+      if (!res.ok) { setError(json.error || 'Could not send OTP. Please try again.'); setLoading(false); return }
+      residentEmail = json.email
+    } catch {
+      setError('Could not send OTP. Please try again.'); setLoading(false); return
+    }
+
+    // Auth user is now guaranteed to exist — send OTP
+    const { error: otpError } = await supabase.auth.signInWithOtp({
+      email: residentEmail,
+      options: { shouldCreateUser: false },
+    })
     if (otpError) { setError('Could not send OTP. Please try again.'); setLoading(false); return }
-    setEmail(resident.email); setStep('otp'); startResendTimer(); setLoading(false)
+    setEmail(residentEmail); setStep('otp'); startResendTimer(); setLoading(false)
   }
 
   const handleVerifyOTP = async () => {

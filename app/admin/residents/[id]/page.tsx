@@ -3,12 +3,13 @@
 import { useEffect, useState } from 'react'
 import { createClient } from '@/lib/supabase/client'
 import { formatCurrency, formatDate, getDaysRemaining } from '@/lib/utils'
-import { ArrowLeft, Phone, Mail, MapPin, Building, Calendar, Zap, CreditCard, Clock, Wrench, Edit, Shield, AlertTriangle, Link2, CheckCircle, Copy } from 'lucide-react'
+import { ArrowLeft, Phone, Mail, MapPin, Building, Calendar, Zap, CreditCard, Clock, Wrench, Edit, Shield, AlertTriangle, Link2, CheckCircle, Copy, Archive, X } from 'lucide-react'
 import Link from 'next/link'
-import { useParams } from 'next/navigation'
+import { useParams, useRouter } from 'next/navigation'
 
 export default function ResidentDetailPage() {
   const { id } = useParams()
+  const router = useRouter()
   const [resident, setResident] = useState<any>(null)
   const [rentPayments, setRentPayments] = useState<any[]>([])
   const [electricityReadings, setElectricityReadings] = useState<any[]>([])
@@ -19,6 +20,13 @@ export default function ResidentDetailPage() {
   const [inviteLoading, setInviteLoading] = useState(false)
   const [copied, setCopied] = useState(false)
   const [approving, setApproving] = useState(false)
+  const [showArchiveModal, setShowArchiveModal] = useState(false)
+  const [archiving, setArchiving] = useState(false)
+  const [archiveReason, setArchiveReason] = useState('')
+  const [archiveReasonNotes, setArchiveReasonNotes] = useState('')
+  const [archiveDepositStatus, setArchiveDepositStatus] = useState('')
+  const [archiveWouldReAdmit, setArchiveWouldReAdmit] = useState<boolean | null>(null)
+  const [archiveError, setArchiveError] = useState('')
   const supabase = createClient()
 
   useEffect(() => { fetchAll() }, [id])
@@ -71,6 +79,33 @@ export default function ResidentDetailPage() {
     await supabase.from('residents').update({ onboarding_status: 'active', status: 'active' }).eq('id', id)
     setResident((r: any) => ({ ...r, onboarding_status: 'active', status: 'active' }))
     setApproving(false)
+  }
+
+  const handleArchive = async () => {
+    if (!archiveReason) { setArchiveError('Please select a reason for leaving.'); return }
+    if (archiveDepositStatus === '') { setArchiveError('Please select the security deposit status.'); return }
+    if (archiveWouldReAdmit === null) { setArchiveError('Please indicate whether you would re-admit this resident.'); return }
+    setArchiving(true)
+    setArchiveError('')
+    try {
+      const res = await fetch('/api/archive-resident', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          residentId: id,
+          reason: archiveReason,
+          reasonNotes: archiveReasonNotes,
+          depositStatus: archiveDepositStatus,
+          wouldReAdmit: archiveWouldReAdmit,
+        }),
+      })
+      const json = await res.json()
+      if (!res.ok) { setArchiveError(json.error || 'Something went wrong.'); setArchiving(false); return }
+      router.push('/admin/residents')
+    } catch {
+      setArchiveError('Something went wrong. Please try again.')
+      setArchiving(false)
+    }
   }
 
   if (loading) return <div style={{ padding: '40px', textAlign: 'center', color: 'var(--text-muted)' }}>Loading...</div>
@@ -175,6 +210,19 @@ export default function ResidentDetailPage() {
             </select>
           )}
           <Link href={`/admin/residents/${id}/edit`} className="bb-btn-secondary"><Edit size={14} /> Edit</Link>
+          {resident.status !== 'vacated' && (
+            <button
+              onClick={() => setShowArchiveModal(true)}
+              style={{
+                display: 'inline-flex', alignItems: 'center', gap: '6px',
+                padding: '8px 16px', borderRadius: '10px', border: '1px solid rgba(239,68,68,0.3)',
+                background: 'rgba(239,68,68,0.06)', color: '#f87171',
+                fontSize: '13px', fontWeight: '600', cursor: 'pointer',
+              }}
+            >
+              <Archive size={14} /> Archive
+            </button>
+          )}
         </div>
       </div>
 
@@ -295,6 +343,152 @@ export default function ResidentDetailPage() {
           </div>
         )}
       </div>
+
+      {/* ── ARCHIVE RESIDENT MODAL ── */}
+      {showArchiveModal && (
+        <div style={{
+          position: 'fixed', inset: 0, zIndex: 50,
+          background: 'rgba(0,0,0,0.7)', backdropFilter: 'blur(4px)',
+          display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '24px',
+        }}>
+          <div style={{
+            background: 'var(--surface-1)', border: '1px solid var(--border)',
+            borderRadius: '20px', padding: '32px', width: '100%', maxWidth: '520px',
+            maxHeight: '90vh', overflowY: 'auto',
+          }}>
+            {/* Modal header */}
+            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '24px' }}>
+              <div>
+                <h2 style={{ fontFamily: 'Syne, sans-serif', fontSize: '20px', fontWeight: '700', color: 'var(--text-primary)', margin: '0 0 4px' }}>
+                  Archive Resident
+                </h2>
+                <p style={{ fontSize: '13px', color: 'var(--text-muted)', margin: 0 }}>
+                  {resident.name} · Room {resident.room_number}
+                </p>
+              </div>
+              <button onClick={() => { setShowArchiveModal(false); setArchiveError('') }}
+                style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--text-muted)', padding: '4px' }}>
+                <X size={20} />
+              </button>
+            </div>
+
+            {/* Warning banner */}
+            <div style={{ padding: '12px 16px', borderRadius: '10px', marginBottom: '24px', background: 'rgba(239,68,68,0.08)', border: '1px solid rgba(239,68,68,0.25)' }}>
+              <p style={{ fontSize: '13px', color: '#f87171', margin: 0, lineHeight: '1.5' }}>
+                ⚠️ This will mark the resident as <strong>vacated</strong>, free up their bed, and close any active notice period. This cannot be undone from the app.
+              </p>
+            </div>
+
+            {/* Reason for leaving */}
+            <div style={{ marginBottom: '16px' }}>
+              <label style={{ display: 'block', fontSize: '12px', fontWeight: '600', letterSpacing: '0.06em', textTransform: 'uppercase', color: 'var(--text-muted)', marginBottom: '8px' }}>
+                Reason for Leaving *
+              </label>
+              <select className="bb-input" value={archiveReason} onChange={e => setArchiveReason(e.target.value)}>
+                <option value="">Select reason</option>
+                <option value="course_completed">Course / studies completed</option>
+                <option value="job_change">Job change / relocation</option>
+                <option value="shifting_home">Shifting to own home</option>
+                <option value="shifting_other_pg">Moving to another PG</option>
+                <option value="family_emergency">Family emergency</option>
+                <option value="rent_issue">Rent / financial issue</option>
+                <option value="maintenance_issue">Maintenance / facility issue</option>
+                <option value="behaviour_evicted">Evicted — behaviour/policy violation</option>
+                <option value="other">Other</option>
+              </select>
+            </div>
+
+            {/* Additional notes */}
+            <div style={{ marginBottom: '16px' }}>
+              <label style={{ display: 'block', fontSize: '12px', fontWeight: '600', letterSpacing: '0.06em', textTransform: 'uppercase', color: 'var(--text-muted)', marginBottom: '8px' }}>
+                Additional Notes (Optional)
+              </label>
+              <textarea
+                className="bb-input"
+                placeholder="Any extra context about their departure..."
+                style={{ height: '72px', resize: 'vertical' }}
+                value={archiveReasonNotes}
+                onChange={e => setArchiveReasonNotes(e.target.value)}
+              />
+            </div>
+
+            {/* Security deposit */}
+            <div style={{ marginBottom: '16px' }}>
+              <label style={{ display: 'block', fontSize: '12px', fontWeight: '600', letterSpacing: '0.06em', textTransform: 'uppercase', color: 'var(--text-muted)', marginBottom: '8px' }}>
+                Security Deposit Status *
+              </label>
+              <select className="bb-input" value={archiveDepositStatus} onChange={e => setArchiveDepositStatus(e.target.value)}>
+                <option value="">Select status</option>
+                <option value="returned_full">Returned in full</option>
+                <option value="partial_deduction">Partial deduction (damage / dues)</option>
+                <option value="fully_deducted">Fully deducted (dues / violation)</option>
+                <option value="pending">Pending — not yet settled</option>
+              </select>
+            </div>
+
+            {/* Would re-admit */}
+            <div style={{ marginBottom: '24px' }}>
+              <label style={{ display: 'block', fontSize: '12px', fontWeight: '600', letterSpacing: '0.06em', textTransform: 'uppercase', color: 'var(--text-muted)', marginBottom: '10px' }}>
+                Would You Re-Admit This Resident? *
+              </label>
+              <div style={{ display: 'flex', gap: '8px' }}>
+                {[{ label: 'Yes', value: true }, { label: 'No', value: false }].map(opt => (
+                  <button
+                    key={String(opt.value)}
+                    onClick={() => setArchiveWouldReAdmit(opt.value)}
+                    style={{
+                      flex: 1, padding: '10px', borderRadius: '10px', border: '1px solid',
+                      borderColor: archiveWouldReAdmit === opt.value
+                        ? (opt.value ? 'rgba(52,211,153,0.4)' : 'rgba(239,68,68,0.4)')
+                        : 'var(--border)',
+                      background: archiveWouldReAdmit === opt.value
+                        ? (opt.value ? 'rgba(52,211,153,0.1)' : 'rgba(239,68,68,0.08)')
+                        : 'var(--surface-2)',
+                      color: archiveWouldReAdmit === opt.value
+                        ? (opt.value ? '#34d399' : '#f87171')
+                        : 'var(--text-muted)',
+                      fontSize: '13px', fontWeight: '600', cursor: 'pointer',
+                    }}
+                  >
+                    {opt.label}
+                  </button>
+                ))}
+              </div>
+            </div>
+
+            {archiveError && (
+              <div style={{ marginBottom: '16px', padding: '12px 16px', borderRadius: '10px', background: 'rgba(239,68,68,0.1)', border: '1px solid rgba(239,68,68,0.3)', color: '#f87171', fontSize: '13px' }}>
+                {archiveError}
+              </div>
+            )}
+
+            {/* Actions */}
+            <div style={{ display: 'flex', gap: '8px', justifyContent: 'flex-end' }}>
+              <button
+                onClick={() => { setShowArchiveModal(false); setArchiveError('') }}
+                className="bb-btn-secondary"
+                disabled={archiving}
+              >
+                Cancel
+              </button>
+              <button
+                onClick={handleArchive}
+                disabled={archiving}
+                style={{
+                  display: 'inline-flex', alignItems: 'center', gap: '6px',
+                  padding: '10px 20px', borderRadius: '10px',
+                  background: archiving ? 'rgba(239,68,68,0.3)' : 'rgba(239,68,68,0.15)',
+                  border: '1px solid rgba(239,68,68,0.4)',
+                  color: '#f87171', fontSize: '13px', fontWeight: '600', cursor: archiving ? 'not-allowed' : 'pointer',
+                }}
+              >
+                <Archive size={14} />
+                {archiving ? 'Archiving...' : 'Confirm Archive'}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   )
 }
