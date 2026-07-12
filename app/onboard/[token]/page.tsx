@@ -59,57 +59,68 @@ export default function OnboardPage() {
 
   useEffect(() => {
     if (!token) { setStep('error'); setErrorMsg('Invalid link.'); return }
-    supabase
-      .from('residents')
-      .select('id, name, email, mobile, onboard_token_used, onboard_token_expires_at, onboarding_status')
-      .eq('onboard_token', token)
-      .single()
-      .then(({ data, error }) => {
-        if (error || !data) { setErrorMsg('This link is invalid or has expired.'); setStep('error'); return }
-        if (new Date(data.onboard_token_expires_at) < new Date()) { setErrorMsg('This link has expired. Please contact TheBedBox for a new link.'); setStep('error'); return }
-        if (data.onboard_token_used) { setErrorMsg('This onboarding link has already been used. Contact TheBedBox if you need help.'); setStep('error'); return }
-        setResident(data)
+    fetch(`/api/onboard/${token}`)
+      .then(async res => {
+        const data = await res.json()
+        if (!res.ok || !data.resident) {
+          setErrorMsg(data.error || 'This link is invalid or has expired.')
+          setStep('error')
+          return
+        }
+        setResident(data.resident)
         setStep('welcome')
       })
+      .catch(() => { setErrorMsg('Could not verify your link. Check your connection and try again.'); setStep('error') })
   }, [token])
+
+  // Uploads go to a server-issued signed URL — the token authorizes, no open bucket policy needed
+  const uploadDoc = async (side: 'front' | 'back', file: File) => {
+    const res = await fetch(`/api/onboard/${token}`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ action: 'upload-url', side }),
+    })
+    const data = await res.json()
+    if (!res.ok || !data.path) throw new Error(data.error || 'Upload failed. Please try again.')
+    const { error } = await supabase.storage.from('resident-docs').uploadToSignedUrl(data.path, data.uploadToken, file)
+    if (error) throw new Error('Upload failed. Please try again.')
+    return data.path as string
+  }
 
   const handleSubmit = async () => {
     if (!resident) return
     setSubmitting(true)
     try {
-      let ip = 'unknown'
-      try { const r = await fetch('https://api.ipify.org?format=json'); ip = (await r.json()).ip } catch {}
-
-      let aadhaarFrontUrl = ''
-      let aadhaarBackUrl = ''
+      let aadhaarFrontPath = ''
+      let aadhaarBackPath = ''
 
       if (form.aadhaar_front) {
         setUploadProgress('Uploading Aadhaar front...')
-        const { data } = await supabase.storage.from('resident-docs').upload(`${resident.id}/aadhaar-front-${Date.now()}`, form.aadhaar_front, { upsert: true })
-        aadhaarFrontUrl = data?.path || ''
+        aadhaarFrontPath = await uploadDoc('front', form.aadhaar_front)
       }
       if (form.aadhaar_back) {
         setUploadProgress('Uploading Aadhaar back...')
-        const { data } = await supabase.storage.from('resident-docs').upload(`${resident.id}/aadhaar-back-${Date.now()}`, form.aadhaar_back, { upsert: true })
-        aadhaarBackUrl = data?.path || ''
+        aadhaarBackPath = await uploadDoc('back', form.aadhaar_back)
       }
 
       setUploadProgress('Saving your details...')
-      const { error: updateError } = await supabase.from('residents').update({
-        emergency_contact_name: form.emergency_contact_name,
-        emergency_contact_phone: form.emergency_contact_phone,
-        hometown: form.hometown,
-        institution: form.institution,
-        occupation: form.occupation,
-        aadhaar_front_url: aadhaarFrontUrl,
-        aadhaar_back_url: aadhaarBackUrl,
-        agreement_signed_at: new Date().toISOString(),
-        agreement_ip: ip,
-        onboarding_status: 'submitted',
-        onboard_token_used: true,
-      }).eq('id', resident.id)
-
-      if (updateError) throw updateError
+      const res = await fetch(`/api/onboard/${token}`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          action: 'submit',
+          emergency_contact_name: form.emergency_contact_name,
+          emergency_contact_phone: form.emergency_contact_phone,
+          hometown: form.hometown,
+          institution: form.institution,
+          occupation: form.occupation,
+          aadhaar_front_path: aadhaarFrontPath,
+          aadhaar_back_path: aadhaarBackPath,
+          agreement_agreed: form.agreement_agreed,
+        }),
+      })
+      const result = await res.json()
+      if (!res.ok) throw new Error(result.error || 'Could not save your details.')
 
       // Notify admin
       try {
