@@ -6,7 +6,7 @@ change in PROJECT_STATUS.md + 18_ImplementationLog.md.
 
 ## Phase 0 — Foundation Hardening
 
-### SEC-01 · P0 · Medium · 4h · deps: none
+### SEC-01 · P0 · Medium · 4h · deps: none — 🟡 CODE DEPLOYED 2026-07-12; awaiting owner: restore Supabase + run migration, then verify + mark ✅
 **Move onboarding to server API routes; remove unsafe RLS.**
 Why: anon can read/overwrite any resident with a live token (12_Security.md §1).
 Files: new `app/api/onboard/[token]/route.ts` (GET validate+fetch, POST submit with field
@@ -15,7 +15,7 @@ dropping `onboard_token_select` + `allow_onboard_token_update`.
 Test: wizard completes end-to-end; anon `select`/`update` on residents denied; expired/used token
 rejected. ✅ when deployed + verified in prod.
 
-### SEC-02 · P0 · Medium · 3h · deps: SEC-01
+### SEC-02 · P0 · Medium · 3h · deps: SEC-01 — 🟡 CODE DEPLOYED 2026-07-12 (bundled with SEC-01); same pending migration
 **Signed upload URLs for KYC docs; drop `anon_upload_resident_docs`.**
 Server route issues `createSignedUploadUrl` for `resident-docs/onboarding/{residentId}/{side}.jpg`
 after token validation. Test: upload works in wizard; direct anon upload to bucket fails.

@@ -13,25 +13,34 @@ staff & expense tracking, security hardening, UI/UX polish pass, multi-property/
 **Phase 0 — Foundation Hardening** (see 02_ProductRoadmap.md)
 
 ## Last Completed Task
-DOC-01: Full repo audit + documentation system installed (this docs folder).
+SEC-01 + SEC-02 (code): secure onboarding API (`/api/onboard/[token]`, service role, token
+validated server-side, field whitelist, signed upload URLs) built, tested, deployed to prod
+(commit d410150c). Migration `supabase/migrations/20260712_sec01_secure_onboarding.sql` is
+written but **NOT YET APPLIED** — see Blocked By.
 
 ## Next Recommended Task
-**SEC-01 — Fix onboarding RLS policies (P0, security).** See 03_MasterBacklog.md and 12_Security.md.
-The current `onboard_token_select` / `allow_onboard_token_update` policies let ANY anonymous
-visitor read and overwrite ANY resident row that has an outstanding onboarding token. Fix before
-sharing the app more widely.
+1. OWNER: restore Supabase + run the SEC-01 migration (see Blocked By below)
+2. Then AI: verify anon access is closed (curl check in 18_ImplementationLog.md), mark SEC-01/02 ✅
+3. Then: DATA-01 → DATA-02 → SEC-03 → OPS-01 → AUTO-01 (see backlog)
 
-After SEC-01, execute in order: SEC-02 → DATA-01 → AUTO-01 → UX-01 (see backlog).
-
-## Blocked By
-- Resend: sending from `onboarding@resend.dev` (sandbox). Need a verified domain (e.g. thebedbox.in)
-  before resident-facing emails (reminders, receipts) can ship. Owner action: verify domain in Resend.
-- Google Sheets sync beyond the booking form needs `GOOGLE_SERVICE_ACCOUNT_EMAIL`,
-  `GOOGLE_PRIVATE_KEY`, `GOOGLE_SHEET_ID` set in Vercel env.
+## Blocked By (OWNER ACTIONS NEEDED)
+- **🔴 CRITICAL: production Supabase project is unreachable.** The app (prod + .env.local) points
+  at `nbhmjqkhpdpdxkkzfgca.supabase.co`, which no longer resolves (NXDOMAIN) — the project is
+  paused (free-tier inactivity) or deleted, in a Supabase account NOT connected to this session's
+  MCP. Every DB-backed feature in production is currently failing. Owner: log into that Supabase
+  account → restore/unpause the project (or migrate to a live project and update Vercel envs).
+- **SEC-01 migration pending:** after restoring, paste
+  `supabase/migrations/20260712_sec01_secure_onboarding.sql` into the Supabase SQL editor and run
+  it (app code is already deployed, so this is safe and closes the P0 holes).
+- Resend: sending from `onboarding@resend.dev` (sandbox). Verify domain (e.g. thebedbox.in) to
+  unlock resident-facing emails (AUTO-02/05).
+- Google Sheets sync needs `GOOGLE_SERVICE_ACCOUNT_EMAIL`, `GOOGLE_PRIVATE_KEY`,
+  `GOOGLE_SHEET_ID` in Vercel env.
 
 ## High Priority Bugs / Risks
-1. (P0) RLS: anon can read/update any resident with a live onboard token — 12_Security.md §1
-2. (P0) RLS: anyone can upload unlimited files to `resident-docs` bucket — 12_Security.md §2
+1. (P0) Production DB unreachable — see Blocked By (owner)
+2. (P0→pending migration) RLS: anon could read/update residents with live onboard tokens; code
+   fix deployed, policies dropped only once the migration runs — 12_Security.md §1–2
 3. (P1) Schema drift: `lib/types.ts` describes tables/columns that don't exist (Property, Admin,
    Notification, property_id everywhere) — 22_KnownIssues.md
 4. (P1) Duplicate columns in `residents` (emergency_contact_phone/_number, aadhaar_*_url/_path,
