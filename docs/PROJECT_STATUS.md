@@ -35,14 +35,20 @@ docs against the live DB (DATA-01) before trusting either file.
 client bundle now bakes in the correct Supabase URL, `/api/onboard/[token]`, `/admin/dashboard`,
 `/portal` all respond correctly against the real database.
 
-✅ **AUTO-01/02/03 built:** `lib/notify.ts` (central email + WhatsApp-ready sender),
-`app/api/cron/daily/route.ts` (auto-creates this month's rent row per active resident +
-sends tiered rent reminder emails: T-3, due day, then every 3 days overdue, max 4), wired into
-`vercel.json` (daily cron, Hobby-plan compatible). Code builds clean. **Not yet verified live** —
-needs `CRON_SECRET` set in Vercel first (see Blocked By) before it can be triggered/tested.
+✅ **AUTO-01/02/03 built AND verified live 2026-09-03:** `lib/notify.ts` (central email +
+WhatsApp-ready sender), `app/api/cron/daily/route.ts` (auto-creates this month's rent row per
+active resident + sends tiered rent reminder emails: T-3, due day, then every 3 days overdue, max
+4), wired into `vercel.json` (daily cron, Hobby-plan compatible). Hit the live endpoint directly —
+it correctly created September rows for both real residents (₹8,000 / ₹8,500, status pending) and
+correctly held back reminders (neither resident is within the T-3 window yet). Idempotency
+confirmed: a second call created 0 duplicate rows.
 
-Next up: owner sets 3 new env vars (below) → AI verifies the cron end-to-end → DATA-01 schema
-re-audit → WhatsApp (needs owner to complete Meta Business setup first, see 13_Notifications.md).
+⚠️ **The cron endpoint is currently PUBLIC/unauthenticated** (`CRON_SECRET` not yet set in
+Vercel) — low risk since it's idempotent and reminder-capped, but add the secret soon (see
+Blocked By) to close it off properly.
+
+Next up: owner adds 3 new env vars + 3 DNS records (below) → WhatsApp (needs owner to complete
+Meta Business setup first, see 13_Notifications.md) → DATA-01 schema re-audit.
 
 ## Blocked By (OWNER ACTIONS NEEDED) — round 2
 - **Add to Vercel (Production) env vars:**
