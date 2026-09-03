@@ -1,14 +1,11 @@
-import { Resend } from 'resend'
 import { NextRequest, NextResponse } from 'next/server'
-
-const resend = new Resend(process.env.RESEND_API_KEY)
+import { sendEmail } from '@/lib/notify'
 
 export async function POST(req: NextRequest) {
   const { residentName, residentEmail, residentMobile, residentRoom } = await req.json()
 
-  await resend.emails.send({
-    from: 'TheBedBox <onboarding@resend.dev>',
-    to: 'thebedbox.in@gmail.com',
+  await sendEmail({
+    to: process.env.ADMIN_NOTIFY_EMAIL || 'thebedbox.in@gmail.com',
     subject: `✅ ${residentName} has completed onboarding`,
     html: `
       <div style="font-family: sans-serif; max-width: 500px; margin: 0 auto; padding: 32px; background: #f9f9f9; border-radius: 12px;">

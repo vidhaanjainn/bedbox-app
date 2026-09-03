@@ -88,8 +88,8 @@ async function notifyAdmin(data: Record<string, string>) {
         'Content-Type': 'application/json',
       },
       body: JSON.stringify({
-        from: 'onboarding@resend.dev',
-        to: 'thebedbox.in@gmail.com',
+        from: process.env.RESEND_FROM_EMAIL || 'TheBedBox <onboarding@resend.dev>',
+        to: process.env.ADMIN_NOTIFY_EMAIL || 'thebedbox.in@gmail.com',
         subject: `📥 New Room Inquiry — ${data.name}`,
         html: `
           <div style="font-family:sans-serif;max-width:520px;margin:0 auto;background:#070d1a;color:#e8eaf0;padding:32px;border-radius:16px">

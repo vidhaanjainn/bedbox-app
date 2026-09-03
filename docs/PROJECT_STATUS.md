@@ -31,11 +31,46 @@ SAAS-01 are effectively already done in the live DB. The repo's `SUPABASE_SETUP.
 docs against the live DB (DATA-01) before trusting either file.
 
 ## Next Recommended Task
-1. **OWNER (2 min, blocking):** fix Vercel production env vars — see Blocked By below. Nothing
-   else can be verified end-to-end until this is done.
-2. Then AI: redeploy, verify onboarding + admin dashboard + portal all work against the real DB
-3. Then: DATA-01 (re-audit live schema properly — it has extra tables/columns beyond git) →
-   DATA-02 → OPS-01 → AUTO-01 (see backlog). SEC-03 can likely be marked ✅ after a quick check.
+✅ **App is operational.** Owner updated Vercel prod env vars, AI triggered redeploy, verified live:
+client bundle now bakes in the correct Supabase URL, `/api/onboard/[token]`, `/admin/dashboard`,
+`/portal` all respond correctly against the real database.
+
+✅ **AUTO-01/02/03 built:** `lib/notify.ts` (central email + WhatsApp-ready sender),
+`app/api/cron/daily/route.ts` (auto-creates this month's rent row per active resident +
+sends tiered rent reminder emails: T-3, due day, then every 3 days overdue, max 4), wired into
+`vercel.json` (daily cron, Hobby-plan compatible). Code builds clean. **Not yet verified live** —
+needs `CRON_SECRET` set in Vercel first (see Blocked By) before it can be triggered/tested.
+
+Next up: owner sets 3 new env vars (below) → AI verifies the cron end-to-end → DATA-01 schema
+re-audit → WhatsApp (needs owner to complete Meta Business setup first, see 13_Notifications.md).
+
+## Blocked By (OWNER ACTIONS NEEDED) — round 2
+- **Add to Vercel (Production) env vars:**
+  - `CRON_SECRET` = `c0ea58ff11090174d90a4a7bb9347e415a1ee9302bdaa0a3` (generated 2026-09-03; this
+    protects the cron endpoint from being triggered by randoms — Vercel automatically sends it
+    as `Authorization: Bearer <value>` when it fires the cron)
+  - `REMINDERS_DRY_RUN` = `1` **to start** (logs what it would send instead of sending — flip to
+    unset/`0` once you've watched a dry run in the logs and I've confirmed it looks right)
+  - `ADMIN_NOTIFY_EMAIL` = your preferred inbox for booking/onboarding alerts (optional — defaults
+    to `thebedbox.in@gmail.com` if unset)
+- **Resend domain verification (for reminders/receipts to send from your own domain instead of
+  the sandbox):** a domain `thebedbox.in` was added to your Resend account
+  (id `07bcca76-7d0f-4d17-8013-1e7635aee1bd`). Add these 3 DNS records wherever `thebedbox.in`'s
+  DNS is managed (your domain registrar, or Vercel → Domains if it's there):
+  | Type | Name | Value | Priority |
+  |---|---|---|---|
+  | TXT | `resend._domainkey` | `p=MIGfMA0GCSqGSIb3DQEBAQUAA4GNADCBiQKBgQDYU2QqwOUjAY9gT5V7Hm7Vu1aUvIhDEFoJa8N7QIrfPiHB9YuTS5AiJMFH5MXX+JuIAxvvzRvqFKcbcBryNw/MIsc/MEHBjLMACHbCUDHnFitwUTG+R9ZRWk01PjPWeNor27F91KRVG/up3JOuQJrN8gnDw9hrGTPOMUTBNfWEtQIDAQAB` | — |
+  | MX | `send` | `feedback-smtp.ap-northeast-1.amazonses.com` | 10 |
+  | TXT | `send` | `v=spf1 include:amazonses.com ~all` | — |
+  DNS can take up to 24-48h to propagate (usually much faster). Once verified in Resend, add
+  `RESEND_FROM_EMAIL` = `TheBedBox <hello@thebedbox.in>` to Vercel env — until then everything
+  keeps working via the sandbox sender (non-fatal fallback already coded in).
+- **WhatsApp (free via Meta's own WhatsApp Cloud API — no third-party fees):** this needs YOU to
+  create a Meta Business account + WhatsApp Business Platform app and verify a phone number —
+  this is identity/business verification Meta requires directly from the account owner and cannot
+  be done by an AI session. Full walkthrough in 13_Notifications.md. Once you have
+  `WHATSAPP_ACCESS_TOKEN` + `WHATSAPP_PHONE_NUMBER_ID`, the code in `lib/notify.ts` is already
+  written to use them — just add the env vars and it activates.
 
 ## Blocked By (OWNER ACTIONS NEEDED)
 - **🔴 Vercel production env vars point at the dead project.** Go to the Vercel dashboard →

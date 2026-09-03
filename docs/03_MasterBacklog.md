@@ -49,19 +49,22 @@ also hardcode the email anywhere. Test: admin login still works; second admin ca
 
 ## Phase 1 — Automation Engine
 
-### AUTO-01 · P1 · Easy · 2h · deps: none
-**Cron scaffold.** `vercel.json` crons → `/api/cron/daily` + `/api/cron/monthly`, protected by
-`CRON_SECRET` header check. Test: manual curl with/without secret.
+### AUTO-01 · P1 · Easy · 2h · deps: none — ✅ CODE DONE 2026-09-03
+`vercel.json` cron → `/api/cron/daily`, protected by `CRON_SECRET` header check (Vercel sends it
+automatically). Awaiting owner to add `CRON_SECRET` to Vercel env, then AI verifies via curl.
 
-### AUTO-02 · P1 · Medium · 4h · deps: AUTO-01, Resend domain ⚠
-**Rent reminders.** Daily cron: pending/partial rent_payments → email T-3 before due (due day =
-`date_of_joining` day-of-month), overdue every 3 days, max 4 nudges (track `last_reminded_at`
-column). Template: friendly Hinglish-friendly copy, UPI details from settings, amount breakdown.
-Test: dry-run mode env flag logging instead of sending.
+### AUTO-02 · P1 · Medium · 4h · deps: AUTO-01, Resend domain ⚠ — ✅ CODE DONE 2026-09-03
+`app/api/cron/daily/route.ts`: pending/partial rent_payments → email T-3 before due (due day =
+`date_of_joining` day-of-month), due day, then overdue every 3 days, max 4 nudges (tracked via
+`last_reminded_at`/`reminder_count`, migration applied to prod). `REMINDERS_DRY_RUN=1` env flag
+logs instead of sending — recommended to test with this on first. Still on the sandbox Resend
+sender until domain DNS verifies (see PROJECT_STATUS.md Blocked By); non-fatal either way.
+Not yet run live — needs CRON_SECRET in Vercel first.
 
-### AUTO-03 · P1 · Medium · 3h · deps: AUTO-01
-**Auto-create monthly rent rows** on the 1st for active residents (rent + unbilled electricity),
-idempotent (skip existing month/year rows).
+### AUTO-03 · P1 · Medium · 3h · deps: AUTO-01 — ✅ CODE DONE 2026-09-03 (folded into the same
+daily cron rather than a separate monthly one, for simplicity): ensures a rent_payments row
+exists for the current month for every active resident, idempotent (skips existing rows). Does
+NOT yet fold in unbilled electricity — future refinement once electricity workflow is reviewed.
 
 ### AUTO-04 · P1 · Medium · 4h · deps: none
 **Sheets sync for residents.** `lib/sheets.ts` (reuse booking-form JWT code); call from
