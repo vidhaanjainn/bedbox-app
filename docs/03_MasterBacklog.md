@@ -6,7 +6,7 @@ change in PROJECT_STATUS.md + 18_ImplementationLog.md.
 
 ## Phase 0 — Foundation Hardening
 
-### SEC-01 · P0 · Medium · 4h · deps: none — 🟡 CODE DEPLOYED 2026-07-12; awaiting owner: restore Supabase + run migration, then verify + mark ✅
+### SEC-01 · P0 · Medium · 4h · deps: none — ✅ DONE 2026-07-12. Code deployed + migration applied directly to the real production project (`rskbrdzbbfyyhaxucmgg`) and verified closed via live curl (anon SELECT/UPDATE both blocked). Full story: 18_ImplementationLog.md.
 **Move onboarding to server API routes; remove unsafe RLS.**
 Why: anon can read/overwrite any resident with a live token (12_Security.md §1).
 Files: new `app/api/onboard/[token]/route.ts` (GET validate+fetch, POST submit with field
@@ -15,14 +15,19 @@ dropping `onboard_token_select` + `allow_onboard_token_update`.
 Test: wizard completes end-to-end; anon `select`/`update` on residents denied; expired/used token
 rejected. ✅ when deployed + verified in prod.
 
-### SEC-02 · P0 · Medium · 3h · deps: SEC-01 — 🟡 CODE DEPLOYED 2026-07-12 (bundled with SEC-01); same pending migration
+### SEC-02 · P0 · Medium · 3h · deps: SEC-01 — ✅ DONE 2026-07-12 (bundled with SEC-01). Storage RLS also restored (was completely missing — 0 policies on storage.objects).
 **Signed upload URLs for KYC docs; drop `anon_upload_resident_docs`.**
 Server route issues `createSignedUploadUrl` for `resident-docs/onboarding/{residentId}/{side}.jpg`
 after token validation. Test: upload works in wizard; direct anon upload to bucket fails.
 
-### DATA-01 · P1 · Easy · 2h · deps: none
-**Regenerate types from live schema.** `supabase gen types typescript` → replace `lib/types.ts`;
-delete Property/Admin/Notification fantasy types or move to `lib/types.future.ts`. Test: `next build` clean.
+### DATA-01 · P1 · Easy · 2h · deps: none — ⚠️ REVISED 2026-07-12: `properties`/`admins`/`notifications`
+are REAL tables on the live DB (not fantasy) — `admins` has 1 row and IS what `is_admin()` checks;
+`properties` has 1 row. Task is now: pull live schema via `supabase gen types typescript` (or
+Supabase MCP `list_tables`/`execute_sql` against `rskbrdzbbfyyhaxucmgg`), reconcile with what the
+app code actually uses (most pages still assume single-tenant, no property_id filtering), decide
+whether to wire `properties`/`admins` into the app now or keep them dormant until SAAS-01, and
+replace `lib/types.ts` with the true schema either way. Also re-diff `SUPABASE_SETUP.sql` against
+the live DB and update it — it's now the one that's behind. Test: `next build` clean.
 
 ### DATA-02 · P1 · Medium · 4h · deps: DATA-01
 **Consolidate duplicate resident columns + single onboarding path.**
@@ -31,10 +36,12 @@ Migration: keep `emergency_contact_phone`, `aadhaar_front_path`/`back_path` (sin
 all pages referencing dropped columns (grep first). Test: admin new-resident + self-onboard both
 write same columns; existing rows backfilled.
 
-### SEC-03 · P1 · Medium · 3h · deps: none
-**`admins` table + membership-based `is_admin()`; admin email into settings.**
-Migration + update `is_admin()`; replace hardcoded `thebedbox.in@gmail.com` in API routes with
-settings lookup. Test: admin login still works; second admin can be added by insert.
+### SEC-03 · P1 · Medium · 3h · deps: none — 🟢 MOSTLY DONE ALREADY (discovered 2026-07-12):
+production's `is_admin()` already checks `admins` table membership, and it has 1 row (the owner).
+Remaining scope: replace the hardcoded `thebedbox.in@gmail.com` still used in API routes
+(booking-form notify, notify-admin) with a settings/admins lookup; verify `lib/types.ts` has an
+`Admin` type matching the real table; confirm admin login flow in `app/login/page.tsx` doesn't
+also hardcode the email anywhere. Test: admin login still works; second admin can be added by insert.
 
 ### OPS-01 · P2 · Easy · 1h · deps: none
 **Repo hygiene.** Rewrite README (what/stack/setup/env table/deploy); .gitignore `.DS_Store`,
