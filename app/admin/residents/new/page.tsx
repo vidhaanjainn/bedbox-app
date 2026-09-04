@@ -25,7 +25,7 @@ export default function NewResidentPage() {
 
   const [form, setForm] = useState({
     name: '', mobile: '', email: '', emergency_contact_name: '',
-    emergency_contact_number: '', hometown: '', institution: '',
+    emergency_contact_number: '', aadhaar_number: '', hometown: '', institution: '',
     occupation: 'student', bed_id: '', room_number: '', rent_amount: '',
     security_deposit: '', date_of_joining: new Date().toISOString().split('T')[0],
     expected_duration: '', initial_electricity_reading: '0',
@@ -128,6 +128,8 @@ export default function NewResidentPage() {
           email: form.email || null,
           emergency_contact_name: form.emergency_contact_name || null,
           emergency_contact_number: form.emergency_contact_number || null,
+          emergency_contact_phone: form.emergency_contact_number || null, // keep both columns in sync
+          aadhaar_number: form.aadhaar_number || null,
           hometown: form.hometown || null,
           institution: form.institution || null,
           occupation: form.occupation,
@@ -393,6 +395,10 @@ export default function NewResidentPage() {
                   <div>
                     <label style={labelStyle}>Emergency Contact Number</label>
                     <input className="bb-input" placeholder="Emergency phone" type="tel" value={form.emergency_contact_number} onChange={e => setForm(f => ({ ...f, emergency_contact_number: e.target.value }))} />
+                  </div>
+                  <div>
+                    <label style={labelStyle}>Aadhaar Number</label>
+                    <input className="bb-input" placeholder="12-digit number" type="tel" maxLength={12} value={form.aadhaar_number} onChange={e => setForm(f => ({ ...f, aadhaar_number: e.target.value.replace(/\D/g, '').slice(0, 12) }))} />
                   </div>
                   <div>
                     <label style={labelStyle}>Hometown</label>

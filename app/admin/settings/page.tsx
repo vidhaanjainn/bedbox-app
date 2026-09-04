@@ -21,6 +21,8 @@ export default function SettingsPage() {
   const [confirmPassword, setConfirmPassword] = useState('')
   const [showPass, setShowPass] = useState(false)
   const [saving, setSaving] = useState<string | null>(null)
+  const [seedingTestResident, setSeedingTestResident] = useState(false)
+  const [testResidentMsg, setTestResidentMsg] = useState('')
   const [saved, setSaved] = useState<string | null>(null)
   const [admins, setAdmins] = useState<any[]>([])
   const [adminsLoading, setAdminsLoading] = useState(true)
@@ -109,6 +111,21 @@ export default function SettingsPage() {
   }
 
   const upsert = async (key: string, value: string) => supabase.from('settings').upsert({ key, value }, { onConflict: 'key' })
+
+  const seedTestResident = async () => {
+    setSeedingTestResident(true)
+    setTestResidentMsg('')
+    try {
+      const res = await fetch('/api/admin/seed-test-resident', { method: 'POST' })
+      const data = await res.json()
+      if (!res.ok) { setTestResidentMsg(data.error || 'Could not set this up.'); return }
+      setTestResidentMsg(`✓ Ready — sign in at /portal with "Sign in with password", email ${data.email}, password ${data.password}`)
+    } catch {
+      setTestResidentMsg('Something went wrong.')
+    } finally {
+      setSeedingTestResident(false)
+    }
+  }
 
   const save = async (section: string, fn: () => Promise<any>) => {
     setSaving(section)
@@ -305,6 +322,19 @@ export default function SettingsPage() {
             </button>
           </div>
         </div>
+      </div>
+
+      {/* Review tools */}
+      <div className="glass-card" style={{ padding: '24px', marginTop: '20px' }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: '10px', marginBottom: '16px' }}><User size={16} color="var(--teal-500)" /><h3 style={{ fontFamily: 'Syne, sans-serif', fontSize: '15px', fontWeight: '600', color: 'var(--text-primary)', margin: 0 }}>Review Tools</h3></div>
+        <p style={{ fontSize: '13px', color: 'var(--text-muted)', marginBottom: '16px' }}>
+          Creates (or resets) a test resident login so you can review the resident portal without waiting for an OTP each time. Doesn't occupy a real bed.
+        </p>
+        <button onClick={seedTestResident} disabled={seedingTestResident} className="bb-btn-secondary" style={{ fontSize: '13px' }}>
+          {seedingTestResident ? <Loader2 size={13} style={{ animation: 'spin 1s linear infinite' }} /> : null}
+          {seedingTestResident ? 'Setting up...' : 'Create Test Resident Login'}
+        </button>
+        {testResidentMsg && <div style={{ fontSize: '12px', color: testResidentMsg.startsWith('✓') ? '#34d399' : '#f87171', marginTop: '10px' }}>{testResidentMsg}</div>}
       </div>
     </div>
   )

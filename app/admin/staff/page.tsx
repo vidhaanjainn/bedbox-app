@@ -3,7 +3,7 @@
 import { useEffect, useState } from 'react'
 import { createClient } from '@/lib/supabase/client'
 import { formatCurrency } from '@/lib/utils'
-import { Users, Wallet, Plus, X, Loader2, CheckCircle, Receipt } from 'lucide-react'
+import { Users, Wallet, Plus, X, Loader2, CheckCircle, Receipt, Pencil } from 'lucide-react'
 
 export default function StaffPage() {
   const supabase = createClient()
@@ -16,7 +16,8 @@ export default function StaffPage() {
   const [yearFilter, setYearFilter] = useState(new Date().getFullYear())
 
   const [showStaffModal, setShowStaffModal] = useState(false)
-  const [staffForm, setStaffForm] = useState({ name: '', phone: '', role: '', monthly_salary: '' })
+  const [editingStaffId, setEditingStaffId] = useState<string | null>(null)
+  const [staffForm, setStaffForm] = useState({ name: '', phone: '', role: '', monthly_salary: '', is_active: true })
 
   const [payoutTarget, setPayoutTarget] = useState<any>(null)
   const [payoutForm, setPayoutForm] = useState({ amount: '', type: 'salary', payment_mode: 'cash' })
@@ -41,15 +42,32 @@ export default function StaffPage() {
     setLoading(false)
   }
 
-  const addStaff = async () => {
+  const openAddStaff = () => {
+    setEditingStaffId(null)
+    setStaffForm({ name: '', phone: '', role: '', monthly_salary: '', is_active: true })
+    setShowStaffModal(true)
+  }
+
+  const openEditStaff = (s: any) => {
+    setEditingStaffId(s.id)
+    setStaffForm({ name: s.name || '', phone: s.phone || '', role: s.role || '', monthly_salary: String(s.monthly_salary || ''), is_active: s.is_active })
+    setShowStaffModal(true)
+  }
+
+  const saveStaff = async () => {
     if (!staffForm.name.trim()) return
-    await supabase.from('staff').insert({
+    const payload = {
       name: staffForm.name.trim(),
       phone: staffForm.phone.trim() || null,
       role: staffForm.role.trim() || null,
       monthly_salary: parseFloat(staffForm.monthly_salary) || 0,
-    })
-    setStaffForm({ name: '', phone: '', role: '', monthly_salary: '' })
+      is_active: staffForm.is_active,
+    }
+    if (editingStaffId) {
+      await supabase.from('staff').update(payload).eq('id', editingStaffId)
+    } else {
+      await supabase.from('staff').insert(payload)
+    }
     setShowStaffModal(false)
     fetchAll()
   }
@@ -138,7 +156,7 @@ export default function StaffPage() {
       {tab === 'staff' ? (
         <>
           <div style={{ display: 'flex', justifyContent: 'flex-end', marginBottom: '16px' }}>
-            <button onClick={() => setShowStaffModal(true)} className="bb-btn-secondary"><Plus size={14} /> Add Staff</button>
+            <button onClick={openAddStaff} className="bb-btn-secondary"><Plus size={14} /> Add Staff</button>
           </div>
           <div className="glass-card" style={{ overflow: 'hidden' }}>
             {loading ? <div style={{ padding: '60px', textAlign: 'center', color: 'var(--text-muted)' }}>Loading...</div> : (
@@ -162,10 +180,15 @@ export default function StaffPage() {
                             )}
                           </td>
                           <td>
-                            <button onClick={() => { setPayoutTarget(s); setPayoutForm({ amount: payout ? String(payout.amount) : String(s.monthly_salary), type: 'salary', payment_mode: 'cash' }) }}
-                              style={{ padding: '4px 10px', borderRadius: '6px', border: '1px solid rgba(0,212,200,0.3)', background: 'rgba(0,212,200,0.08)', color: 'var(--teal-500)', fontSize: '11px', fontWeight: '600', cursor: 'pointer' }}>
-                              {payout ? 'Edit' : 'Pay'}
-                            </button>
+                            <div style={{ display: 'flex', gap: 6 }}>
+                              <button onClick={() => { setPayoutTarget(s); setPayoutForm({ amount: payout ? String(payout.amount) : String(s.monthly_salary), type: 'salary', payment_mode: 'cash' }) }}
+                                style={{ padding: '4px 10px', borderRadius: '6px', border: '1px solid rgba(0,212,200,0.3)', background: 'rgba(0,212,200,0.08)', color: 'var(--teal-500)', fontSize: '11px', fontWeight: '600', cursor: 'pointer' }}>
+                                {payout ? 'Edit Payout' : 'Pay'}
+                              </button>
+                              <button onClick={() => openEditStaff(s)} className="bb-icon-btn" style={{ width: 30, height: 30, minWidth: 30, minHeight: 30 }} aria-label="Edit staff details">
+                                <Pencil size={12} />
+                              </button>
+                            </div>
                           </td>
                         </tr>
                       )
@@ -206,15 +229,21 @@ export default function StaffPage() {
         </>
       )}
 
-      {/* Add Staff Modal */}
+      {/* Add/Edit Staff Modal */}
       {showStaffModal && (
-        <Modal onClose={() => setShowStaffModal(false)} title="Add Staff">
+        <Modal onClose={() => setShowStaffModal(false)} title={editingStaffId ? 'Edit Staff' : 'Add Staff'}>
           <FormField label="Name *" value={staffForm.name} onChange={v => setStaffForm(f => ({ ...f, name: v }))} />
           <FormField label="Role (cook, cleaner, security...)" value={staffForm.role} onChange={v => setStaffForm(f => ({ ...f, role: v }))} />
           <FormField label="Phone" value={staffForm.phone} onChange={v => setStaffForm(f => ({ ...f, phone: v }))} />
           <FormField label="Monthly Salary (₹)" value={staffForm.monthly_salary} onChange={v => setStaffForm(f => ({ ...f, monthly_salary: v }))} type="number" />
-          <button onClick={addStaff} className="bb-btn-primary" style={{ width: '100%', justifyContent: 'center', marginTop: '8px' }} disabled={!staffForm.name.trim()}>
-            <CheckCircle size={14} /> Add Staff
+          {editingStaffId && (
+            <label style={{ display: 'flex', alignItems: 'center', gap: 8, fontSize: 13, color: 'var(--text-secondary)', marginBottom: 16, cursor: 'pointer' }}>
+              <input type="checkbox" checked={staffForm.is_active} onChange={e => setStaffForm(f => ({ ...f, is_active: e.target.checked }))} />
+              Active
+            </label>
+          )}
+          <button onClick={saveStaff} className="bb-btn-primary" style={{ width: '100%', justifyContent: 'center', marginTop: '8px' }} disabled={!staffForm.name.trim()}>
+            <CheckCircle size={14} /> {editingStaffId ? 'Save Changes' : 'Add Staff'}
           </button>
         </Modal>
       )}

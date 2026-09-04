@@ -2,6 +2,33 @@
 
 Newest first.
 
+## 2026-09-04 (part 6) · Editability audit, vendor payouts, admin monthly digest, review login
+- **Editability audit found a real bug:** the resident edit page and the manual "add resident"
+  form both wrote to `emergency_contact_number`, but onboarding (self-service) and this session's
+  resident data import both write to `emergency_contact_phone` — a different column. That data
+  was invisible and uneditable in the admin UI. Fixed both forms to read/write the correct column
+  (writing to both, for safety) and added the missing `aadhaar_number` field to both. Also made
+  every row in the Residents list directly clickable (not just the small eye icon) — tapping
+  anywhere on a resident's row now opens their full editable detail.
+- **Staff editing:** the Staff & Expenses page only supported *adding* staff — added a proper edit
+  action (name/role/phone/salary/active toggle) per row.
+- **3 vendor/staff entries added** (Housekeeping, Guard, Laundry) — amounts weren't given, so each
+  is flagged "⚠️ Amount not yet provided" and ₹0 until edited via the Staff page (using the new
+  edit action above).
+- **Admin monthly digest (AUTO-07), 1st–6th only:** extended the daily cron — on days 1 through 6
+  of the month, emails every active admin a summary of rent collection status (paid/pending count,
+  total outstanding) and which staff/vendor payouts aren't yet marked paid for the month.
+  Deduped via a `last_admin_digest_sent_date` settings key so a manually re-triggered cron
+  (testing) doesn't spam duplicate emails same-day.
+- **Resident review login:** Settings → Review Tools → "Create Test Resident Login" (one click,
+  admin-only, idempotent) sets up a resident record + a password on a specific auth account
+  (owner's own email, distinct from the admin login email) so the owner can review the resident
+  portal repeatedly without an OTP round-trip. The portal login page (`/portal`) got a small,
+  low-contrast "Sign in with password instead" link — real residents never have a password set,
+  so it's a dead end for everyone except this one seeded account.
+- **Subtle cross-link:** `/portal` now has a faint "Admin portal" link to `/login` at the very
+  bottom (matches the existing "Residents use the link..." note already on `/login`).
+
 ## 2026-09-04 (part 5) · Distinct admin login, move-out settlement, shared components, lease renewal
 - **Admin login (`/login`) redesigned from scratch** — owner correctly flagged it as a reskinned
   copy of the resident login. New identity: near-black background with a faint structural grid,

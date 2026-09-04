@@ -21,7 +21,8 @@ export default function EditResidentPage() {
 
   const [form, setForm] = useState({
     name: '', mobile: '', email: '',
-    emergency_contact_name: '', emergency_contact_number: '',
+    emergency_contact_name: '', emergency_contact_phone: '',
+    aadhaar_number: '',
     hometown: '', institution: '', occupation: 'student',
     bed_id: '', room_number: '',
     rent_amount: '', security_deposit: '',
@@ -50,7 +51,11 @@ export default function EditResidentPage() {
         mobile: resident.mobile || '',
         email: resident.email || '',
         emergency_contact_name: resident.emergency_contact_name || '',
-        emergency_contact_number: resident.emergency_contact_number || '',
+        // Two legacy columns exist for this (onboarding + import both write to
+        // emergency_contact_phone) — prefer it, fall back to the older column
+        // so nothing entered there is ever hidden.
+        emergency_contact_phone: resident.emergency_contact_phone || resident.emergency_contact_number || '',
+        aadhaar_number: resident.aadhaar_number || '',
         hometown: resident.hometown || '',
         institution: resident.institution || '',
         occupation: resident.occupation || 'student',
@@ -105,7 +110,9 @@ export default function EditResidentPage() {
         mobile: form.mobile,
         email: form.email || null,
         emergency_contact_name: form.emergency_contact_name || null,
-        emergency_contact_number: form.emergency_contact_number || null,
+        emergency_contact_phone: form.emergency_contact_phone || null,
+        emergency_contact_number: form.emergency_contact_phone || null, // keep both columns in sync
+        aadhaar_number: form.aadhaar_number || null,
         hometown: form.hometown || null,
         institution: form.institution || null,
         occupation: form.occupation,
@@ -202,7 +209,7 @@ export default function EditResidentPage() {
             </div>
             <div>
               <label style={labelStyle}>Emergency Contact Number</label>
-              <input style={inputStyle} value={form.emergency_contact_number} onChange={e => setForm(f => ({ ...f, emergency_contact_number: e.target.value }))} />
+              <input style={inputStyle} value={form.emergency_contact_phone} onChange={e => setForm(f => ({ ...f, emergency_contact_phone: e.target.value }))} />
             </div>
             <div>
               <label style={labelStyle}>Hometown</label>
@@ -211,6 +218,10 @@ export default function EditResidentPage() {
             <div>
               <label style={labelStyle}>Institution / Company</label>
               <input style={inputStyle} value={form.institution} onChange={e => setForm(f => ({ ...f, institution: e.target.value }))} />
+            </div>
+            <div>
+              <label style={labelStyle}>Aadhaar Number</label>
+              <input style={inputStyle} value={form.aadhaar_number} maxLength={12} onChange={e => setForm(f => ({ ...f, aadhaar_number: e.target.value.replace(/\D/g, '').slice(0, 12) }))} placeholder="12-digit number" />
             </div>
           </div>
         </div>

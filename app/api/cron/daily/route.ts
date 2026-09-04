@@ -129,6 +129,68 @@ async function sendReminders(supabase: ReturnType<typeof adminClient>, dryRun: b
   return { sent }
 }
 
+// AUTO-07: admin-facing digest, days 1-6 of the month only — reminds the owner
+// (not residents) to chase rent collection and pay staff/vendors. Sent once
+// per day in that window, to every active admin with an email on file.
+async function sendAdminMonthlyDigest(supabase: ReturnType<typeof adminClient>, dryRun: boolean) {
+  const today = new Date()
+  const day = today.getUTCDate()
+  if (day < 1 || day > 6) return { sent: 0, skipped: 'outside 1st-6th window' }
+
+  const month = today.getUTCMonth() + 1
+  const year = today.getUTCFullYear()
+  const todayStr = today.toISOString().split('T')[0]
+
+  // Dedupe — a manually re-triggered cron (e.g. testing) shouldn't re-send the
+  // same day's digest to every admin again.
+  const { data: lastSentSetting } = await supabase.from('settings').select('value').eq('key', 'last_admin_digest_sent_date').maybeSingle()
+  if (lastSentSetting?.value === todayStr) return { sent: 0, skipped: 'already sent today' }
+
+  const [{ data: admins }, { data: rentRows }, { data: staffRows }, { data: payouts }] = await Promise.all([
+    supabase.from('admins').select('email, name').eq('is_active', true).not('email', 'is', null),
+    supabase.from('rent_payments').select('status, total_amount, amount_paid').eq('month', month).eq('year', year),
+    supabase.from('staff').select('id, name, monthly_salary').eq('is_active', true),
+    supabase.from('staff_payouts').select('staff_id, status').eq('month', month).eq('year', year),
+  ])
+  if (!admins?.length) return { sent: 0, error: 'no active admin emails on file' }
+
+  const paidCount = rentRows?.filter(r => r.status === 'paid').length || 0
+  const totalCount = rentRows?.length || 0
+  const outstanding = (rentRows || []).reduce((s, r) => s + Math.max(0, Number(r.total_amount) - Number(r.amount_paid || 0)), 0)
+
+  const paidStaffIds = new Set((payouts || []).filter(p => p.status === 'paid').map(p => p.staff_id))
+  const unpaidStaff = (staffRows || []).filter(s => !paidStaffIds.has(s.id))
+
+  const subject = `Monthly reminder: rent + staff payouts (${paidCount}/${totalCount} rent collected)`
+  const html = emailShell('Monthly Admin Reminder', `
+    <p style="color:#475569;font-size:14px;line-height:1.6;margin:0 0 20px">It's the 1st–6th of the month — time to chase rent and settle staff/vendor payouts.</p>
+    <div style="background:#fff;border:1px solid #e2e8f0;border-radius:12px;padding:18px;margin-bottom:16px">
+      <div style="font-weight:700;color:#0f172a;margin-bottom:8px">Rent collection</div>
+      <div style="display:flex;justify-content:space-between;padding:4px 0"><span style="color:#64748b;font-size:13px">Collected</span><span>${paidCount} / ${totalCount} residents</span></div>
+      <div style="display:flex;justify-content:space-between;padding:4px 0"><span style="color:#64748b;font-size:13px">Outstanding</span><span style="font-weight:700">${moneyINR(outstanding)}</span></div>
+    </div>
+    <div style="background:#fff;border:1px solid #e2e8f0;border-radius:12px;padding:18px">
+      <div style="font-weight:700;color:#0f172a;margin-bottom:8px">Staff & vendor payouts not yet marked paid</div>
+      ${unpaidStaff.length === 0
+        ? '<div style="color:#64748b;font-size:13px">All caught up ✓</div>'
+        : unpaidStaff.map(s => `<div style="display:flex;justify-content:space-between;padding:4px 0"><span style="font-size:13px">${s.name}</span><span>${moneyINR(Number(s.monthly_salary))}</span></div>`).join('')}
+    </div>
+  `)
+
+  if (dryRun) {
+    console.log(`[DRY RUN] admin digest to ${admins.length} admin(s): ${subject}`)
+    return { sent: admins.length }
+  }
+
+  let sent = 0
+  for (const admin of admins) {
+    const result = await sendEmail({ to: admin.email!, subject, html })
+    if (!('skipped' in result) && !('error' in result)) sent++
+  }
+  if (sent > 0) await supabase.from('settings').upsert({ key: 'last_admin_digest_sent_date', value: todayStr }, { onConflict: 'key' })
+  return { sent }
+}
+
 export async function GET(req: Request) {
   const secret = process.env.CRON_SECRET
   const auth = req.headers.get('authorization')
@@ -142,11 +204,13 @@ export async function GET(req: Request) {
   const rowsResult = await ensureCurrentMonthRows(supabase, dryRun)
   const reminderResult = await sendReminders(supabase, dryRun)
   const noticeFormResult = dryRun ? { imported: 0 } : await syncNoticeFormSubmissions().catch(() => ({ imported: 0 }))
+  const digestResult = await sendAdminMonthlyDigest(supabase, dryRun)
 
   return NextResponse.json({
     dryRun,
     rentRowsCreated: rowsResult.created,
     remindersSent: reminderResult.sent,
     noticeFormRowsImported: 'imported' in noticeFormResult ? noticeFormResult.imported : 0,
+    adminDigestSent: digestResult.sent,
   })
 }

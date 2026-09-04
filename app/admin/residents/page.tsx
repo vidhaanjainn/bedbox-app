@@ -5,8 +5,10 @@ import { createClient } from '@/lib/supabase/client'
 import { formatCurrency, formatDate } from '@/lib/utils'
 import { Users, Plus, Search, Eye, Mail, Phone, CheckCircle } from 'lucide-react'
 import Link from 'next/link'
+import { useRouter } from 'next/navigation'
 
 export default function ResidentsPage() {
+  const router = useRouter()
   const [residents, setResidents] = useState<any[]>([])
   const [notices, setNotices] = useState<Record<string, any>>({})
   const [loading, setLoading] = useState(true)
@@ -109,7 +111,7 @@ export default function ResidentsPage() {
               <thead><tr><th>Resident</th><th>Room</th><th>Joined</th><th>Rent</th><th>Type</th><th>Portal</th><th>Status</th><th>Actions</th></tr></thead>
               <tbody>
                 {filtered.map(r => (
-                  <tr key={r.id} style={{ background: r.onboarding_status === 'submitted' ? 'rgba(52,211,153,0.02)' : undefined }}>
+                  <tr key={r.id} onClick={() => router.push(`/admin/residents/${r.id}`)} style={{ cursor: 'pointer', background: r.onboarding_status === 'submitted' ? 'rgba(52,211,153,0.02)' : undefined }}>
                     <td>
                       <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
                         <div style={{ width: '36px', height: '36px', borderRadius: '10px', background: 'var(--surface-3)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '14px', fontWeight: '700', color: 'var(--teal-500)', flexShrink: 0 }}>{r.name.charAt(0).toUpperCase()}</div>
@@ -137,7 +139,7 @@ export default function ResidentsPage() {
                         </div>
                       )}
                     </td>
-                    <td>
+                    <td onClick={e => e.stopPropagation()}>
                       <div style={{ display: 'flex', gap: '6px' }}>
                         <Link href={`/admin/residents/${r.id}`} style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', width: '30px', height: '30px', borderRadius: '8px', background: 'var(--surface-3)', border: '1px solid var(--border)', color: 'var(--text-muted)', textDecoration: 'none' }}><Eye size={13} /></Link>
                         {r.email && <a href={`mailto:${r.email}`} style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', width: '30px', height: '30px', borderRadius: '8px', background: 'var(--surface-3)', border: '1px solid var(--border)', color: 'var(--text-muted)', textDecoration: 'none' }}><Mail size={13} /></a>}
