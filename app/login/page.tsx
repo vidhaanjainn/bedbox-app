@@ -1,6 +1,6 @@
 'use client'
 
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 import { createClient } from '@/lib/supabase/client'
 import { useRouter } from 'next/navigation'
 import { Building2, Mail, Lock, Eye, EyeOff, Loader2 } from 'lucide-react'
@@ -10,9 +10,18 @@ export default function LoginPage() {
   const [password, setPassword] = useState('')
   const [showPassword, setShowPassword] = useState(false)
   const [loading, setLoading] = useState(false)
+  const [checkingSession, setCheckingSession] = useState(true)
   const [error, setError] = useState('')
   const router = useRouter()
   const supabase = createClient()
+
+  // Already signed in (e.g. opening the installed Admin icon with a persisted
+  // session) — skip the form entirely instead of asking to log in again.
+  useEffect(() => {
+    supabase.auth.getSession().then(({ data }) => {
+      if (data.session) { router.replace('/admin/dashboard') } else { setCheckingSession(false) }
+    })
+  }, [])
 
   const handleLogin = async (e: React.FormEvent) => {
     e.preventDefault()
@@ -29,6 +38,14 @@ export default function LoginPage() {
 
     router.push('/admin/dashboard')
     router.refresh()
+  }
+
+  if (checkingSession) {
+    return (
+      <div style={{ minHeight: '100vh', background: 'var(--navy-900)', display: 'flex', alignItems: 'center', justifyContent: 'center', color: 'var(--text-muted)', fontSize: 14 }}>
+        Loading...
+      </div>
+    )
   }
 
   return (

@@ -29,13 +29,30 @@ const navItems = [
 export default function AdminLayout({ children }: { children: React.ReactNode }) {
   const [sidebarOpen, setSidebarOpen] = useState(true)
   const [mobileOpen, setMobileOpen] = useState(false)
+  const [checkingSession, setCheckingSession] = useState(true)
   const pathname = usePathname()
   const router = useRouter()
   const supabase = createClient()
 
+  // No persisted session (e.g. never logged in on this device, or explicitly
+  // logged out) — send to login instead of rendering an empty dashboard.
+  useEffect(() => {
+    supabase.auth.getSession().then(({ data }) => {
+      if (!data.session) { router.replace('/login') } else { setCheckingSession(false) }
+    })
+  }, [])
+
   const handleLogout = async () => {
     await supabase.auth.signOut()
     router.push('/login')
+  }
+
+  if (checkingSession) {
+    return (
+      <div style={{ minHeight: '100vh', background: 'var(--navy-900)', display: 'flex', alignItems: 'center', justifyContent: 'center', color: 'var(--text-muted)', fontSize: 14 }}>
+        Loading...
+      </div>
+    )
   }
 
   return (

@@ -1,5 +1,6 @@
 import type { Metadata } from 'next'
 import './globals.css'
+import ManifestSwitcher from './manifest-switcher'
 
 export const metadata: Metadata = {
   title: 'TheBedBox | Property Management',
@@ -14,6 +15,8 @@ export default function RootLayout({
   return (
     <html lang="en">
       <head>
+        {/* Default manifest for the very first paint; ManifestSwitcher below
+            swaps it per-route before any "Add to Home Screen" tap can occur. */}
         <link rel="manifest" href="/manifest.json" />
         <meta name="theme-color" content="#00d4c8" />
         <meta name="apple-mobile-web-app-capable" content="yes" />
@@ -21,7 +24,10 @@ export default function RootLayout({
         <meta name="apple-mobile-web-app-title" content="BedBox" />
         <link rel="apple-touch-icon" href="/icons/icon-192.png" />
       </head>
-      <body>{children}</body>
+      <body>
+        <ManifestSwitcher />
+        {children}
+      </body>
     </html>
   )
 }

@@ -2,6 +2,21 @@
 
 Newest first.
 
+## 2026-09-04 (part 3) · Fixed "Add to Home Screen" always opening resident login
+- **Root cause:** `public/manifest.json`'s `start_url` was hardcoded to `/portal`, and it was
+  linked once, unconditionally, in the root layout `<head>` — so "Add to Home Screen" from ANY
+  page (including /login) always installed an icon that opens the resident portal.
+- **Fix:** added `public/manifest-admin.json` (`start_url: /login`) + `app/manifest-switcher.tsx`
+  (client component, swaps the `<link rel="manifest">` href based on the current route — admin
+  areas get the admin manifest, everything else keeps the resident one). Result: adding to home
+  screen from `/login` or any `/admin/*` page now installs a distinct "TheBedBox Admin" icon that
+  opens straight to admin; adding from `/portal` still installs the resident icon as before.
+- **Also added:** `/login` now redirects straight to `/admin/dashboard` if a session already
+  exists (skips the form on repeat opens); `/admin/*` now redirects to `/login` if there's no
+  session (previously it would render an empty/broken dashboard with no prompt to sign in).
+  Neither change shortens session lifetime — `persistSession`/`autoRefreshToken` were already on
+  by default in `lib/supabase/client.ts`, so sessions already only end on explicit sign-out.
+
 ## 2026-09-04 (part 2) · Room 205 resident + Google Form notice sync
 - **Room 205:** owner confirmed someone lives there (name still unknown — same
   "⚠️ Name Pending" placeholder pattern as Room 304) and is vacating ~2026-09-20 like Zubin.
