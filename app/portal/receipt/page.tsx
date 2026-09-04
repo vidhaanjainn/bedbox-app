@@ -3,6 +3,7 @@
 import { useEffect, useState } from 'react'
 import { useRouter } from 'next/navigation'
 import { createClient } from '@/lib/supabase/client'
+import { Check } from 'lucide-react'
 
 export default function ReceiptPage() {
   const router = useRouter()
@@ -40,7 +41,7 @@ export default function ReceiptPage() {
 
   if (done) return (
     <div style={{padding:'60px 24px',textAlign:'center'}}>
-      <div style={{width:64,height:64,borderRadius:'50%',background:'rgba(0,212,200,0.12)',border:'1px solid rgba(0,212,200,0.3)',display:'flex',alignItems:'center',justifyContent:'center',margin:'0 auto 24px',fontSize:28}}>✓</div>
+      <div style={{width:64,height:64,borderRadius:'50%',background:'rgba(0,212,200,0.12)',border:'1px solid rgba(0,212,200,0.3)',display:'flex',alignItems:'center',justifyContent:'center',margin:'0 auto 24px'}}><Check size={28} color="#00d4c8" strokeWidth={2.5} /></div>
       <h2 style={{fontFamily:"'Syne',sans-serif",fontWeight:700,fontSize:22,margin:'0 0 12px'}}>Receipt requested</h2>
       <p style={{color:'rgba(255,255,255,0.5)',fontSize:14,lineHeight:1.7,maxWidth:300,margin:'0 auto 32px'}}>We'll email it to {resident?.email} within 24 hours.</p>
       <button onClick={()=>router.push('/portal/home')} style={{padding:'12px 24px',borderRadius:10,fontSize:14,fontWeight:600,background:'linear-gradient(135deg,#00d4c8,#0099ff)',color:'#070d1a',border:'none',cursor:'pointer',fontFamily:"'DM Sans',sans-serif"}}>Back to home</button>

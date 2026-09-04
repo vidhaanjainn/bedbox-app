@@ -3,6 +3,7 @@
 import { useEffect, useState } from 'react'
 import { useRouter } from 'next/navigation'
 import { createClient } from '@/lib/supabase/client'
+import { Check, AlertTriangle } from 'lucide-react'
 
 export default function NoticePage() {
   const router = useRouter()
@@ -74,7 +75,7 @@ export default function NoticePage() {
 
   if (done) return (
     <div style={{ padding: '60px 24px', textAlign: 'center' }}>
-      <div style={{ width: 64, height: 64, borderRadius: '50%', background: 'rgba(0,212,200,0.12)', border: '1px solid rgba(0,212,200,0.3)', display: 'flex', alignItems: 'center', justifyContent: 'center', margin: '0 auto 24px', fontSize: 28 }}>✓</div>
+      <div style={{ width: 64, height: 64, borderRadius: '50%', background: 'rgba(0,212,200,0.12)', border: '1px solid rgba(0,212,200,0.3)', display: 'flex', alignItems: 'center', justifyContent: 'center', margin: '0 auto 24px' }}><Check size={28} color="#00d4c8" strokeWidth={2.5} /></div>
       <h2 style={{ fontFamily: "'Syne',sans-serif", fontWeight: 700, fontSize: 22, margin: '0 0 12px' }}>Notice submitted</h2>
       <p style={{ color: 'rgba(255,255,255,0.5)', fontSize: 14, lineHeight: 1.7, maxWidth: 300, margin: '0 auto 32px' }}>Your notice period has started. TheBedBox will be in touch.</p>
       <button onClick={() => router.push('/portal/home')} style={{ padding: '12px 24px', borderRadius: 10, fontSize: 14, fontWeight: 600, background: 'linear-gradient(135deg,#00d4c8,#0099ff)', color: '#070d1a', border: 'none', cursor: 'pointer', fontFamily: "'DM Sans',sans-serif" }}>Back to home</button>
@@ -86,7 +87,7 @@ export default function NoticePage() {
       <h1 style={{ fontFamily: "'Syne',sans-serif", fontWeight: 700, fontSize: 24, margin: '0 0 6px' }}>Notice to vacate</h1>
       <p style={{ color: 'rgba(255,255,255,0.4)', fontSize: 14, margin: '0 0 24px' }}>This starts your formal 2-month notice period</p>
       <div style={{ background: 'rgba(255,100,100,0.06)', border: '1px solid rgba(255,100,100,0.15)', borderRadius: 12, padding: '14px 16px', marginBottom: 24 }}>
-        <div style={{ fontSize: 13, fontWeight: 600, color: '#ff6b6b', marginBottom: 4 }}>⚠️ Read before submitting</div>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: 13, fontWeight: 600, color: '#ff6b6b', marginBottom: 4 }}><AlertTriangle size={14} /> Read before submitting</div>
         <div style={{ fontSize: 13, color: 'rgba(255,255,255,0.5)', lineHeight: 1.7 }}>Your earliest possible move-out date is <strong style={{ color: '#fff' }}>{displayMinDate}</strong>.</div>
       </div>
       <label style={{ display: 'block', fontSize: 12, color: 'rgba(255,255,255,0.5)', marginBottom: 8, fontWeight: 600, letterSpacing: '0.05em', textTransform: 'uppercase' }}>Expected move-out date</label>

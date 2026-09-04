@@ -3,8 +3,9 @@
 import { useState } from 'react'
 import { useRouter } from 'next/navigation'
 import { createClient } from '@/lib/supabase/client'
+import { Zap, Droplet, Armchair, Tv, Sparkles, FileText, Check } from 'lucide-react'
 
-const CATS = [{id:'electrical',label:'⚡ Electrical',desc:'Lights, switches, sockets'},{id:'plumbing',label:'🚿 Plumbing',desc:'Taps, drainage, geyser'},{id:'furniture',label:'🪑 Furniture',desc:'Bed, chair, wardrobe'},{id:'appliance',label:'📺 Appliance',desc:'Fan, AC, fridge'},{id:'cleanliness',label:'🧹 Cleanliness',desc:'Common area, room'},{id:'other',label:'📝 Other',desc:'Anything else'}]
+const CATS = [{id:'electrical',label:'Electrical',Icon:Zap,desc:'Lights, switches, sockets'},{id:'plumbing',label:'Plumbing',Icon:Droplet,desc:'Taps, drainage, geyser'},{id:'furniture',label:'Furniture',Icon:Armchair,desc:'Bed, chair, wardrobe'},{id:'appliance',label:'Appliance',Icon:Tv,desc:'Fan, AC, fridge'},{id:'cleanliness',label:'Cleanliness',Icon:Sparkles,desc:'Common area, room'},{id:'other',label:'Other',Icon:FileText,desc:'Anything else'}]
 
 export default function MaintenancePage() {
   const router = useRouter()
@@ -29,7 +30,7 @@ export default function MaintenancePage() {
 
   if (done) return (
     <div style={{padding:'60px 24px',textAlign:'center'}}>
-      <div style={{width:64,height:64,borderRadius:'50%',background:'rgba(0,212,200,0.12)',border:'1px solid rgba(0,212,200,0.3)',display:'flex',alignItems:'center',justifyContent:'center',margin:'0 auto 24px',fontSize:28}}>✓</div>
+      <div style={{width:64,height:64,borderRadius:'50%',background:'rgba(0,212,200,0.12)',border:'1px solid rgba(0,212,200,0.3)',display:'flex',alignItems:'center',justifyContent:'center',margin:'0 auto 24px'}}><Check size={28} color="#00d4c8" strokeWidth={2.5} /></div>
       <h2 style={{fontFamily:"'Syne',sans-serif",fontWeight:700,fontSize:22,margin:'0 0 12px'}}>Request submitted</h2>
       <p style={{color:'rgba(255,255,255,0.5)',fontSize:14,lineHeight:1.7,maxWidth:300,margin:'0 auto 32px'}}>TheBedBox will look into this and get back to you.</p>
       <div style={{display:'flex',gap:10,justifyContent:'center'}}>
@@ -45,8 +46,8 @@ export default function MaintenancePage() {
       <p style={{color:'rgba(255,255,255,0.4)',fontSize:14,margin:'0 0 28px'}}>Tell us what needs fixing</p>
       <div style={{fontSize:12,color:'rgba(255,255,255,0.4)',fontWeight:600,letterSpacing:'0.08em',textTransform:'uppercase',marginBottom:12}}>Category</div>
       <div style={{display:'grid',gridTemplateColumns:'1fr 1fr',gap:8,marginBottom:24}}>
-        {CATS.map(c=><button key={c.id} onClick={()=>setCat(c.id)} style={{padding:'14px 12px',borderRadius:12,textAlign:'left',cursor:'pointer',background:cat===c.id?'rgba(0,212,200,0.1)':'rgba(255,255,255,0.04)',border:`1px solid ${cat===c.id?'rgba(0,212,200,0.4)':'rgba(255,255,255,0.08)'}`,color:'#fff',fontFamily:"'DM Sans',sans-serif"}}>
-          <div style={{fontSize:13,fontWeight:500,marginBottom:3}}>{c.label}</div>
+        {CATS.map(c=><button key={c.id} onClick={()=>setCat(c.id)} style={{padding:'14px 12px',borderRadius:12,textAlign:'left',cursor:'pointer',minHeight:44,background:cat===c.id?'rgba(0,212,200,0.1)':'rgba(255,255,255,0.04)',border:`1px solid ${cat===c.id?'rgba(0,212,200,0.4)':'rgba(255,255,255,0.08)'}`,color:'#fff',fontFamily:"'DM Sans',sans-serif"}}>
+          <div style={{display:'flex',alignItems:'center',gap:6,fontSize:13,fontWeight:500,marginBottom:3}}><c.Icon size={14} color={cat===c.id?'#00d4c8':'rgba(255,255,255,0.5)'} />{c.label}</div>
           <div style={{fontSize:11,color:'rgba(255,255,255,0.4)'}}>{c.desc}</div>
         </button>)}
       </div>

@@ -1,0 +1,31 @@
+<svg width="512" height="512" viewBox="0 0 512 512" xmlns="http://www.w3.org/2000/svg">
+  <defs>
+    <linearGradient id="bg" x1="0" y1="0" x2="512" y2="512" gradientUnits="userSpaceOnUse">
+      <stop offset="0" stop-color="#151d2e"/>
+      <stop offset="1" stop-color="#060a14"/>
+    </linearGradient>
+    <linearGradient id="shield" x1="256" y1="88" x2="256" y2="420" gradientUnits="userSpaceOnUse">
+      <stop offset="0" stop-color="#1de9db"/>
+      <stop offset="1" stop-color="#00a89e"/>
+    </linearGradient>
+    <linearGradient id="sheen" x1="256" y1="88" x2="256" y2="260" gradientUnits="userSpaceOnUse">
+      <stop offset="0" stop-color="#ffffff" stop-opacity="0.35"/>
+      <stop offset="1" stop-color="#ffffff" stop-opacity="0"/>
+    </linearGradient>
+  </defs>
+
+  <rect width="512" height="512" rx="112" fill="url(#bg)"/>
+  <rect x="1" y="1" width="510" height="510" rx="111" fill="none" stroke="#00d4c8" stroke-opacity="0.14" stroke-width="2"/>
+
+  <!-- Shield: authority / control -->
+  <path d="M256 84 L365 122 V246 C365 320 318 372 256 400 C194 372 147 320 147 246 V122 Z"
+        fill="url(#shield)"/>
+  <path d="M256 84 L365 122 V246 C365 320 318 372 256 400 C194 372 147 320 147 246 V122 Z"
+        fill="url(#sheen)"/>
+  <path d="M256 84 L365 122 V246 C365 320 318 372 256 400 C194 372 147 320 147 246 V122 Z"
+        fill="none" stroke="#04241f" stroke-opacity="0.25" stroke-width="3"/>
+
+  <!-- Checkmark: control panel confirmed / admin authority -->
+  <path d="M204 244 L241 281 L314 202" fill="none" stroke="#06231f" stroke-width="22"
+        stroke-linecap="round" stroke-linejoin="round"/>
+</svg>

@@ -4,6 +4,7 @@ import { useEffect, useState } from 'react'
 import { useParams } from 'next/navigation'
 import { createClient } from '@/lib/supabase/client'
 import { AGREEMENT_VERSION, AGREEMENT_CLAUSES } from '@/lib/agreement-clauses'
+import { AlertTriangle, Check, Lock, Paperclip } from 'lucide-react'
 
 type Step = 'loading' | 'error' | 'welcome' | 'details' | 'docs' | 'agreement' | 'done'
 
@@ -136,7 +137,7 @@ export default function OnboardPage() {
   if (step === 'error') return (
     <Shell>
       <div style={{ textAlign: 'center', padding: '60px 24px' }}>
-        <div style={{ fontSize: 40, marginBottom: 16 }}>⚠️</div>
+        <div style={{ marginBottom: 16 }}><AlertTriangle size={40} color="#ff6b6b" strokeWidth={1.5} /></div>
         <h2 style={{ fontFamily: "'Syne',sans-serif", fontWeight: 700, fontSize: 22, color: '#fff', margin: '0 0 12px' }}>Link unavailable</h2>
         <p style={{ color: 'rgba(255,255,255,0.4)', fontSize: 14, maxWidth: 300, margin: '0 auto 24px', lineHeight: 1.7 }}>{errorMsg}</p>
         <p style={{ color: 'rgba(255,255,255,0.3)', fontSize: 13 }}>Call TheBedBox: <a href="tel:+917999546362" style={{ color: '#00d4c8' }}>+91 79995 46362</a></p>
@@ -148,7 +149,7 @@ export default function OnboardPage() {
   if (step === 'done') return (
     <Shell>
       <div style={{ textAlign: 'center', padding: '60px 24px' }}>
-        <div style={{ width: 72, height: 72, borderRadius: '50%', background: 'linear-gradient(135deg,#00d4c8,#0099ff)', display: 'flex', alignItems: 'center', justifyContent: 'center', margin: '0 auto 24px', fontSize: 32 }}>✓</div>
+        <div style={{ width: 72, height: 72, borderRadius: '50%', background: 'linear-gradient(135deg,#00d4c8,#0099ff)', display: 'flex', alignItems: 'center', justifyContent: 'center', margin: '0 auto 24px' }}><Check size={32} color="#070d1a" strokeWidth={3} /></div>
         <h1 style={{ fontFamily: "'Syne',sans-serif", fontWeight: 700, fontSize: 26, margin: '0 0 12px' }}>You're all done!</h1>
         <p style={{ color: 'rgba(255,255,255,0.5)', fontSize: 15, lineHeight: 1.7, maxWidth: 320, margin: '0 auto 32px' }}>
           Your onboarding has been submitted to TheBedBox. You'll hear back once it's approved — usually within a few hours.
@@ -236,8 +237,9 @@ export default function OnboardPage() {
           <Field label="Aadhaar number" value={form.aadhaar_number} onChange={v => setForm(f => ({ ...f, aadhaar_number: v.replace(/\D/g, '').slice(0, 12) }))} placeholder="12-digit Aadhaar number" type="tel" />
           <FileUpload label="Aadhaar front side" hint="Name & photo side" file={form.aadhaar_front} onFile={f => setForm(fm => ({ ...fm, aadhaar_front: f }))} />
           <FileUpload label="Aadhaar back side" hint="Address side" file={form.aadhaar_back} onFile={f => setForm(fm => ({ ...fm, aadhaar_back: f }))} />
-          <div style={{ background: 'rgba(255,200,0,0.06)', border: '1px solid rgba(255,200,0,0.15)', borderRadius: 10, padding: 14, marginBottom: 20, fontSize: 13, color: 'rgba(255,200,100,0.8)', lineHeight: 1.6 }}>
-            🔒 Stored in private encrypted storage. Only TheBedBox management can access it.
+          <div style={{ display: 'flex', gap: 8, alignItems: 'flex-start', background: 'rgba(255,200,0,0.06)', border: '1px solid rgba(255,200,0,0.15)', borderRadius: 10, padding: 14, marginBottom: 20, fontSize: 13, color: 'rgba(255,200,100,0.8)', lineHeight: 1.6 }}>
+            <Lock size={15} style={{ flexShrink: 0, marginTop: 2 }} />
+            <span>Stored in private encrypted storage. Only TheBedBox management can access it.</span>
           </div>
           <div style={{ display: 'flex', gap: 10 }}>
             <GhostBtn onClick={() => setStep('details')}>← Back</GhostBtn>
@@ -317,7 +319,7 @@ function FileUpload({ label, hint, file, onFile }: { label: string; hint: string
       <label style={{ display: 'block', fontSize: 12, color: 'rgba(255,255,255,0.5)', marginBottom: 6 }}>{label}</label>
       <label style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', padding: '18px 16px', borderRadius: 10, cursor: 'pointer', textAlign: 'center', border: file ? '2px solid #00d4c8' : '2px dashed rgba(255,255,255,0.15)', background: file ? 'rgba(0,212,200,0.06)' : 'rgba(255,255,255,0.03)' }}>
         <input type="file" accept="image/*,.pdf" style={{ display: 'none' }} onChange={e => e.target.files?.[0] && onFile(e.target.files[0])} />
-        {file ? <><span style={{ fontSize: 20, marginBottom: 4 }}>✓</span><span style={{ fontSize: 13, color: '#00d4c8', fontWeight: 500 }}>{file.name}</span></> : <><span style={{ fontSize: 22, marginBottom: 6, opacity: 0.4 }}>📎</span><span style={{ fontSize: 13, color: 'rgba(255,255,255,0.6)' }}>Tap to upload</span><span style={{ fontSize: 11, color: 'rgba(255,255,255,0.3)', marginTop: 3 }}>{hint}</span></>}
+        {file ? <><Check size={20} color="#00d4c8" style={{ marginBottom: 4 }} /><span style={{ fontSize: 13, color: '#00d4c8', fontWeight: 500 }}>{file.name}</span></> : <><Paperclip size={22} color="rgba(255,255,255,0.4)" style={{ marginBottom: 6 }} /><span style={{ fontSize: 13, color: 'rgba(255,255,255,0.6)' }}>Tap to upload</span><span style={{ fontSize: 11, color: 'rgba(255,255,255,0.3)', marginTop: 3 }}>{hint}</span></>}
       </label>
     </div>
   )

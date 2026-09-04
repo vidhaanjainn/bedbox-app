@@ -179,7 +179,7 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
 
       {/* Main content */}
       <main style={{ flex: 1, minWidth: 0, overflow: 'auto' }}>
-        {children}
+        <div className="bb-page">{children}</div>
       </main>
     </div>
   )

@@ -2,6 +2,35 @@
 
 Newest first.
 
+## 2026-09-04 (part 4) · Premium admin icon + UI polish pass (UX-01/02 first slice)
+- **New admin icon:** generated a distinct SVG (dark charcoal/navy gradient square, teal shield +
+  checkmark — "control/authority", separate from the resident app's teal "B" monogram), rasterized
+  to 192/512 PNGs via sharp. Wired into `manifest-admin.json`. Also fixed a real iOS gap:
+  `apple-touch-icon` (what iOS actually uses for Add to Home Screen, not the manifest icons array)
+  now gets swapped by `ManifestSwitcher` too, along with the install title ("BedBox Admin").
+- **Design-system pass, done at the shared-token level for maximum leverage:** most admin pages
+  already consume shared classes (`glass-card`, `bb-input`, `bb-btn-primary`, `stat-card`,
+  `status-badge`, `bb-table`, `nav-item`) — upgrading `globals.css` once cascades to 20+ pages
+  without touching each one individually. Added: real box-shadows (cards read as elevated, not
+  flat/floating), consistent focus-visible rings across every input/button/link,
+  `prefers-reduced-motion` support, `.bb-page` max-width shell applied once at
+  `app/admin/layout.tsx` (fixes the "content floats at arbitrary widths" complaint on wide
+  screens), `.bb-empty` for consistent empty states, `.bb-icon-btn` guaranteeing 44px touch
+  targets, `.status-badge.is-*` variants so pages can stop re-deriving the same color map inline.
+- **Emoji → real icons (lucide-react), the single highest-leverage "looks unprofessional" fix**
+  per the UI/UX skill's explicit checklist: swept the resident-facing surfaces named as the worst
+  offenders — portal bottom nav, portal home (WiFi/quick actions/nearby-places headers), portal
+  notice/maintenance/receipt success states, and the full onboarding wizard (error state, success
+  state, security note, file upload states, maintenance category picker). Admin pages' emoji were
+  left as-is this pass (mostly inline ✓/⚠️ status glyphs, lower priority; scope note below).
+- **Scope note (why not literally every screen):** doing a from-scratch redesign of all 30+ admin
+  CRUD pages' individual JSX in one pass isn't a good token trade — the shared-layer fix above
+  gets ~80% of the visual-consistency win for ~5% of the cost. Remaining opportunities, roughly
+  in order of value: (1) an admin dashboard rebuild around a single "Today — needs your action"
+  list instead of scattered stat cards (UX-03, spec'd in 04_UIUXReview.md), (2) StatCard/PageHeader
+  /EmptyState as real shared components instead of copy-pasted inline styles (reduces future
+  drift), (3) the remaining admin emoji sweep, (4) mobile-first pass on the wider admin tables.
+
 ## 2026-09-04 (part 3) · Fixed "Add to Home Screen" always opening resident login
 - **Root cause:** `public/manifest.json`'s `start_url` was hardcoded to `/portal`, and it was
   linked once, unconditionally, in the root layout `<head>` — so "Add to Home Screen" from ANY

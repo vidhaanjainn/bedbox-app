@@ -4,15 +4,16 @@ import { useEffect, useState } from 'react'
 import { useRouter } from 'next/navigation'
 import { createClient } from '@/lib/supabase/client'
 import Link from 'next/link'
+import { Wrench, Receipt, ClipboardList, Phone, Wifi, MapPin, Cross, Pill, ShoppingCart, UtensilsCrossed, TreePine, TrainFront } from 'lucide-react'
 
-const CATEGORY_LABEL: Record<string, string> = {
-  hospital: '🏥 Hospitals',
-  pharmacy: '💊 Pharmacies',
-  grocery: '🛒 Grocery & Essentials',
-  restaurant: '🍽️ Restaurants',
-  attraction: '🌳 Places to Visit',
-  transport: '🚉 Transport',
-  other: '📍 Other',
+const CATEGORY_META: Record<string, { label: string; Icon: typeof MapPin }> = {
+  hospital: { label: 'Hospitals', Icon: Cross },
+  pharmacy: { label: 'Pharmacies', Icon: Pill },
+  grocery: { label: 'Grocery & Essentials', Icon: ShoppingCart },
+  restaurant: { label: 'Restaurants', Icon: UtensilsCrossed },
+  attraction: { label: 'Places to Visit', Icon: TreePine },
+  transport: { label: 'Transport', Icon: TrainFront },
+  other: { label: 'Other', Icon: MapPin },
 }
 const CATEGORY_ORDER = ['hospital', 'pharmacy', 'grocery', 'restaurant', 'attraction', 'transport', 'other']
 
@@ -121,7 +122,7 @@ export default function PortalHomePage() {
         {wifiPassword && (
           <div style={{ background: 'rgba(0,153,255,0.06)', border: '1px solid rgba(0,153,255,0.15)', borderRadius: 14, padding: '16px 18px', marginBottom: 16 }}>
             <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 8 }}>
-              <span style={{ fontSize: 16 }}>📶</span>
+              <Wifi size={16} color="#0099ff" />
               <span style={{ fontSize: 12, color: '#0099ff', fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.05em' }}>WiFi</span>
             </div>
             {wifiNetwork && <div style={{ fontSize: 13, color: 'rgba(255,255,255,0.6)', marginBottom: 4 }}>Network: <strong style={{ color: '#fff' }}>{wifiNetwork}</strong></div>}
@@ -132,9 +133,9 @@ export default function PortalHomePage() {
         {/* Quick actions */}
         <div style={{ fontSize: 12, color: 'rgba(255,255,255,0.4)', fontWeight: 600, letterSpacing: '0.08em', textTransform: 'uppercase', marginBottom: 12 }}>Quick actions</div>
         <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10, marginBottom: 24 }}>
-          {[{ href: '/portal/maintenance', icon: '🔧', label: 'Report issue' }, { href: '/portal/receipt', icon: '🧾', label: 'Get receipt' }, { href: '/portal/notice', icon: '📋', label: 'Notice to vacate' }, { href: 'tel:+917999546362', icon: '📞', label: 'Call us' }].map(a => (
-            <Link key={a.href} href={a.href} style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '14px', borderRadius: 12, background: 'rgba(255,255,255,0.04)', border: '1px solid rgba(255,255,255,0.07)', textDecoration: 'none', color: 'rgba(255,255,255,0.8)', fontSize: 13, fontWeight: 500 }}>
-              <span style={{ fontSize: 18 }}>{a.icon}</span>{a.label}
+          {[{ href: '/portal/maintenance', Icon: Wrench, label: 'Report issue' }, { href: '/portal/receipt', Icon: Receipt, label: 'Get receipt' }, { href: '/portal/notice', Icon: ClipboardList, label: 'Notice to vacate' }, { href: 'tel:+917999546362', Icon: Phone, label: 'Call us' }].map(a => (
+            <Link key={a.href} href={a.href} style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '14px', minHeight: 44, borderRadius: 12, background: 'rgba(255,255,255,0.04)', border: '1px solid rgba(255,255,255,0.07)', textDecoration: 'none', color: 'rgba(255,255,255,0.8)', fontSize: 13, fontWeight: 500 }}>
+              <a.Icon size={18} color="#00d4c8" strokeWidth={1.75} />{a.label}
             </Link>
           ))}
         </div>
@@ -143,9 +144,14 @@ export default function PortalHomePage() {
         {groupedPlaces.length > 0 && (
           <div style={{ marginBottom: 24 }}>
             <div style={{ fontSize: 12, color: 'rgba(255,255,255,0.4)', fontWeight: 600, letterSpacing: '0.08em', textTransform: 'uppercase', marginBottom: 12 }}>Around TheBedBox</div>
-            {groupedPlaces.map(g => (
+            {groupedPlaces.map(g => {
+              const meta = CATEGORY_META[g.cat]
+              return (
               <div key={g.cat} style={{ marginBottom: 14 }}>
-                <div style={{ fontSize: 13, fontWeight: 600, color: 'rgba(255,255,255,0.7)', marginBottom: 6 }}>{CATEGORY_LABEL[g.cat] || g.cat}</div>
+                <div style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: 13, fontWeight: 600, color: 'rgba(255,255,255,0.7)', marginBottom: 6 }}>
+                  {meta && <meta.Icon size={14} color="#00d4c8" />}
+                  {meta?.label || g.cat}
+                </div>
                 {g.items.map((p: any) => (
                   <div key={p.id} style={{ display: 'flex', justifyContent: 'space-between', padding: '8px 0', borderBottom: '1px solid rgba(255,255,255,0.04)' }}>
                     <span style={{ fontSize: 13, color: 'rgba(255,255,255,0.75)' }}>{p.name}</span>
@@ -153,7 +159,7 @@ export default function PortalHomePage() {
                   </div>
                 ))}
               </div>
-            ))}
+            )})}
           </div>
         )}
       </div>

@@ -42,22 +42,34 @@ h1, h2, h3, h4, h5, h6 { font-family: 'Syne', sans-serif; }
 ::-webkit-scrollbar-thumb { background: var(--navy-600); border-radius: 3px; }
 ::-webkit-scrollbar-thumb:hover { background: var(--teal-500); }
 
+/* Consistent page shell — caps content width so pages don't feel like they're
+   "floating" arbitrarily wide on large monitors. Applied once at the admin
+   layout level; every page inherits it for free. */
+.bb-page {
+  max-width: 1280px;
+  margin: 0 auto;
+  width: 100%;
+}
+
 .glass-card {
   background: var(--surface-1);
   border: 1px solid var(--border);
   border-radius: 16px;
+  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.24), 0 8px 24px -12px rgba(0, 0, 0, 0.4);
 }
 
 .glass-card-hover {
   background: var(--surface-1);
   border: 1px solid var(--border);
   border-radius: 16px;
-  transition: all 0.2s ease;
+  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.24), 0 8px 24px -12px rgba(0, 0, 0, 0.4);
+  transition: border-color 0.2s ease, background-color 0.2s ease, box-shadow 0.2s ease, transform 0.2s ease;
 }
 .glass-card-hover:hover {
   border-color: var(--border-strong);
   background: var(--surface-2);
-  transform: translateY(-1px);
+  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.3), 0 12px 32px -12px rgba(0, 212, 200, 0.15);
+  transform: translateY(-2px);
 }
 
 .stat-card {
@@ -65,12 +77,44 @@ h1, h2, h3, h4, h5, h6 { font-family: 'Syne', sans-serif; }
   border: 1px solid var(--border);
   border-radius: 16px;
   padding: 24px;
-  transition: all 0.2s ease;
+  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.24), 0 8px 24px -12px rgba(0, 0, 0, 0.4);
+  transition: border-color 0.2s ease, background-color 0.2s ease, transform 0.2s ease;
 }
 .stat-card:hover {
   border-color: var(--border-strong);
   background: var(--surface-2);
+  transform: translateY(-1px);
 }
+
+/* Empty states — one consistent look for every "nothing here yet" moment
+   instead of each page inventing its own copy/spacing. */
+.bb-empty {
+  padding: 64px 24px;
+  text-align: center;
+  color: var(--text-muted);
+}
+.bb-empty svg { opacity: 0.35; margin-bottom: 14px; }
+.bb-empty-title { font-size: 14px; color: var(--text-secondary); margin-bottom: 4px; font-weight: 500; }
+.bb-empty-hint { font-size: 13px; }
+
+/* Icon-only buttons — guarantees the 44px touch target the rest of the app
+   doesn't consistently hit today. */
+.bb-icon-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 40px;
+  height: 40px;
+  min-width: 44px;
+  min-height: 44px;
+  border-radius: 10px;
+  background: var(--surface-2);
+  border: 1px solid var(--border);
+  color: var(--text-secondary);
+  cursor: pointer;
+  transition: all 0.15s ease;
+}
+.bb-icon-btn:hover { border-color: var(--border-strong); color: var(--teal-500); background: var(--surface-3); }
 
 .bb-input {
   background: var(--surface-2);
@@ -97,11 +141,12 @@ h1, h2, h3, h4, h5, h6 { font-family: 'Syne', sans-serif; }
   border: none;
   border-radius: 10px;
   padding: 10px 20px;
+  min-height: 40px;
   font-size: 14px;
   font-weight: 600;
   font-family: 'DM Sans', sans-serif;
   cursor: pointer;
-  transition: all 0.2s ease;
+  transition: background-color 0.2s ease, box-shadow 0.2s ease, transform 0.2s ease;
   display: inline-flex;
   align-items: center;
   gap: 8px;
@@ -111,10 +156,13 @@ h1, h2, h3, h4, h5, h6 { font-family: 'Syne', sans-serif; }
   box-shadow: 0 4px 20px rgba(0, 212, 200, 0.3);
   transform: translateY(-1px);
 }
+.bb-btn-primary:active { transform: translateY(0); }
+.bb-btn-primary:focus-visible { outline: 2px solid var(--teal-300); outline-offset: 2px; }
 .bb-btn-primary:disabled {
   opacity: 0.5;
   cursor: not-allowed;
   transform: none;
+  box-shadow: none;
 }
 
 .bb-btn-secondary {
@@ -214,4 +262,20 @@ h1, h2, h3, h4, h5, h6 { font-family: 'Syne', sans-serif; }
   letter-spacing: 0.04em;
   text-transform: uppercase;
   border: 1px solid;
+}
+/* Reusable status color variants — pages can use these classes instead of
+   re-deriving the same color map inline every time. */
+.status-badge.is-success { background: rgba(52,211,153,0.1); color: #34d399; border-color: rgba(52,211,153,0.3); }
+.status-badge.is-warning { background: rgba(251,191,36,0.1); color: #fbbf24; border-color: rgba(251,191,36,0.3); }
+.status-badge.is-danger  { background: rgba(239,68,68,0.1);  color: #f87171; border-color: rgba(239,68,68,0.3); }
+.status-badge.is-info    { background: rgba(0,153,255,0.1);  color: #38bdf8; border-color: rgba(0,153,255,0.3); }
+.status-badge.is-neutral { background: rgba(100,116,139,0.1); color: #94a3b8; border-color: rgba(100,116,139,0.3); }
+
+/* Consistent focus visibility across every native control, not just buttons. */
+input:focus-visible, select:focus-visible, textarea:focus-visible, a:focus-visible, button:focus-visible {
+  outline: 2px solid var(--teal-300);
+  outline-offset: 2px;
+}
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after { animation-duration: 0.01ms !important; transition-duration: 0.01ms !important; }
 }
