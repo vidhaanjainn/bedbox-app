@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from 'react'
 import { createClient } from '@/lib/supabase/client'
-import { Building, Zap, CreditCard, User, Save, Eye, EyeOff, Users, UserPlus, Loader2 } from 'lucide-react'
+import { Building, Zap, CreditCard, User, Save, Eye, EyeOff, Users, UserPlus, Loader2, Wifi, MapPin, Plus, Trash2 } from 'lucide-react'
 
 export default function SettingsPage() {
   const supabase = createClient()
@@ -12,6 +12,10 @@ export default function SettingsPage() {
   const [propertyEmail, setPropertyEmail] = useState('thebedbox.in@gmail.com')
   const [electricityRate, setElectricityRate] = useState('10')
   const [rateCard, setRateCard] = useState<Record<string, string>>({ single: '7000', double: '6000', triple: '5500' })
+  const [wifiPassword, setWifiPassword] = useState('')
+  const [wifiNetwork, setWifiNetwork] = useState('')
+  const [places, setPlaces] = useState<any[]>([])
+  const [newPlace, setNewPlace] = useState({ category: 'attraction', name: '', distance_note: '' })
   const [adminEmail, setAdminEmail] = useState('')
   const [newPassword, setNewPassword] = useState('')
   const [confirmPassword, setConfirmPassword] = useState('')
@@ -25,7 +29,24 @@ export default function SettingsPage() {
   const [inviting, setInviting] = useState(false)
   const [inviteMsg, setInviteMsg] = useState('')
 
-  useEffect(() => { loadSettings(); loadAdmins() }, [])
+  useEffect(() => { loadSettings(); loadAdmins(); loadPlaces() }, [])
+
+  const loadPlaces = async () => {
+    const { data } = await supabase.from('nearby_places').select('*').order('category').order('sort_order')
+    setPlaces(data || [])
+  }
+
+  const addPlace = async () => {
+    if (!newPlace.name.trim()) return
+    await supabase.from('nearby_places').insert({ category: newPlace.category, name: newPlace.name.trim(), distance_note: newPlace.distance_note.trim() || null })
+    setNewPlace({ category: newPlace.category, name: '', distance_note: '' })
+    loadPlaces()
+  }
+
+  const deletePlace = async (id: string) => {
+    await supabase.from('nearby_places').delete().eq('id', id)
+    loadPlaces()
+  }
 
   const loadAdmins = async () => {
     setAdminsLoading(true)
@@ -81,6 +102,8 @@ export default function SettingsPage() {
         if (s.key === 'property_email') setPropertyEmail(s.value)
         if (s.key === 'electricity_rate') setElectricityRate(s.value)
         if (s.key === 'rate_card') { try { setRateCard(JSON.parse(s.value)) } catch {} }
+        if (s.key === 'wifi_password') setWifiPassword(s.value || '')
+        if (s.key === 'wifi_network_name') setWifiNetwork(s.value || '')
       })
     }
   }
@@ -156,6 +179,40 @@ export default function SettingsPage() {
         </div>
         <div style={{ marginTop: '12px', fontSize: '12px', color: 'var(--text-muted)', padding: '10px 14px', background: 'var(--surface-2)', borderRadius: '8px' }}>
           💡 Changes take effect from the next billing cycle. Residents are notified per your agreement terms.
+        </div>
+      </div>
+
+      {/* WiFi (resident portal) */}
+      <div className="glass-card" style={{ padding: '24px', marginBottom: '20px' }}>
+        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '20px' }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}><Wifi size={16} color="var(--teal-500)" /><h3 style={{ fontFamily: 'Syne, sans-serif', fontSize: '15px', fontWeight: '600', color: 'var(--text-primary)', margin: 0 }}>WiFi (shown to residents)</h3></div>
+          <Btn section="wifi" onClick={() => save('wifi', () => Promise.all([upsert('wifi_password', wifiPassword), upsert('wifi_network_name', wifiNetwork)]))} />
+        </div>
+        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '16px' }}>
+          <Field label="Network name (optional)" value={wifiNetwork} onChange={setWifiNetwork} />
+          <Field label="Password" value={wifiPassword} onChange={setWifiPassword} />
+        </div>
+      </div>
+
+      {/* Nearby places (resident portal) */}
+      <div className="glass-card" style={{ padding: '24px', marginBottom: '20px' }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: '10px', marginBottom: '20px' }}><MapPin size={16} color="var(--teal-500)" /><h3 style={{ fontFamily: 'Syne, sans-serif', fontSize: '15px', fontWeight: '600', color: 'var(--text-primary)', margin: 0 }}>Nearby Places (resident portal)</h3></div>
+        <div style={{ display: 'grid', gridTemplateColumns: '140px 1fr 1fr auto', gap: '10px', marginBottom: '16px' }}>
+          <select className="bb-input" value={newPlace.category} onChange={e => setNewPlace(p => ({ ...p, category: e.target.value }))}>
+            {['hospital', 'pharmacy', 'grocery', 'restaurant', 'attraction', 'transport', 'other'].map(c => <option key={c} value={c}>{c}</option>)}
+          </select>
+          <input className="bb-input" placeholder="Name" value={newPlace.name} onChange={e => setNewPlace(p => ({ ...p, name: e.target.value }))} />
+          <input className="bb-input" placeholder="Distance / note (optional)" value={newPlace.distance_note} onChange={e => setNewPlace(p => ({ ...p, distance_note: e.target.value }))} />
+          <button onClick={addPlace} className="bb-btn-primary" style={{ fontSize: '13px' }}><Plus size={13} /></button>
+        </div>
+        <div style={{ display: 'flex', flexDirection: 'column', gap: '6px', maxHeight: '260px', overflowY: 'auto' }}>
+          {places.map(p => (
+            <div key={p.id} style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '8px 12px', background: 'var(--surface-2)', borderRadius: '8px' }}>
+              <div style={{ fontSize: '13px' }}><span style={{ color: 'var(--text-muted)', textTransform: 'capitalize', fontSize: '11px' }}>{p.category}</span> · <span style={{ color: 'var(--text-primary)', fontWeight: '500' }}>{p.name}</span> {p.distance_note && <span style={{ color: 'var(--text-muted)' }}>· {p.distance_note}</span>}</div>
+              <button onClick={() => deletePlace(p.id)} style={{ background: 'none', border: 'none', cursor: 'pointer', color: '#f87171' }}><Trash2 size={14} /></button>
+            </div>
+          ))}
+          {places.length === 0 && <div style={{ fontSize: '13px', color: 'var(--text-muted)', textAlign: 'center', padding: '12px' }}>No places added yet.</div>}
         </div>
       </div>
 

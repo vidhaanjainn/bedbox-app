@@ -8,6 +8,7 @@ import Link from 'next/link'
 
 export default function ResidentsPage() {
   const [residents, setResidents] = useState<any[]>([])
+  const [notices, setNotices] = useState<Record<string, any>>({})
   const [loading, setLoading] = useState(true)
   const [search, setSearch] = useState('')
   const [statusFilter, setStatusFilter] = useState('all')
@@ -17,9 +18,24 @@ export default function ResidentsPage() {
 
   const fetchResidents = async () => {
     setLoading(true)
-    const { data } = await supabase.from('residents').select('*, bed:beds(bed_number, room:rooms(room_number, type))').order('created_at', { ascending: false })
+    const [{ data }, { data: noticeData }] = await Promise.all([
+      supabase.from('residents').select('*, bed:beds(bed_number, room:rooms(room_number, type))').order('created_at', { ascending: false }),
+      supabase.from('notice_periods').select('resident_id, last_day_of_stay').eq('status', 'active'),
+    ])
     setResidents(data || [])
+    const noticeMap: Record<string, any> = {}
+    noticeData?.forEach(n => { noticeMap[n.resident_id] = n })
+    setNotices(noticeMap)
     setLoading(false)
+  }
+
+  // Auto-derived from notice_periods — no manual re-entry. Updates the moment a
+  // resident submits notice (portal) or an admin logs one (Notice Periods page).
+  const daysLeftFor = (residentId: string) => {
+    const n = notices[residentId]
+    if (!n) return null
+    const days = Math.ceil((new Date(n.last_day_of_stay).getTime() - Date.now()) / 86400000)
+    return { days: Math.max(0, days), date: n.last_day_of_stay }
   }
 
   const pendingApprovals = residents.filter(r => r.onboarding_status === 'submitted')
@@ -114,6 +130,12 @@ export default function ResidentsPage() {
                     </td>
                     <td>
                       <span className="status-badge" style={(() => { const c: Record<string, any> = { active: { background: 'rgba(52,211,153,0.1)', color: '#34d399', borderColor: 'rgba(52,211,153,0.3)' }, pending: { background: 'rgba(251,191,36,0.1)', color: '#fbbf24', borderColor: 'rgba(251,191,36,0.3)' }, notice: { background: 'rgba(249,115,22,0.1)', color: '#f97316', borderColor: 'rgba(249,115,22,0.3)' }, vacated: { background: 'rgba(100,116,139,0.1)', color: '#94a3b8', borderColor: 'rgba(100,116,139,0.3)' } }; return c[r.status] || {} })()}>{r.status}</span>
+                      {r.status === 'notice' && daysLeftFor(r.id) && (
+                        <div title={`Available from ${new Date(daysLeftFor(r.id)!.date).toLocaleDateString('en-IN', { day: 'numeric', month: 'short', year: 'numeric' })}`}
+                          style={{ display: 'flex', alignItems: 'center', gap: '4px', marginTop: '4px', fontSize: '11px', color: daysLeftFor(r.id)!.days <= 7 ? '#f87171' : '#f97316', fontWeight: '600' }}>
+                          ⏳ {daysLeftFor(r.id)!.days}d left
+                        </div>
+                      )}
                     </td>
                     <td>
                       <div style={{ display: 'flex', gap: '6px' }}>

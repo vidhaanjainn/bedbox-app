@@ -3,9 +3,11 @@
 import { useEffect, useState } from 'react'
 import { createClient } from '@/lib/supabase/client'
 import { formatCurrency, formatDate, getDaysRemaining } from '@/lib/utils'
-import { ArrowLeft, Phone, Mail, MapPin, Building, Calendar, Zap, CreditCard, Clock, Wrench, Edit, Shield, AlertTriangle, Link2, CheckCircle, Copy, Archive, X } from 'lucide-react'
+import { ArrowLeft, Phone, Mail, MapPin, Building, Calendar, Zap, CreditCard, Clock, Wrench, Edit, Shield, AlertTriangle, Link2, CheckCircle, Copy, Archive, X, FileText, ShieldCheck, Loader2 } from 'lucide-react'
 import Link from 'next/link'
 import { useParams, useRouter } from 'next/navigation'
+import { generateAgreementPdf, generatePoliceVerificationPdf } from '@/lib/documents'
+import { AGREEMENT_CLAUSES } from '@/lib/agreement-clauses'
 
 export default function ResidentDetailPage() {
   const { id } = useParams()
@@ -27,7 +29,56 @@ export default function ResidentDetailPage() {
   const [archiveDepositStatus, setArchiveDepositStatus] = useState('')
   const [archiveWouldReAdmit, setArchiveWouldReAdmit] = useState<boolean | null>(null)
   const [archiveError, setArchiveError] = useState('')
+  const [generatingDoc, setGeneratingDoc] = useState<'agreement' | 'police' | null>(null)
+  const [docMsg, setDocMsg] = useState('')
   const supabase = createClient()
+
+  const getSettingsMap = async () => {
+    const { data } = await supabase.from('settings').select('key, value')
+    const m: Record<string, string> = {}
+    data?.forEach(s => { m[s.key] = s.value })
+    return {
+      name: m.property_name || 'TheBedBox',
+      address: m.property_address || '',
+      phone: m.property_phone || '',
+      email: m.property_email || '',
+    }
+  }
+
+  const generateAndStore = async (type: 'agreement' | 'police') => {
+    setGeneratingDoc(type)
+    setDocMsg('')
+    try {
+      const property = await getSettingsMap()
+      const blob = type === 'agreement'
+        ? generateAgreementPdf(resident, property, AGREEMENT_CLAUSES)
+        : generatePoliceVerificationPdf(resident, property)
+
+      const path = `${type === 'agreement' ? 'agreements' : 'police-verification'}/${resident.id}.pdf`
+      const { error: uploadError } = await supabase.storage.from('private-docs').upload(path, blob, { upsert: true, contentType: 'application/pdf' })
+      if (uploadError) throw uploadError
+
+      const column = type === 'agreement' ? 'agreement_path' : 'police_verification_path'
+      await supabase.from('residents').update({ [column]: path }).eq('id', resident.id)
+
+      const { data: signed } = await supabase.storage.from('private-docs').createSignedUrl(path, 300)
+      if (signed?.signedUrl) window.open(signed.signedUrl, '_blank')
+
+      setDocMsg(`✓ ${type === 'agreement' ? 'Agreement' : 'Police verification form'} generated`)
+      fetchAll()
+    } catch (err) {
+      console.error(err)
+      setDocMsg('Could not generate document. Please try again.')
+    } finally {
+      setGeneratingDoc(null)
+      setTimeout(() => setDocMsg(''), 4000)
+    }
+  }
+
+  const viewStoredDoc = async (path: string) => {
+    const { data } = await supabase.storage.from('private-docs').createSignedUrl(path, 300)
+    if (data?.signedUrl) window.open(data.signedUrl, '_blank')
+  }
 
   useEffect(() => { fetchAll() }, [id])
 
@@ -271,12 +322,32 @@ export default function ResidentDetailPage() {
       {/* Documents */}
       <div className="glass-card" style={{ padding: '24px', marginBottom: '24px' }}>
         <h3 style={{ fontFamily: 'Syne, sans-serif', fontSize: '14px', fontWeight: '600', color: 'var(--text-primary)', margin: '0 0 16px', textTransform: 'uppercase', letterSpacing: '0.06em' }}>Documents (Admin Only)</h3>
-        <div style={{ display: 'flex', gap: '12px', flexWrap: 'wrap' }}>
+        <div style={{ display: 'flex', gap: '12px', flexWrap: 'wrap', marginBottom: '16px' }}>
+          <DocBadge label="Aadhaar Number" uploaded={!!resident.aadhaar_number} note={resident.aadhaar_number || undefined} />
           <DocBadge label="Aadhaar Front" uploaded={!!(resident.aadhaar_front_path || resident.aadhaar_front_url)} />
           <DocBadge label="Aadhaar Back" uploaded={!!(resident.aadhaar_back_path || resident.aadhaar_back_url)} />
           <DocBadge label="T&C Agreed" uploaded={!!(resident.tc_agreed_at || resident.agreement_signed_at)} note={resident.agreement_signed_at ? formatDate(resident.agreement_signed_at) : resident.tc_agreed_at ? formatDate(resident.tc_agreed_at) : undefined} />
-          <DocBadge label="Agreement PDF" uploaded={!!resident.agreement_path} />
           {resident.agreement_ip && <DocBadge label={`Signed IP: ${resident.agreement_ip}`} uploaded={true} />}
+        </div>
+        {docMsg && <div style={{ fontSize: '12px', color: docMsg.startsWith('✓') ? '#34d399' : '#f87171', marginBottom: '12px' }}>{docMsg}</div>}
+        <div style={{ display: 'flex', gap: '10px', flexWrap: 'wrap', borderTop: '1px solid var(--border)', paddingTop: '16px' }}>
+          <button onClick={() => generateAndStore('agreement')} disabled={generatingDoc !== null} className="bb-btn-secondary" style={{ fontSize: '13px' }}>
+            {generatingDoc === 'agreement' ? <Loader2 size={13} style={{ animation: 'spin 1s linear infinite' }} /> : <FileText size={13} />}
+            {resident.agreement_path ? 'Regenerate Agreement PDF' : 'Generate Agreement PDF'}
+          </button>
+          {resident.agreement_path && (
+            <button onClick={() => viewStoredDoc(resident.agreement_path)} className="bb-btn-secondary" style={{ fontSize: '13px' }}><FileText size={13} /> View Agreement</button>
+          )}
+          <button onClick={() => generateAndStore('police')} disabled={generatingDoc !== null} className="bb-btn-secondary" style={{ fontSize: '13px' }}>
+            {generatingDoc === 'police' ? <Loader2 size={13} style={{ animation: 'spin 1s linear infinite' }} /> : <ShieldCheck size={13} />}
+            {resident.police_verification_path ? 'Regenerate Police Form' : 'Generate Police Verification Form'}
+          </button>
+          {resident.police_verification_path && (
+            <button onClick={() => viewStoredDoc(resident.police_verification_path)} className="bb-btn-secondary" style={{ fontSize: '13px' }}><ShieldCheck size={13} /> View Police Form</button>
+          )}
+        </div>
+        <div style={{ fontSize: '11px', color: 'var(--text-muted)', marginTop: '10px' }}>
+          Both documents are stored privately (admin-only) and never exposed to the resident. The police form is submission-ready — confirm the current tenant-verification process with your local police station, as no automated submission channel exists to integrate against.
         </div>
       </div>
 

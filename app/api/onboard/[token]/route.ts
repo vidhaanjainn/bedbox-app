@@ -92,6 +92,10 @@ export async function POST(req: Request, ctx: { params: Promise<{ token: string 
       if (!emergencyName || !emergencyPhone) {
         return NextResponse.json({ error: 'Emergency contact details are required.' }, { status: 400 })
       }
+      const aadhaarNumber = str(body.aadhaar_number, 12).replace(/\D/g, '')
+      if (aadhaarNumber.length !== 12) {
+        return NextResponse.json({ error: 'A valid 12-digit Aadhaar number is required.' }, { status: 400 })
+      }
 
       const ip =
         req.headers.get('x-forwarded-for')?.split(',')[0]?.trim() ||
@@ -106,6 +110,7 @@ export async function POST(req: Request, ctx: { params: Promise<{ token: string 
           hometown: str(body.hometown),
           institution: str(body.institution),
           occupation: str(body.occupation, 50),
+          aadhaar_number: aadhaarNumber,
           aadhaar_front_url: docPath(body.aadhaar_front_path),
           aadhaar_back_url: docPath(body.aadhaar_back_path),
           agreement_signed_at: new Date().toISOString(),

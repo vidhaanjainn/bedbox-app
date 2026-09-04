@@ -7,6 +7,7 @@ import { Bed, Plus, X, Loader2, Home } from 'lucide-react'
 
 export default function RoomsPage() {
   const [rooms, setRooms] = useState<any[]>([])
+  const [notices, setNotices] = useState<Record<string, string>>({})
   const [loading, setLoading] = useState(true)
   const [showRoomModal, setShowRoomModal] = useState(false)
   const [showBedModal, setShowBedModal] = useState(false)
@@ -20,13 +21,20 @@ export default function RoomsPage() {
 
   const fetchRooms = async () => {
     setLoading(true)
-    const { data } = await supabase
-      .from('rooms')
-      .select('*, beds(*, resident:residents(name, status))')
-      .order('room_number')
+    const [{ data }, { data: noticeData }] = await Promise.all([
+      supabase.from('rooms').select('*, beds(*, resident:residents(id, name, status))').order('room_number'),
+      supabase.from('notice_periods').select('resident_id, last_day_of_stay').eq('status', 'active'),
+    ])
     setRooms(data || [])
+    const noticeMap: Record<string, string> = {}
+    noticeData?.forEach(n => { noticeMap[n.resident_id] = n.last_day_of_stay })
+    setNotices(noticeMap)
     setLoading(false)
   }
+
+  // Auto-derived the moment a notice_periods row exists for this resident — no
+  // manual "mark available" step needed anywhere.
+  const availableFrom = (residentId?: string) => residentId ? notices[residentId] : undefined
 
   const addRoom = async () => {
     setSaving(true)
@@ -139,6 +147,11 @@ export default function RoomsPage() {
                             </div>
                             {bed.resident && (
                               <div style={{ fontSize: '11px', color: 'var(--text-muted)' }}>{bed.resident.name}</div>
+                            )}
+                            {bed.resident?.status === 'notice' && availableFrom(bed.resident.id) && (
+                              <div style={{ fontSize: '10px', color: '#f97316', fontWeight: '600', marginTop: '2px' }}>
+                                ⏳ Available from {new Date(availableFrom(bed.resident.id)!).toLocaleDateString('en-IN', { day: 'numeric', month: 'short' })}
+                              </div>
                             )}
                           </div>
                         </div>
