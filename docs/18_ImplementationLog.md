@@ -2,6 +2,82 @@
 
 Newest first.
 
+## 2026-09-04 (part 2) · Room 205 resident + Google Form notice sync
+- **Room 205:** owner confirmed someone lives there (name still unknown — same
+  "⚠️ Name Pending" placeholder pattern as Room 304) and is vacating ~2026-09-20 like Zubin.
+  Same single-occupancy-of-a-double-room handling as Niraj/207 (both beds locked).
+- **Google Form sync built:** owner's "Notice to Vacate" form response sheet is public
+  (readable via the CSV export URL — no Google service account needed at all, simpler than
+  planned). Built `lib/notice-form-sync.ts` (hand-rolled CSV parser, tested against the real
+  162-row sheet including multiline quoted fields) + `/api/sync-notice-form` (admin-gated) +
+  wired into the daily cron automatically.
+- **Important finding, changed the design:** the sheet holds notice submissions back to 2022,
+  and several residents currently marked ACTIVE on the owner's fresh Sept 2026 list have old
+  notice submissions on file — Pradyuman Garg submitted notice 4 times (2024×2, May 2025, May
+  2026, each citing graduation/moving), Shivam Tiwari and Shourya Raikwar each submitted once in
+  late 2025, Taukeer submitted in June 2026. All are still living there today. Auto-applying this
+  data would have wrongly flagged paying residents as vacating with fabricated dates. **Decision:**
+  built a review queue instead of an auto-apply sync — `notice_form_submissions` table, only rows
+  from the last 6 months surface as 'pending' (older rows imported too, pre-marked 'dismissed' as
+  historical reference, not deleted). New "Google Form review queue" section on the admin Notices
+  page: each pending row shows a resident-match dropdown (pre-guessed by room number) + a last-day
+  date input, with Apply (creates the real notice_periods record + flips resident status) or
+  Dismiss. Verified: 157 historical rows correctly archived, exactly 5 recent ones (Rishi Varma,
+  Pradumn Garg, Prakhar Gupta, Manshu Jaiswar, Taukeer khan) surfaced for the owner's review.
+
+## 2026-09-04 · Real resident data import + resident-facing features + 2 more functional bugs found
+- **Resident data import:** parsed owner's manual room list into 13 real residents (12 initial +
+  Zubin/208 added mid-session), replacing 2 test/placeholder rows (matched owner's own email,
+  generic data — deleted along with their fake rent history). Corrected mid-import: the "second
+  number" per row is `security_deposit`, not an alternate rent guess (owner clarified true column
+  headers). Every gap/ambiguity flagged in each resident's `notes` field with ⚠️/🚨 markers,
+  including one resident whose name is still unknown ("⚠️ Name Pending (Room 304)"). Beds/rooms
+  occupancy synced to match (`rooms.status` recomputed from actual bed occupancy). Room 207
+  (physically double) locked to single occupancy for Niraj Methi per owner's note.
+- **WiFi + Nearby Places (RES-01/RES-02):** `nearby_places` table (admin-editable via Settings,
+  portal-readable), `settings.wifi_password`/`wifi_network_name`, portal home page redesigned to
+  show both. Nearby places seeded from a live web search for the Kolar Road/Bhopal area (hospitals,
+  grocery, attractions, transport) — flagged to owner as general-area info, not verified exact
+  distances from the property.
+- **Fixed: portal home page was completely broken.** It queried `rooms`/`beds` via a nonexistent
+  `room_id` join and a `rent_records` table that doesn't exist at all — every load would have
+  errored. Rewritten against the real schema (`residents.room_number` direct, `rent_payments`
+  with integer month/year).
+- **Fixed: portal notice-to-vacate page was completely broken.** Referenced
+  `residents.notice_period_start` (doesn't exist) and `notice_periods.expected_vacate_date`
+  (doesn't exist — real column is `last_day_of_stay`, and `last_day_per_agreement` turned out to
+  be a DB-generated column, better than committed SQL suggested). Rewritten to use the real
+  `notice_periods` table correctly.
+- **Fixed: 6 more dead RLS policies (functional bug, not security)** — `rent_payments`,
+  `electricity_readings`, `maintenance_requests` (x2), `notice_periods` (x2) all had "residents
+  see/submit their own X" policies keyed on `residents.user_id`, a column the app never
+  populates (`portal_user_id` is what's actually set). Every one of these was silently
+  non-functional — residents could never see their own rent/electricity/maintenance history or
+  submit a notice/maintenance request through the portal. Rewrote all 6 to use
+  `portal_user_id = auth.uid()`. Added a `resident_update_own_status` policy so a resident's
+  status can flip to `notice` when they submit.
+- **Auto-tracking for notice periods (owner's ask):** as soon as ANY notice_periods row exists
+  (resident-submitted via the now-fixed portal form, or admin-entered), the admin Residents list
+  shows a "⏳ Nd left" badge and the Rooms page shows "Available from {date}" on that bed —
+  entirely derived from the DB, no manual re-entry, no extra step. Verified live against Zubin's
+  real notice (room 208, vacating 2026-09-20 → correctly shows 16 days left).
+- **Not built — needs owner input:** syncing notice submissions from the owner's *external*
+  Google Form. No form/sheet ID was provided; once shared, this would need a small poll-based
+  sync (Sheets API → notice_periods) similar to `lib/sheets.ts` but in the read direction.
+- **Legal/KYC additions:** `residents.aadhaar_number` column added; onboarding wizard now
+  collects and validates a 12-digit Aadhaar number alongside the existing image uploads.
+  `lib/agreement-clauses.ts` extracted as the single source of truth for clause text (was
+  duplicated risk between onboarding page and any future PDF generator). `lib/documents.ts`
+  generates two admin-only PDFs via jsPDF — a signed-agreement copy (clauses + signature
+  metadata) and a police tenant-verification form (standard fields; NOT an auto-submission —
+  no public API exists for MP/Bhopal police tenant verification to integrate against, owner
+  should confirm the current process with their local station). Both stored in the `private-docs`
+  bucket (admin-only RLS), never resident-downloadable, with buttons on the admin resident detail
+  page to generate/regenerate/view.
+- **Staff & Expenses (Phase 3, STAFF-01/EXP-01):** `staff`, `staff_payouts`, `expenses` tables
+  (admin-only RLS) + new `/admin/staff` page — add staff, log monthly payouts (salary/advance/
+  bonus, payment mode), log expenses by category, with month/year filtering and running totals.
+
 ## 2026-09-03 (part 2) · Found and fixed the same open-RLS drift on 6 more tables
 While building the multi-admin feature, checked `admins` table RLS and found any authenticated
 user could INSERT themselves as super_admin (with_check `auth.uid() IS NOT NULL`, no ownership

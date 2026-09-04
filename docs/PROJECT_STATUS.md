@@ -73,8 +73,42 @@ send (fails soft with a clear message until then — same non-fatal pattern as e
 clause text is edited later. Digital onboarding → agreement sign-up is functionally solid — see
 30_LegalCompliance.md for the full legal read.
 
-Next up: owner adds the env vars below → DATA-01 schema re-audit → resident-facing niceties
-(WiFi/nearby/announcements, Phase 2) → staff/expense tracking (Phase 3).
+✅ **Real resident data imported (2026-09-04):** 13 real residents now live in production
+(rooms 101,102,104×2,105,201,204,206,207,208,301,304,307), replacing test data. Every
+missing/ambiguous field flagged in each resident's notes with ⚠️/🚨 — see the residents list for
+follow-ups. Room 205 has NO resident (source sheet had a rent figure but no name — needs owner
+input). Room 304's occupant name is still unknown ("⚠️ Name Pending").
+
+✅ **WiFi + Nearby Places live**, **Staff & Expense tracking live** (`/admin/staff`), **Aadhaar
+number + admin-only agreement/police-verification PDFs live** (resident detail page).
+
+✅ **Notice-to-vacate auto-tracking built and verified live:** submitting notice (portal, now
+fixed) or logging one as admin instantly shows a days-left badge on the Residents list and an
+"Available from {date}" note on the Rooms page — zero manual re-entry. Along the way, found and
+fixed 2 more completely-broken pages (portal home, portal notice — both queried nonexistent
+columns/tables) and 6 more dead RLS policies (functional bug: residents could never see their own
+rent/electricity/maintenance data). Full detail: 18_ImplementationLog.md (2026-09-04 entry).
+
+✅ **Google Form notice sync built (2026-09-04):** the owner's response sheet is public, so no
+Google service account was needed at all. Runs automatically in the daily cron + has a manual
+"Sync Google Form" button on the admin Notices page. **Deliberately a review queue, not
+auto-apply** — the sheet has 4+ years of history and several currently-active residents
+(Pradyuman Garg, Shivam Tiwari, Shourya Raikwar, Taukeer) have old notice submissions on file from
+before/during their current stay. Only submissions from the last 6 months surface for review;
+older ones are archived (kept, not deleted) as historical reference. **5 submissions are waiting
+for owner review right now** on the Notices page: Rishi Varma & Pradumn Garg (room 204), Prakhar
+Gupta (103), Manshu Jaiswar (206), Taukeer khan (105) — confirm or dismiss each one.
+
+✅ **Room 205 resident added** — someone lives there (name still unknown, same "⚠️ Name Pending"
+treatment as Room 304), vacating ~2026-09-20 like Zubin.
+
+## Open question for owner
+- Room 205 and Room 304 both need real names from the owner when known.
+- The 5 pending Google Form submissions above need a decision (apply with a confirmed last day,
+  or dismiss if already resolved/superseded).
+
+Next up: DATA-01 schema re-audit → richer Phase 3 reporting (cash-flow view combining rent +
+expenses) → resident announcements feed.
 
 ## Blocked By (OWNER ACTIONS NEEDED) — round 2
 - **Add to Vercel (Production) env vars:**

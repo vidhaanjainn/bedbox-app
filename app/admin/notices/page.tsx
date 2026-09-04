@@ -3,30 +3,90 @@
 import { useEffect, useState } from 'react'
 import { createClient } from '@/lib/supabase/client'
 import { formatDate, getDaysRemaining } from '@/lib/utils'
-import { Bell, Plus, X, Loader2, AlertTriangle, CheckCircle } from 'lucide-react'
+import { Bell, Plus, X, Loader2, AlertTriangle, CheckCircle, RefreshCw, FileSpreadsheet } from 'lucide-react'
+
+// Parses the sheet's dd/mm/yyyy text (when present — often blank) into an ISO date.
+function parseSheetDate(raw?: string | null): string {
+  if (!raw) return ''
+  const m = raw.trim().match(/^(\d{1,2})\/(\d{1,2})\/(\d{4})/)
+  if (!m) return ''
+  const [, d, mo, y] = m
+  return `${y}-${mo.padStart(2, '0')}-${d.padStart(2, '0')}`
+}
 
 export default function NoticesPage() {
   const [notices, setNotices] = useState<any[]>([])
   const [residents, setResidents] = useState<any[]>([])
+  const [submissions, setSubmissions] = useState<any[]>([])
   const [loading, setLoading] = useState(true)
   const [showModal, setShowModal] = useState(false)
   const [saving, setSaving] = useState(false)
   const [statusFilter, setStatusFilter] = useState('active')
   const [form, setForm] = useState({ resident_id: '', notice_date: new Date().toISOString().split('T')[0], reason: '', last_day_of_stay: '' })
+  const [syncing, setSyncing] = useState(false)
+  const [syncMsg, setSyncMsg] = useState('')
+  const [reviewDrafts, setReviewDrafts] = useState<Record<string, { resident_id: string; last_day_of_stay: string }>>({})
   const supabase = createClient()
 
   useEffect(() => { fetchAll() }, [statusFilter])
 
   const fetchAll = async () => {
     setLoading(true)
-    const [{ data: n }, { data: r }] = await Promise.all([
+    const [{ data: n }, { data: r }, { data: sub }] = await Promise.all([
       supabase.from('notice_periods').select('*, resident:residents(name, room_number, mobile, rent_amount)')
         .eq('status', statusFilter).order('notice_date', { ascending: false }),
       supabase.from('residents').select('id, name, room_number').eq('status', 'active'),
+      supabase.from('notice_form_submissions').select('*').eq('review_status', 'pending').order('submitted_at', { ascending: false }),
     ])
     setNotices(n || [])
     setResidents(r || [])
+    setSubmissions(sub || [])
+    // Pre-fill each draft with a best-guess resident match (same room, active) + parsed date
+    const drafts: Record<string, { resident_id: string; last_day_of_stay: string }> = {}
+    sub?.forEach(s => {
+      const guess = r?.find(res => res.room_number === s.room_number)
+      drafts[s.id] = { resident_id: guess?.id || '', last_day_of_stay: parseSheetDate(s.last_day_raw) }
+    })
+    setReviewDrafts(drafts)
     setLoading(false)
+  }
+
+  const syncForm = async () => {
+    setSyncing(true)
+    setSyncMsg('')
+    try {
+      const res = await fetch('/api/sync-notice-form', { method: 'POST' })
+      const data = await res.json()
+      if (!res.ok) { setSyncMsg(data.error || 'Sync failed.'); return }
+      setSyncMsg(`✓ Checked ${data.totalRows} rows, ${data.imported} new`)
+      fetchAll()
+    } catch {
+      setSyncMsg('Sync failed — check your connection.')
+    } finally {
+      setSyncing(false)
+      setTimeout(() => setSyncMsg(''), 5000)
+    }
+  }
+
+  const applySubmission = async (sub: any) => {
+    const draft = reviewDrafts[sub.id]
+    if (!draft?.resident_id || !draft?.last_day_of_stay) { alert('Pick a resident and a last day of stay first.'); return }
+    await supabase.from('notice_periods').insert({
+      resident_id: draft.resident_id,
+      notice_date: parseSheetDate(sub.submitted_at) || new Date().toISOString().split('T')[0],
+      last_day_of_stay: draft.last_day_of_stay,
+      reason: sub.reason || null,
+      status: 'active',
+      submitted_via: 'form',
+    })
+    await supabase.from('residents').update({ status: 'notice' }).eq('id', draft.resident_id)
+    await supabase.from('notice_form_submissions').update({ review_status: 'applied', matched_resident_id: draft.resident_id }).eq('id', sub.id)
+    fetchAll()
+  }
+
+  const dismissSubmission = async (id: string) => {
+    await supabase.from('notice_form_submissions').update({ review_status: 'dismissed' }).eq('id', id)
+    fetchAll()
   }
 
   const handleAdd = async () => {
@@ -67,10 +127,53 @@ export default function NoticesPage() {
             2-month notice required · Track vacating residents
           </p>
         </div>
-        <button onClick={() => setShowModal(true)} className="bb-btn-primary">
-          <Plus size={16} /> Add Notice
-        </button>
+        <div style={{ display: 'flex', gap: '8px', alignItems: 'center' }}>
+          {syncMsg && <span style={{ fontSize: '12px', color: syncMsg.startsWith('✓') ? '#34d399' : '#f87171' }}>{syncMsg}</span>}
+          <button onClick={syncForm} disabled={syncing} className="bb-btn-secondary">
+            {syncing ? <Loader2 size={14} style={{ animation: 'spin 1s linear infinite' }} /> : <RefreshCw size={14} />}
+            Sync Google Form
+          </button>
+          <button onClick={() => setShowModal(true)} className="bb-btn-primary">
+            <Plus size={16} /> Add Notice
+          </button>
+        </div>
       </div>
+
+      {/* Google Form review queue — deliberately requires confirmation, not auto-applied.
+          The form has repeat/old submissions from residents who are still currently active. */}
+      {submissions.length > 0 && (
+        <div className="glass-card" style={{ padding: '20px', marginBottom: '24px', borderColor: 'rgba(249,115,22,0.25)' }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: '10px', marginBottom: '4px' }}>
+            <FileSpreadsheet size={16} color="#f97316" />
+            <h3 style={{ fontFamily: 'Syne, sans-serif', fontSize: '15px', fontWeight: '600', color: 'var(--text-primary)', margin: 0 }}>
+              {submissions.length} Form Submission{submissions.length > 1 ? 's' : ''} Awaiting Review
+            </h3>
+          </div>
+          <p style={{ fontSize: '12px', color: 'var(--text-muted)', margin: '0 0 16px' }}>
+            From the "Notice to Vacate" Google Form. Confirm the matching resident and last day before this becomes an official notice — some of these may be old or already resolved.
+          </p>
+          <div style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
+            {submissions.map(s => {
+              const draft = reviewDrafts[s.id] || { resident_id: '', last_day_of_stay: '' }
+              return (
+                <div key={s.id} style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr auto auto', gap: '10px', alignItems: 'center', padding: '12px', background: 'var(--surface-2)', borderRadius: '10px' }}>
+                  <div>
+                    <div style={{ fontSize: '13px', fontWeight: '600', color: 'var(--text-primary)' }}>{s.name || '—'} <span style={{ fontWeight: '400', color: 'var(--text-muted)' }}>(Room {s.room_number || '?'})</span></div>
+                    <div style={{ fontSize: '11px', color: 'var(--text-muted)' }}>{s.submitted_at} · {s.reason?.slice(0, 60) || 'No reason given'}</div>
+                  </div>
+                  <select className="bb-input" value={draft.resident_id} onChange={e => setReviewDrafts(d => ({ ...d, [s.id]: { ...draft, resident_id: e.target.value } }))}>
+                    <option value="">Match to resident...</option>
+                    {residents.map(r => <option key={r.id} value={r.id}>{r.name} — Room {r.room_number}</option>)}
+                  </select>
+                  <input className="bb-input" type="date" value={draft.last_day_of_stay} onChange={e => setReviewDrafts(d => ({ ...d, [s.id]: { ...draft, last_day_of_stay: e.target.value } }))} />
+                  <button onClick={() => applySubmission(s)} style={{ padding: '8px 14px', borderRadius: '8px', border: '1px solid rgba(52,211,153,0.3)', background: 'rgba(52,211,153,0.08)', color: '#34d399', fontSize: '12px', fontWeight: '600', cursor: 'pointer', whiteSpace: 'nowrap' }}>Apply</button>
+                  <button onClick={() => dismissSubmission(s.id)} style={{ padding: '8px 14px', borderRadius: '8px', border: '1px solid var(--border)', background: 'transparent', color: 'var(--text-muted)', fontSize: '12px', fontWeight: '600', cursor: 'pointer' }}>Dismiss</button>
+                </div>
+              )
+            })}
+          </div>
+        </div>
+      )}
 
       {/* Filter tabs */}
       <div style={{ display: 'flex', gap: '6px', background: 'var(--surface-1)', border: '1px solid var(--border)', borderRadius: '10px', padding: '4px', width: 'fit-content', marginBottom: '24px' }}>

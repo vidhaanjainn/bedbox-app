@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server'
 import { createClient } from '@supabase/supabase-js'
 import { sendEmail, emailShell, moneyINR } from '@/lib/notify'
+import { syncNoticeFormSubmissions } from '@/lib/notice-form-sync'
 
 // AUTO-01 + AUTO-02 + AUTO-03 (daily): runs once a day via Vercel Cron (see vercel.json).
 //   1. Ensures every active resident has a rent_payments row for the current month.
@@ -140,10 +141,12 @@ export async function GET(req: Request) {
 
   const rowsResult = await ensureCurrentMonthRows(supabase, dryRun)
   const reminderResult = await sendReminders(supabase, dryRun)
+  const noticeFormResult = dryRun ? { imported: 0 } : await syncNoticeFormSubmissions().catch(() => ({ imported: 0 }))
 
   return NextResponse.json({
     dryRun,
     rentRowsCreated: rowsResult.created,
     remindersSent: reminderResult.sent,
+    noticeFormRowsImported: 'imported' in noticeFormResult ? noticeFormResult.imported : 0,
   })
 }
