@@ -4,6 +4,11 @@ import { useEffect, useState } from 'react'
 import { useParams } from 'next/navigation'
 import { createClient } from '@/lib/supabase/client'
 
+// Bump this whenever the clauses below change — it's stored on the resident's record
+// at signing time, so a past resident's proof-of-consent always reflects the exact
+// terms they actually agreed to, even after this text is edited later.
+const AGREEMENT_VERSION = 'v1-2026-09'
+
 const AGREEMENT_CLAUSES = [
   "Rent is payable on or before the 5th of each calendar month. A penalty of ₹200 per day shall be levied for each day of delay beyond the 5th. Non-payment by the 10th gives TheBedBox the right to repossess the room and remove the tenant's belongings.",
   "The security deposit paid at the time of check-in is non-adjustable against rent and is returnable without interest at the end of the tenancy, subject to deductions for unpaid dues, damages, missing items, or any other outstanding charges.",
@@ -117,6 +122,7 @@ export default function OnboardPage() {
           aadhaar_front_path: aadhaarFrontPath,
           aadhaar_back_path: aadhaarBackPath,
           agreement_agreed: form.agreement_agreed,
+          agreement_version: AGREEMENT_VERSION,
         }),
       })
       const result = await res.json()

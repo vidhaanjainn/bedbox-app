@@ -110,6 +110,7 @@ export async function POST(req: Request, ctx: { params: Promise<{ token: string 
           aadhaar_back_url: docPath(body.aadhaar_back_path),
           agreement_signed_at: new Date().toISOString(),
           agreement_ip: ip,
+          agreement_version: str(body.agreement_version, 40) || null,
           onboarding_status: 'submitted',
           onboard_token_used: true,
           updated_at: new Date().toISOString(),

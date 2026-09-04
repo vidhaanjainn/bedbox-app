@@ -2,6 +2,17 @@
 
 Newest first.
 
+## 2026-09-03 (part 2) · Found and fixed the same open-RLS drift on 6 more tables
+While building the multi-admin feature, checked `admins` table RLS and found any authenticated
+user could INSERT themselves as super_admin (with_check `auth.uid() IS NOT NULL`, no ownership
+check at all). Widened the check to ALL public tables in one query — found the identical drift
+pattern on `beds`, `rooms`, `electricity_readings`, `maintenance_requests`, `rent_payments`
+(broad `auth.uid() IS NOT NULL` policies alongside/instead of correct admin/own-row scoping).
+With owner approval, applied 2 migrations dropping all the unsafe policies; verified via
+`pg_policies` query that zero broad policies remain anywhere except the correct
+`portal_user_id = auth.uid()` one on residents. `is_admin()` hardened to also require
+`is_active = true`. Full writeup: 12_Security.md §6.
+
 ## 2026-07-12 (part 2) · Found & fixed the real "prod DB unreachable" root cause + a live P0 hole
 - **Investigation:** owner unpaused a Supabase project named "bedbox" (ref `rskbrdzbbfyyhaxucmgg`)
   but the app's env vars (Vercel + `.env.local`) pointed at a *different* ref

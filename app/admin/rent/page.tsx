@@ -3,7 +3,14 @@
 import { useEffect, useState } from 'react'
 import { createClient } from '@/lib/supabase/client'
 import { formatCurrency, formatDate } from '@/lib/utils'
-import { CreditCard, Plus, Search, CheckCircle, Clock, AlertCircle, Loader2, X, Upload } from 'lucide-react'
+import { CreditCard, Plus, Search, CheckCircle, Clock, AlertCircle, Loader2, X, Upload, MessageCircle, FileSpreadsheet } from 'lucide-react'
+
+function waReminderLink(mobile: string, name: string, room: string, outstanding: number) {
+  const digits = (mobile || '').replace(/\D/g, '')
+  const phone = digits.length === 10 ? `91${digits}` : digits
+  const message = `Hi ${name.split(' ')[0]}, this is a friendly reminder from TheBedBox — your rent of ₹${Math.round(outstanding).toLocaleString('en-IN')} for Room ${room} is due. Please pay at your earliest convenience. Thank you! 🙏`
+  return `https://wa.me/${phone}?text=${encodeURIComponent(message)}`
+}
 
 export default function RentPage() {
   const [payments, setPayments] = useState<any[]>([])
@@ -16,6 +23,8 @@ export default function RentPage() {
   const [logForm, setLogForm] = useState({ amount: '', payment_mode: 'upi', notes: '' })
   const [logLoading, setLogLoading] = useState(false)
   const [screenshot, setScreenshot] = useState<File | null>(null)
+  const [syncing, setSyncing] = useState(false)
+  const [syncMsg, setSyncMsg] = useState('')
   const supabase = createClient()
 
   useEffect(() => { fetchPayments() }, [monthFilter, yearFilter])
@@ -92,6 +101,26 @@ export default function RentPage() {
     fetchPayments()
   }
 
+  const syncToSheets = async () => {
+    setSyncing(true)
+    setSyncMsg('')
+    try {
+      const res = await fetch('/api/sync-rent-dues', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ month: monthFilter, year: yearFilter }),
+      })
+      const data = await res.json()
+      if (!res.ok) { setSyncMsg(data.error || 'Sync failed.'); return }
+      setSyncMsg(`✓ Synced ${data.count} rows to Sheets`)
+    } catch {
+      setSyncMsg('Sync failed — check your connection.')
+    } finally {
+      setSyncing(false)
+      setTimeout(() => setSyncMsg(''), 5000)
+    }
+  }
+
   const requestReceipt = async (paymentId: string) => {
     await supabase.from('rent_payments').update({ receipt_requested_at: new Date().toISOString() }).eq('id', paymentId)
     alert('Receipt request noted. You can now generate and send the receipt.')
@@ -125,7 +154,12 @@ export default function RentPage() {
             {months[monthFilter - 1]} {yearFilter} · {stats.paid}/{stats.total} paid · {formatCurrency(stats.totalOutstanding)} outstanding
           </p>
         </div>
-        <div style={{ display: 'flex', gap: '8px' }}>
+        <div style={{ display: 'flex', gap: '8px', alignItems: 'center' }}>
+          {syncMsg && <span style={{ fontSize: '12px', color: syncMsg.startsWith('✓') ? '#34d399' : '#f87171' }}>{syncMsg}</span>}
+          <button onClick={syncToSheets} disabled={syncing} className="bb-btn-secondary">
+            {syncing ? <Loader2 size={14} style={{ animation: 'spin 1s linear infinite' }} /> : <FileSpreadsheet size={14} />}
+            Sync to Sheets
+          </button>
           <button onClick={generateMonthlyRent} className="bb-btn-secondary">
             <Plus size={14} /> Generate Monthly
           </button>
@@ -216,6 +250,21 @@ export default function RentPage() {
                     </td>
                     <td>
                       <div style={{ display: 'flex', gap: '6px' }}>
+                        {p.status !== 'paid' && p.resident?.mobile && (
+                          <a
+                            href={waReminderLink(p.resident.mobile, p.resident.name, p.resident.room_number, p.total_amount - p.amount_paid)}
+                            target="_blank" rel="noopener noreferrer"
+                            title="Send WhatsApp reminder"
+                            style={{
+                              display: 'flex', alignItems: 'center', gap: '4px',
+                              padding: '4px 10px', borderRadius: '6px', border: '1px solid rgba(52,211,153,0.3)',
+                              background: 'rgba(52,211,153,0.08)', color: '#34d399',
+                              fontSize: '11px', fontWeight: '600', cursor: 'pointer', textDecoration: 'none'
+                            }}
+                          >
+                            <MessageCircle size={12} /> WhatsApp
+                          </a>
+                        )}
                         {p.status !== 'paid' && (
                           <button
                             onClick={() => { setSelectedPayment(p); setShowLogModal(true); setLogForm({ amount: String(p.total_amount - p.amount_paid), payment_mode: 'upi', notes: '' }) }}

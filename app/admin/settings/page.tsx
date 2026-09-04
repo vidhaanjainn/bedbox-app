@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from 'react'
 import { createClient } from '@/lib/supabase/client'
-import { Building, Zap, CreditCard, User, Save, Eye, EyeOff } from 'lucide-react'
+import { Building, Zap, CreditCard, User, Save, Eye, EyeOff, Users, UserPlus, Loader2 } from 'lucide-react'
 
 export default function SettingsPage() {
   const supabase = createClient()
@@ -18,8 +18,56 @@ export default function SettingsPage() {
   const [showPass, setShowPass] = useState(false)
   const [saving, setSaving] = useState<string | null>(null)
   const [saved, setSaved] = useState<string | null>(null)
+  const [admins, setAdmins] = useState<any[]>([])
+  const [adminsLoading, setAdminsLoading] = useState(true)
+  const [showInvite, setShowInvite] = useState(false)
+  const [inviteForm, setInviteForm] = useState({ name: '', email: '', phone: '', role: 'staff' })
+  const [inviting, setInviting] = useState(false)
+  const [inviteMsg, setInviteMsg] = useState('')
 
-  useEffect(() => { loadSettings() }, [])
+  useEffect(() => { loadSettings(); loadAdmins() }, [])
+
+  const loadAdmins = async () => {
+    setAdminsLoading(true)
+    try {
+      const res = await fetch('/api/admin/invite')
+      const data = await res.json()
+      if (res.ok) setAdmins(data.admins || [])
+    } catch {}
+    setAdminsLoading(false)
+  }
+
+  const sendInvite = async () => {
+    setInviting(true)
+    setInviteMsg('')
+    try {
+      const res = await fetch('/api/admin/invite', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(inviteForm),
+      })
+      const data = await res.json()
+      if (!res.ok) { setInviteMsg(data.error || 'Could not send invite.'); return }
+      setInviteMsg('✓ Invite sent!')
+      setInviteForm({ name: '', email: '', phone: '', role: 'staff' })
+      loadAdmins()
+      setTimeout(() => { setShowInvite(false); setInviteMsg('') }, 1500)
+    } catch {
+      setInviteMsg('Something went wrong.')
+    } finally {
+      setInviting(false)
+    }
+  }
+
+  const toggleAdmin = async (id: string, is_active: boolean) => {
+    const res = await fetch('/api/admin/invite', {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ id, is_active: !is_active }),
+    })
+    if (res.ok) loadAdmins()
+    else { const d = await res.json(); alert(d.error || 'Could not update.') }
+  }
 
   const loadSettings = async () => {
     const { data: { user } } = await supabase.auth.getUser()
@@ -109,6 +157,67 @@ export default function SettingsPage() {
         <div style={{ marginTop: '12px', fontSize: '12px', color: 'var(--text-muted)', padding: '10px 14px', background: 'var(--surface-2)', borderRadius: '8px' }}>
           💡 Changes take effect from the next billing cycle. Residents are notified per your agreement terms.
         </div>
+      </div>
+
+      {/* Team / Multi-admin */}
+      <div className="glass-card" style={{ padding: '24px', marginBottom: '20px' }}>
+        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '20px' }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}><Users size={16} color="var(--teal-500)" /><h3 style={{ fontFamily: 'Syne, sans-serif', fontSize: '15px', fontWeight: '600', color: 'var(--text-primary)', margin: 0 }}>Team</h3></div>
+          <button onClick={() => setShowInvite(s => !s)} className="bb-btn-secondary" style={{ fontSize: '13px' }}>
+            <UserPlus size={13} /> Invite Admin
+          </button>
+        </div>
+
+        {showInvite && (
+          <div style={{ background: 'var(--surface-2)', borderRadius: '10px', padding: '16px', marginBottom: '16px' }}>
+            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '12px', marginBottom: '12px' }}>
+              <Field label="Name" value={inviteForm.name} onChange={v => setInviteForm(f => ({ ...f, name: v }))} />
+              <Field label="Email" value={inviteForm.email} onChange={v => setInviteForm(f => ({ ...f, email: v }))} type="email" />
+              <Field label="Phone (optional)" value={inviteForm.phone} onChange={v => setInviteForm(f => ({ ...f, phone: v }))} type="tel" />
+              <div>
+                <label style={{ display: 'block', fontSize: '12px', color: 'var(--text-muted)', marginBottom: '8px', fontWeight: '600' }}>Role</label>
+                <select className="bb-input" value={inviteForm.role} onChange={e => setInviteForm(f => ({ ...f, role: e.target.value }))}>
+                  <option value="staff">Staff (day-to-day ops)</option>
+                  <option value="super_admin">Super Admin (full access)</option>
+                </select>
+              </div>
+            </div>
+            {inviteMsg && <div style={{ fontSize: '12px', color: inviteMsg.startsWith('✓') ? '#34d399' : '#f87171', marginBottom: '10px' }}>{inviteMsg}</div>}
+            <button onClick={sendInvite} disabled={inviting || !inviteForm.name || !inviteForm.email} className="bb-btn-primary" style={{ fontSize: '13px' }}>
+              {inviting ? <Loader2 size={13} style={{ animation: 'spin 1s linear infinite' }} /> : <UserPlus size={13} />}
+              {inviting ? 'Sending...' : 'Send Invite'}
+            </button>
+            <div style={{ fontSize: '11px', color: 'var(--text-muted)', marginTop: '8px' }}>
+              They'll get an email to set their own password and can log in at this same admin portal immediately after.
+            </div>
+          </div>
+        )}
+
+        {adminsLoading ? (
+          <div style={{ padding: '20px', textAlign: 'center', color: 'var(--text-muted)', fontSize: '13px' }}>Loading...</div>
+        ) : (
+          <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
+            {admins.map(a => (
+              <div key={a.id} style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '10px 14px', background: 'var(--surface-2)', borderRadius: '8px' }}>
+                <div>
+                  <div style={{ fontSize: '13px', fontWeight: '600', color: 'var(--text-primary)' }}>{a.name} <span style={{ fontWeight: '400', color: 'var(--text-muted)', fontSize: '11px', textTransform: 'capitalize' }}>· {a.role?.replace('_', ' ')}</span></div>
+                  <div style={{ fontSize: '12px', color: 'var(--text-muted)' }}>{a.email}</div>
+                </div>
+                <button
+                  onClick={() => toggleAdmin(a.id, a.is_active)}
+                  style={{
+                    padding: '4px 10px', borderRadius: '6px', border: '1px solid var(--border)',
+                    background: a.is_active ? 'rgba(52,211,153,0.08)' : 'rgba(239,68,68,0.08)',
+                    color: a.is_active ? '#34d399' : '#f87171',
+                    fontSize: '11px', fontWeight: '600', cursor: 'pointer'
+                  }}
+                >
+                  {a.is_active ? 'Active' : 'Deactivated'}
+                </button>
+              </div>
+            ))}
+          </div>
+        )}
       </div>
 
       {/* Admin */}

@@ -47,8 +47,34 @@ confirmed: a second call created 0 duplicate rows.
 Vercel) — low risk since it's idempotent and reminder-capped, but add the secret soon (see
 Blocked By) to close it off properly.
 
-Next up: owner adds 3 new env vars + 3 DNS records (below) → WhatsApp (needs owner to complete
-Meta Business setup first, see 13_Notifications.md) → DATA-01 schema re-audit.
+✅ **A second, WIDER security sweep (2026-09-03):** while building multi-admin, found the exact
+same "edited outside git" RLS drift on 6 more tables — worst was `admins` itself, which let ANY
+logged-in resident self-promote to super_admin. Fixed across `admins`, `beds`, `rooms`,
+`electricity_readings`, `maintenance_requests`, `rent_payments` (owner-approved migrations,
+verified via live `pg_policies` query — zero unsafe policies remain anywhere). Full story:
+12_Security.md §6.
+
+✅ **Multi-admin built:** Settings page now has a Team section — invite by email (real Supabase
+Auth invite, they set their own password), assign staff/super_admin, deactivate without deleting.
+Backed by `app/api/admin/invite`. Login/admin layout already had zero hardcoded email gating, so
+this was a pure additive feature, not a bypass of anything.
+
+✅ **WhatsApp workaround (Meta Business Verification is stuck on the owner's end — see chat):**
+Rent Tracker page now has a one-tap "WhatsApp" button per pending/partial resident using a
+`wa.me` deep-link with a prefilled reminder message — zero API, zero approval wait, works today.
+
+✅ **One-click Sheets export:** Rent Tracker has a "Sync to Sheets" button pushing the current
+month's dues (name/mobile/room/total/paid/outstanding/status) to a dated Google Sheets tab.
+Needs `GOOGLE_SERVICE_ACCOUNT_EMAIL`/`GOOGLE_PRIVATE_KEY`/`GOOGLE_SHEET_ID` in Vercel to actually
+send (fails soft with a clear message until then — same non-fatal pattern as everywhere else).
+
+✅ **Agreement versioning added:** onboarding now stamps `agreement_version` alongside
+`agreement_signed_at`/`agreement_ip`, so historical consent stays valid proof even after the
+clause text is edited later. Digital onboarding → agreement sign-up is functionally solid — see
+30_LegalCompliance.md for the full legal read.
+
+Next up: owner adds the env vars below → DATA-01 schema re-audit → resident-facing niceties
+(WiFi/nearby/announcements, Phase 2) → staff/expense tracking (Phase 3).
 
 ## Blocked By (OWNER ACTIONS NEEDED) — round 2
 - **Add to Vercel (Production) env vars:**

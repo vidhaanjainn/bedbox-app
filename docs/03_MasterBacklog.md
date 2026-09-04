@@ -36,12 +36,13 @@ Migration: keep `emergency_contact_phone`, `aadhaar_front_path`/`back_path` (sin
 all pages referencing dropped columns (grep first). Test: admin new-resident + self-onboard both
 write same columns; existing rows backfilled.
 
-### SEC-03 · P1 · Medium · 3h · deps: none — 🟢 MOSTLY DONE ALREADY (discovered 2026-07-12):
-production's `is_admin()` already checks `admins` table membership, and it has 1 row (the owner).
-Remaining scope: replace the hardcoded `thebedbox.in@gmail.com` still used in API routes
-(booking-form notify, notify-admin) with a settings/admins lookup; verify `lib/types.ts` has an
-`Admin` type matching the real table; confirm admin login flow in `app/login/page.tsx` doesn't
-also hardcode the email anywhere. Test: admin login still works; second admin can be added by insert.
+### SEC-03 · P1 · Medium · 3h · deps: none — ✅ DONE 2026-09-03. Built `app/api/admin/invite`
+(GET list / POST invite / PATCH activate-deactivate) + a Team section in
+`app/admin/settings/page.tsx` — invite by email (real Supabase Auth invite email, they set their
+own password), assign staff/super_admin role, deactivate without deleting. Login/layout already
+had zero hardcoded email gating (confirmed by reading the code) — multi-admin now fully works
+end to end. `thebedbox.in@gmail.com` fallback remains only as the default for
+`ADMIN_NOTIFY_EMAIL` (which internal admin should get booking alerts — orthogonal to login access).
 
 ### OPS-01 · P2 · Easy · 1h · deps: none
 **Repo hygiene.** Rewrite README (what/stack/setup/env table/deploy); .gitignore `.DS_Store`,
@@ -66,10 +67,20 @@ daily cron rather than a separate monthly one, for simplicity): ensures a rent_p
 exists for the current month for every active resident, idempotent (skips existing rows). Does
 NOT yet fold in unbilled electricity — future refinement once electricity workflow is reviewed.
 
-### AUTO-04 · P1 · Medium · 4h · deps: none
-**Sheets sync for residents.** `lib/sheets.ts` (reuse booking-form JWT code); call from
-approve/archive/edit API paths; sync Name/Phone/Email/Room/Rent/Deposit/Move-in/Move-out/Status/
-Payment status/Notice/Docs-complete to a "Residents" tab keyed by resident id. Non-fatal on error.
+### AUTO-04 · P1 · Medium · 4h · deps: none — 🟢 PARTIALLY DONE 2026-09-03: `lib/sheets.ts` built
+(generic `syncSheetSnapshot` helper, snapshot-overwrite style rather than upsert-by-row — simpler
+and predictable for a "click to sync" button) + wired into a one-click "Sync to Sheets" button on
+the Rent Tracker page (`app/api/sync-rent-dues`), syncing current month's dues (name, mobile,
+room, total/paid/outstanding, status) to a dated tab. Remaining: do the same for the full
+Residents list (not just rent dues) and auto-trigger on approve/archive/edit rather than only
+manual click — both are quick extensions of the same `lib/sheets.ts` helper.
+
+### WA-01 · P1 · Easy · 2h · deps: none — ✅ DONE 2026-09-03 (workaround for Meta Business
+Verification being stuck): "Send WhatsApp" button per pending/partial row on the Rent Tracker page
+using a `wa.me` deep link with a prefilled reminder message — opens WhatsApp Web/App with the
+message ready, admin taps send. Zero API, zero approval, zero cost, works today. Not a replacement
+for AUTO-02's automated email reminders — a manual-but-one-tap channel alongside them. Revisit
+full Cloud API automation once Business Verification clears (blocked on Meta, see 13_Notifications.md).
 
 ### AUTO-05 · P2 · Medium · 3h · deps: AUTO-01, Resend domain ⚠
 **Auto receipt email** when payment marked paid; move jsPDF generation into `lib/receipt.ts`,

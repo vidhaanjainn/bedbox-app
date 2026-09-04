@@ -52,6 +52,23 @@ client-exposed by design of the prefix — if unused, delete it; if used, move s
 - Data retention: delete/archive KYC docs N months after move-out (define N in settings)
 - Add audit logging table for document access (SaaS-stage)
 
+## §6 (RESOLVED 2026-09-03) Same open-RLS drift found across 7 tables total
+What started as one bug (residents onboarding tokens) turned out to be a systemic pattern: at
+some point, broad `auth.uid() IS NOT NULL` policies were added directly in the Supabase dashboard
+(never committed to git) alongside the correct admin/own-row policies, on: `residents`, `admins`
+(worse — allowed self-promotion to super_admin via INSERT), `beds`, `rooms`, `electricity_readings`,
+`maintenance_requests`, `rent_payments`. Net effect: any authenticated user (any resident logged
+into the portal) could read/edit/delete every other resident's financial and personal data, and
+in the `admins` case, grant themselves admin access outright.
+**All fixed** via migrations `sec01_close_open_residents_rls`, `sec_close_open_admins_rls`,
+`sec_close_open_rls_remaining_tables` — verified via `pg_policies` that no `auth.uid() IS NOT NULL`
+broad policy remains anywhere except the correctly-scoped
+`portal_user_id = auth.uid()` one on `residents`. `is_admin()` also hardened to check
+`is_active = true`. **Lesson for future work:** never edit RLS policies directly in the Supabase
+dashboard — always via a migration file in `supabase/migrations/`, so drift like this can't recur
+silently. `bookings`, `notice_periods`, `short_stays`, `properties`, `settings`, `notifications`
+were checked and were already correctly scoped.
+
 ## Roles target model (future)
 admin (owner) → manager (per property) → staff (tasks only) → resident (own data only).
 All new tables get RLS from day one: admin-all + resident-own-select patterns as in current schema.
