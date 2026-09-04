@@ -3,11 +3,12 @@
 import { useEffect, useState } from 'react'
 import { createClient } from '@/lib/supabase/client'
 import { formatCurrency, formatDate, getDaysRemaining } from '@/lib/utils'
-import { ArrowLeft, Phone, Mail, MapPin, Building, Calendar, Zap, CreditCard, Clock, Wrench, Edit, Shield, AlertTriangle, Link2, CheckCircle, Copy, Archive, X, FileText, ShieldCheck, Loader2 } from 'lucide-react'
+import { ArrowLeft, Phone, Mail, MapPin, Building, Calendar, Zap, CreditCard, Clock, Wrench, Edit, Shield, AlertTriangle, Link2, CheckCircle, Copy, Archive, X, FileText, ShieldCheck, Loader2, RefreshCw } from 'lucide-react'
 import Link from 'next/link'
 import { useParams, useRouter } from 'next/navigation'
 import { generateAgreementPdf, generatePoliceVerificationPdf } from '@/lib/documents'
 import { AGREEMENT_CLAUSES } from '@/lib/agreement-clauses'
+import { Modal } from '@/components/ui/Modal'
 
 export default function ResidentDetailPage() {
   const { id } = useParams()
@@ -31,7 +32,37 @@ export default function ResidentDetailPage() {
   const [archiveError, setArchiveError] = useState('')
   const [generatingDoc, setGeneratingDoc] = useState<'agreement' | 'police' | null>(null)
   const [docMsg, setDocMsg] = useState('')
+  const [showRenewModal, setShowRenewModal] = useState(false)
+  const [renewRent, setRenewRent] = useState('')
+  const [renewEndDate, setRenewEndDate] = useState('')
+  const [renewing, setRenewing] = useState(false)
   const supabase = createClient()
+
+  // Admin-only action — this page is never reachable by a resident, and lease_end_date
+  // is never queried or displayed anywhere in app/portal/*, by design (owner request:
+  // residents should get no early warning that a renewal is coming).
+  const openRenewModal = () => {
+    const currentRent = Number(resident?.rent_amount) || 0
+    setRenewRent(String(Math.round(currentRent * 1.075))) // suggested +7.5%, per the agreement's 5-10% clause — editable
+    const base = resident?.lease_end_date ? new Date(resident.lease_end_date) : new Date()
+    base.setMonth(base.getMonth() + 11)
+    setRenewEndDate(base.toISOString().split('T')[0])
+    setShowRenewModal(true)
+  }
+
+  const confirmRenewal = async () => {
+    setRenewing(true)
+    const oldRent = resident.rent_amount
+    await supabase.from('residents').update({
+      rent_amount: parseFloat(renewRent) || resident.rent_amount,
+      lease_end_date: renewEndDate,
+      lease_renewed_at: new Date().toISOString(),
+      notes: `${resident.notes ? resident.notes + ' | ' : ''}Lease renewed ${new Date().toLocaleDateString('en-IN')}: rent ${oldRent} → ${renewRent}, new term ends ${renewEndDate}.`,
+    }).eq('id', resident.id)
+    setShowRenewModal(false)
+    setRenewing(false)
+    fetchAll()
+  }
 
   const getSettingsMap = async () => {
     const { data } = await supabase.from('settings').select('key, value')
@@ -307,7 +338,14 @@ export default function ResidentDetailPage() {
           </div>
         </div>
         <div className="glass-card" style={{ padding: '24px' }}>
-          <h3 style={{ fontFamily: 'Syne, sans-serif', fontSize: '14px', fontWeight: '600', color: 'var(--text-primary)', margin: '0 0 16px', textTransform: 'uppercase', letterSpacing: '0.06em' }}>Stay Details</h3>
+          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '16px' }}>
+            <h3 style={{ fontFamily: 'Syne, sans-serif', fontSize: '14px', fontWeight: '600', color: 'var(--text-primary)', margin: 0, textTransform: 'uppercase', letterSpacing: '0.06em' }}>Stay Details</h3>
+            {resident.status === 'active' && (
+              <button onClick={openRenewModal} style={{ display: 'flex', alignItems: 'center', gap: 5, padding: '5px 10px', borderRadius: 7, border: '1px solid rgba(0,212,200,0.3)', background: 'rgba(0,212,200,0.08)', color: 'var(--teal-500)', fontSize: 11, fontWeight: 600, cursor: 'pointer' }}>
+                <RefreshCw size={11} /> {resident.lease_end_date ? 'Renew Lease' : 'Start Lease Tracking'}
+              </button>
+            )}
+          </div>
           <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
             <InfoRow icon={<Building size={14} />} label="Room" value={`${resident.room_number || '—'} (${resident.bed?.room?.type || ''})`} />
             <InfoRow icon={<Calendar size={14} />} label="Joined" value={formatDate(resident.date_of_joining)} />
@@ -315,6 +353,9 @@ export default function ResidentDetailPage() {
             <InfoRow icon={<CreditCard size={14} />} label="Monthly Rent" value={formatCurrency(resident.rent_amount)} highlight />
             <InfoRow icon={<Shield size={14} />} label="Security Deposit" value={formatCurrency(resident.security_deposit)} />
             <InfoRow icon={<Zap size={14} />} label="Initial Electricity" value={`${resident.initial_electricity_reading} units`} />
+            {resident.lease_end_date && (
+              <InfoRow icon={<RefreshCw size={14} />} label="Lease Term Ends" value={`${formatDate(resident.lease_end_date)} (admin-only, not shown to resident)`} />
+            )}
           </div>
         </div>
       </div>
@@ -559,6 +600,29 @@ export default function ResidentDetailPage() {
             </div>
           </div>
         </div>
+      )}
+
+      {/* Lease renewal — admin-initiated only. Never surfaced to the resident;
+          lease_end_date is not queried anywhere under app/portal/*. */}
+      {showRenewModal && (
+        <Modal title="Renew Lease" onClose={() => setShowRenewModal(false)} maxWidth="420px">
+          <div style={{ fontSize: 13, color: 'var(--text-muted)', marginBottom: 18 }}>
+            Current rent: {formatCurrency(resident.rent_amount)}/month. The resident is not notified of this action or shown any expiry countdown.
+          </div>
+          <div style={{ marginBottom: 16 }}>
+            <label style={{ display: 'block', fontSize: 12, fontWeight: 600, letterSpacing: '0.06em', textTransform: 'uppercase', color: 'var(--text-muted)', marginBottom: 8 }}>New Monthly Rent (₹)</label>
+            <input className="bb-input" type="number" value={renewRent} onChange={e => setRenewRent(e.target.value)} />
+            <div style={{ fontSize: 11, color: 'var(--text-muted)', marginTop: 6 }}>Suggested +7.5% per the standard agreement clause — adjust as needed.</div>
+          </div>
+          <div style={{ marginBottom: 22 }}>
+            <label style={{ display: 'block', fontSize: 12, fontWeight: 600, letterSpacing: '0.06em', textTransform: 'uppercase', color: 'var(--text-muted)', marginBottom: 8 }}>New Term Ends</label>
+            <input className="bb-input" type="date" value={renewEndDate} onChange={e => setRenewEndDate(e.target.value)} />
+          </div>
+          <button onClick={confirmRenewal} disabled={renewing || !renewRent || !renewEndDate} className="bb-btn-primary" style={{ width: '100%', justifyContent: 'center' }}>
+            {renewing ? <Loader2 size={14} style={{ animation: 'spin 1s linear infinite' }} /> : <RefreshCw size={14} />}
+            Confirm Renewal
+          </button>
+        </Modal>
       )}
     </div>
   )

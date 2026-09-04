@@ -3,7 +3,8 @@
 import { useEffect, useState } from 'react'
 import { createClient } from '@/lib/supabase/client'
 import { useRouter } from 'next/navigation'
-import { Building2, Mail, Lock, Eye, EyeOff, Loader2 } from 'lucide-react'
+import { Mail, Lock, Eye, EyeOff, Loader2, ArrowRight } from 'lucide-react'
+import Image from 'next/image'
 
 export default function LoginPage() {
   const [email, setEmail] = useState('')
@@ -40,173 +41,109 @@ export default function LoginPage() {
     router.refresh()
   }
 
+  const shell: React.CSSProperties = {
+    minHeight: '100vh',
+    background: 'radial-gradient(ellipse 80% 60% at 50% -10%, rgba(0,212,200,0.08), transparent), #05070a',
+    display: 'flex',
+    alignItems: 'center',
+    justifyContent: 'center',
+    padding: '24px',
+    fontFamily: "'DM Sans', sans-serif",
+  }
+
   if (checkingSession) {
-    return (
-      <div style={{ minHeight: '100vh', background: 'var(--navy-900)', display: 'flex', alignItems: 'center', justifyContent: 'center', color: 'var(--text-muted)', fontSize: 14 }}>
-        Loading...
-      </div>
-    )
+    return <div style={{ ...shell, color: 'rgba(255,255,255,0.3)', fontSize: 13, letterSpacing: '0.05em' }}>AUTHENTICATING…</div>
   }
 
   return (
-    <div style={{
-      minHeight: '100vh',
-      background: 'var(--navy-900)',
-      display: 'flex',
-      alignItems: 'center',
-      justifyContent: 'center',
-      padding: '24px',
-      position: 'relative',
-      overflow: 'hidden'
-    }}>
-      {/* Background decoration */}
+    <div style={shell}>
+      {/* Faint structural grid — reads as a console, not a consumer app */}
       <div style={{
-        position: 'absolute',
-        top: '-20%',
-        right: '-10%',
-        width: '600px',
-        height: '600px',
-        background: 'radial-gradient(circle, rgba(0,212,200,0.06) 0%, transparent 70%)',
-        pointerEvents: 'none'
-      }} />
-      <div style={{
-        position: 'absolute',
-        bottom: '-20%',
-        left: '-10%',
-        width: '500px',
-        height: '500px',
-        background: 'radial-gradient(circle, rgba(0,212,200,0.04) 0%, transparent 70%)',
-        pointerEvents: 'none'
+        position: 'absolute', inset: 0, pointerEvents: 'none',
+        backgroundImage: 'linear-gradient(rgba(0,212,200,0.035) 1px, transparent 1px), linear-gradient(90deg, rgba(0,212,200,0.035) 1px, transparent 1px)',
+        backgroundSize: '48px 48px',
+        maskImage: 'radial-gradient(ellipse 70% 50% at 50% 20%, black, transparent)',
       }} />
 
-      <div className="animate-fade-in" style={{ width: '100%', maxWidth: '420px' }}>
-        {/* Logo */}
-        <div style={{ textAlign: 'center', marginBottom: '40px' }}>
-          <div style={{
-            display: 'inline-flex',
-            alignItems: 'center',
-            justifyContent: 'center',
-            width: '64px',
-            height: '64px',
-            background: 'rgba(0,212,200,0.1)',
-            borderRadius: '16px',
-            border: '1px solid rgba(0,212,200,0.2)',
-            marginBottom: '20px'
-          }}>
-            <Building2 size={28} color="var(--teal-500)" />
+      <div className="animate-fade-in" style={{ width: '100%', maxWidth: '380px', position: 'relative' }}>
+        {/* Mark */}
+        <div style={{ textAlign: 'center', marginBottom: '36px' }}>
+          <div style={{ display: 'inline-flex', width: '56px', height: '56px', borderRadius: '16px', overflow: 'hidden', marginBottom: '20px', boxShadow: '0 8px 30px -8px rgba(0,212,200,0.35)' }}>
+            <Image src="/icons/icon-admin-192.png" alt="" width={56} height={56} priority />
           </div>
-          <h1 style={{
-            fontFamily: 'Syne, sans-serif',
-            fontSize: '28px',
-            fontWeight: '700',
-            color: 'var(--text-primary)',
-            margin: '0 0 6px'
-          }}>TheBedBox</h1>
-          <p style={{ color: 'var(--text-muted)', fontSize: '14px', margin: 0 }}>
-            Admin Portal
-          </p>
+          <div style={{ fontSize: '10px', fontWeight: 700, letterSpacing: '0.22em', color: 'var(--teal-500)', textTransform: 'uppercase', marginBottom: '8px' }}>
+            TheBedBox
+          </div>
+          <h1 style={{ fontFamily: "'Syne', sans-serif", fontSize: '22px', fontWeight: 700, color: '#f4f7fb', margin: 0, letterSpacing: '-0.01em' }}>
+            Admin Console
+          </h1>
         </div>
 
         {/* Card */}
-        <div className="glass-card" style={{ padding: '36px' }}>
-          <h2 style={{
-            fontFamily: 'Syne, sans-serif',
-            fontSize: '18px',
-            fontWeight: '600',
-            color: 'var(--text-primary)',
-            margin: '0 0 24px'
-          }}>Sign in to continue</h2>
-
+        <div style={{
+          background: 'linear-gradient(180deg, rgba(255,255,255,0.03), rgba(255,255,255,0.01))',
+          border: '1px solid rgba(255,255,255,0.08)',
+          borderRadius: '18px',
+          padding: '32px',
+          backdropFilter: 'blur(20px)',
+          boxShadow: '0 1px 0 rgba(255,255,255,0.05) inset, 0 24px 48px -24px rgba(0,0,0,0.6)',
+        }}>
           <form onSubmit={handleLogin}>
             <div style={{ marginBottom: '16px' }}>
-              <label style={{
-                display: 'block',
-                fontSize: '12px',
-                fontWeight: '600',
-                letterSpacing: '0.06em',
-                textTransform: 'uppercase',
-                color: 'var(--text-muted)',
-                marginBottom: '8px'
-              }}>Email</label>
+              <label style={{ display: 'block', fontSize: '11px', fontWeight: 600, letterSpacing: '0.08em', textTransform: 'uppercase', color: 'rgba(255,255,255,0.35)', marginBottom: '8px' }}>Email</label>
               <div style={{ position: 'relative' }}>
-                <Mail size={16} color="var(--text-muted)" style={{
-                  position: 'absolute', left: '12px', top: '50%',
-                  transform: 'translateY(-50%)'
-                }} />
+                <Mail size={16} color="rgba(255,255,255,0.3)" style={{ position: 'absolute', left: '14px', top: '50%', transform: 'translateY(-50%)' }} />
                 <input
-                  type="email"
-                  className="bb-input"
-                  style={{ paddingLeft: '38px' }}
-                  placeholder="your@email.com"
-                  value={email}
-                  onChange={e => setEmail(e.target.value)}
-                  required
+                  type="email" required value={email} onChange={e => setEmail(e.target.value)}
+                  placeholder="you@thebedbox.in"
+                  style={{ width: '100%', boxSizing: 'border-box', padding: '13px 14px 13px 40px', borderRadius: '11px', fontSize: '14px', background: 'rgba(0,0,0,0.35)', border: '1px solid rgba(255,255,255,0.08)', color: '#f4f7fb', outline: 'none', fontFamily: "'DM Sans', sans-serif" }}
+                  onFocus={e => { e.target.style.borderColor = 'var(--teal-500)'; e.target.style.boxShadow = '0 0 0 3px rgba(0,212,200,0.12)' }}
+                  onBlur={e => { e.target.style.borderColor = 'rgba(255,255,255,0.08)'; e.target.style.boxShadow = 'none' }}
                 />
               </div>
             </div>
 
-            <div style={{ marginBottom: '24px' }}>
-              <label style={{
-                display: 'block',
-                fontSize: '12px',
-                fontWeight: '600',
-                letterSpacing: '0.06em',
-                textTransform: 'uppercase',
-                color: 'var(--text-muted)',
-                marginBottom: '8px'
-              }}>Password</label>
+            <div style={{ marginBottom: '22px' }}>
+              <label style={{ display: 'block', fontSize: '11px', fontWeight: 600, letterSpacing: '0.08em', textTransform: 'uppercase', color: 'rgba(255,255,255,0.35)', marginBottom: '8px' }}>Password</label>
               <div style={{ position: 'relative' }}>
-                <Lock size={16} color="var(--text-muted)" style={{
-                  position: 'absolute', left: '12px', top: '50%',
-                  transform: 'translateY(-50%)'
-                }} />
+                <Lock size={16} color="rgba(255,255,255,0.3)" style={{ position: 'absolute', left: '14px', top: '50%', transform: 'translateY(-50%)' }} />
                 <input
-                  type={showPassword ? 'text' : 'password'}
-                  className="bb-input"
-                  style={{ paddingLeft: '38px', paddingRight: '38px' }}
+                  type={showPassword ? 'text' : 'password'} required value={password} onChange={e => setPassword(e.target.value)}
                   placeholder="••••••••"
-                  value={password}
-                  onChange={e => setPassword(e.target.value)}
-                  required
+                  style={{ width: '100%', boxSizing: 'border-box', padding: '13px 40px 13px 40px', borderRadius: '11px', fontSize: '14px', background: 'rgba(0,0,0,0.35)', border: '1px solid rgba(255,255,255,0.08)', color: '#f4f7fb', outline: 'none', fontFamily: "'DM Sans', sans-serif" }}
+                  onFocus={e => { e.target.style.borderColor = 'var(--teal-500)'; e.target.style.boxShadow = '0 0 0 3px rgba(0,212,200,0.12)' }}
+                  onBlur={e => { e.target.style.borderColor = 'rgba(255,255,255,0.08)'; e.target.style.boxShadow = 'none' }}
                 />
-                <button
-                  type="button"
-                  onClick={() => setShowPassword(!showPassword)}
-                  style={{
-                    position: 'absolute', right: '12px', top: '50%',
-                    transform: 'translateY(-50%)',
-                    background: 'none', border: 'none',
-                    cursor: 'pointer', color: 'var(--text-muted)', padding: 0
-                  }}
-                >
+                <button type="button" onClick={() => setShowPassword(!showPassword)} aria-label={showPassword ? 'Hide password' : 'Show password'}
+                  style={{ position: 'absolute', right: '10px', top: '50%', transform: 'translateY(-50%)', width: 28, height: 28, display: 'flex', alignItems: 'center', justifyContent: 'center', background: 'none', border: 'none', cursor: 'pointer', color: 'rgba(255,255,255,0.35)' }}>
                   {showPassword ? <EyeOff size={16} /> : <Eye size={16} />}
                 </button>
               </div>
             </div>
 
             {error && (
-              <div style={{
-                background: 'rgba(239,68,68,0.1)',
-                border: '1px solid rgba(239,68,68,0.3)',
-                borderRadius: '8px',
-                padding: '10px 14px',
-                marginBottom: '16px',
-                fontSize: '13px',
-                color: '#f87171'
-              }}>
+              <div style={{ background: 'rgba(239,68,68,0.08)', border: '1px solid rgba(239,68,68,0.25)', borderRadius: '10px', padding: '10px 14px', marginBottom: '16px', fontSize: '13px', color: '#f87171' }}>
                 {error}
               </div>
             )}
 
-            <button type="submit" className="bb-btn-primary" style={{ width: '100%', justifyContent: 'center' }} disabled={loading}>
-              {loading ? <Loader2 size={16} style={{ animation: 'spin 1s linear infinite' }} /> : null}
-              {loading ? 'Signing in...' : 'Sign In'}
+            <button type="submit" disabled={loading} style={{
+              width: '100%', padding: '13px', borderRadius: '11px', fontSize: '14px', fontWeight: 700,
+              background: loading ? 'rgba(255,255,255,0.08)' : 'var(--teal-500)',
+              color: loading ? 'rgba(255,255,255,0.3)' : '#04120f',
+              border: 'none', cursor: loading ? 'not-allowed' : 'pointer',
+              display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8,
+              transition: 'box-shadow 0.2s ease, transform 0.15s ease',
+              boxShadow: loading ? 'none' : '0 8px 24px -8px rgba(0,212,200,0.4)',
+              fontFamily: "'DM Sans', sans-serif",
+            }}>
+              {loading ? <Loader2 size={16} style={{ animation: 'spin 1s linear infinite' }} /> : <>Enter Console <ArrowRight size={15} /></>}
             </button>
           </form>
         </div>
 
-        <p style={{ textAlign: 'center', marginTop: '24px', fontSize: '12px', color: 'var(--text-muted)' }}>
-          Resident? Access your portal via the link sent to your email.
+        <p style={{ textAlign: 'center', marginTop: '28px', fontSize: '12px', color: 'rgba(255,255,255,0.25)' }}>
+          Residents use the link sent to their email, not this page.
         </p>
       </div>
     </div>

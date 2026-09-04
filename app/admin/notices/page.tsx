@@ -3,7 +3,9 @@
 import { useEffect, useState } from 'react'
 import { createClient } from '@/lib/supabase/client'
 import { formatDate, getDaysRemaining } from '@/lib/utils'
-import { Bell, Plus, X, Loader2, AlertTriangle, CheckCircle, RefreshCw, FileSpreadsheet } from 'lucide-react'
+import { Bell, Plus, X, Loader2, AlertTriangle, CheckCircle, RefreshCw, FileSpreadsheet, ClipboardCheck, Trash2 } from 'lucide-react'
+import { Modal, FormField } from '@/components/ui/Modal'
+import { formatCurrency } from '@/lib/utils'
 
 // Parses the sheet's dd/mm/yyyy text (when present — often blank) into an ISO date.
 function parseSheetDate(raw?: string | null): string {
@@ -26,6 +28,11 @@ export default function NoticesPage() {
   const [syncing, setSyncing] = useState(false)
   const [syncMsg, setSyncMsg] = useState('')
   const [reviewDrafts, setReviewDrafts] = useState<Record<string, { resident_id: string; last_day_of_stay: string }>>({})
+  const [settlementTarget, setSettlementTarget] = useState<any>(null)
+  const [checklist, setChecklist] = useState({ keys_returned: false, room_condition_ok: false, dues_cleared: false, furniture_fixtures_ok: false })
+  const [deductions, setDeductions] = useState<{ reason: string; amount: string }[]>([])
+  const [refundMode, setRefundMode] = useState('upi')
+  const [settling, setSettling] = useState(false)
   const supabase = createClient()
 
   useEffect(() => { fetchAll() }, [statusFilter])
@@ -33,7 +40,7 @@ export default function NoticesPage() {
   const fetchAll = async () => {
     setLoading(true)
     const [{ data: n }, { data: r }, { data: sub }] = await Promise.all([
-      supabase.from('notice_periods').select('*, resident:residents(name, room_number, mobile, rent_amount)')
+      supabase.from('notice_periods').select('*, resident:residents(id, name, room_number, mobile, rent_amount, security_deposit, bed_id)')
         .eq('status', statusFilter).order('notice_date', { ascending: false }),
       supabase.from('residents').select('id, name, room_number').eq('status', 'active'),
       supabase.from('notice_form_submissions').select('*').eq('review_status', 'pending').order('submitted_at', { ascending: false }),
@@ -110,9 +117,50 @@ export default function NoticesPage() {
     fetchAll()
   }
 
-  const markCompleted = async (noticeId: string, residentId: string) => {
-    await supabase.from('notice_periods').update({ status: 'completed' }).eq('id', noticeId)
-    await supabase.from('residents').update({ status: 'vacated' }).eq('id', residentId)
+  const openSettlement = (notice: any) => {
+    setSettlementTarget(notice)
+    setChecklist({ keys_returned: false, room_condition_ok: false, dues_cleared: false, furniture_fixtures_ok: false })
+    setDeductions([])
+    setRefundMode('upi')
+  }
+
+  const totalDeductions = deductions.reduce((s, d) => s + (parseFloat(d.amount) || 0), 0)
+  const depositAmount = Number(settlementTarget?.resident?.security_deposit) || 0
+  const refundAmount = Math.max(0, depositAmount - totalDeductions)
+  const allChecked = Object.values(checklist).every(Boolean)
+
+  const completeMoveOut = async () => {
+    if (!settlementTarget) return
+    setSettling(true)
+    const resident = settlementTarget.resident
+
+    await supabase.from('deposit_settlements').insert({
+      resident_id: resident.id,
+      security_deposit: depositAmount,
+      deductions: deductions.filter(d => d.reason.trim() && parseFloat(d.amount) > 0).map(d => ({ reason: d.reason, amount: parseFloat(d.amount) })),
+      total_deductions: totalDeductions,
+      refund_amount: refundAmount,
+      refund_mode: refundMode,
+      refund_status: 'pending',
+      keys_returned: checklist.keys_returned,
+      room_condition_ok: checklist.room_condition_ok,
+      dues_cleared: checklist.dues_cleared,
+      furniture_fixtures_ok: checklist.furniture_fixtures_ok,
+    })
+    await supabase.from('notice_periods').update({ status: 'completed' }).eq('id', settlementTarget.id)
+    await supabase.from('residents').update({ status: 'vacated' }).eq('id', resident.id)
+    if (resident.bed_id) {
+      await supabase.from('beds').update({ status: 'available' }).eq('id', resident.bed_id)
+      const { data: bed } = await supabase.from('beds').select('room_id').eq('id', resident.bed_id).single()
+      if (bed?.room_id) {
+        const { data: allBeds } = await supabase.from('beds').select('status').eq('room_id', bed.room_id)
+        const occupied = allBeds?.filter(b => b.status === 'occupied').length || 0
+        await supabase.from('rooms').update({ status: occupied === 0 ? 'available' : 'partial' }).eq('id', bed.room_id)
+      }
+    }
+
+    setSettlementTarget(null)
+    setSettling(false)
     fetchAll()
   }
 
@@ -267,7 +315,7 @@ export default function NoticesPage() {
 
                 {n.status === 'active' && (
                   <button
-                    onClick={() => markCompleted(n.id, n.resident_id)}
+                    onClick={() => openSettlement(n)}
                     style={{
                       width: '100%', padding: '8px', borderRadius: '8px',
                       border: '1px solid rgba(52,211,153,0.3)',
@@ -277,7 +325,7 @@ export default function NoticesPage() {
                       justifyContent: 'center', gap: '6px'
                     }}
                   >
-                    <CheckCircle size={13} /> Mark as Vacated
+                    <ClipboardCheck size={13} /> Move-Out & Settle Deposit
                   </button>
                 )}
               </div>
@@ -332,6 +380,61 @@ export default function NoticesPage() {
             </div>
           </div>
         </div>
+      )}
+
+      {/* Move-out checklist + deposit settlement */}
+      {settlementTarget && (
+        <Modal title={`Move Out — ${settlementTarget.resident?.name}`} onClose={() => setSettlementTarget(null)} maxWidth="520px">
+          <div style={{ fontSize: '13px', color: 'var(--text-muted)', marginBottom: '18px' }}>
+            Room {settlementTarget.resident?.room_number} · Security deposit {formatCurrency(depositAmount)}
+          </div>
+
+          <div style={{ fontSize: '12px', fontWeight: '600', letterSpacing: '0.06em', textTransform: 'uppercase', color: 'var(--text-muted)', marginBottom: '10px' }}>Checklist</div>
+          <div style={{ display: 'flex', flexDirection: 'column', gap: '8px', marginBottom: '20px' }}>
+            {[
+              { key: 'keys_returned', label: 'Keys & access cards returned' },
+              { key: 'room_condition_ok', label: 'Room condition verified (normal wear only)' },
+              { key: 'dues_cleared', label: 'All rent & electricity dues cleared' },
+              { key: 'furniture_fixtures_ok', label: 'Furniture & fixtures accounted for' },
+            ].map(item => (
+              <label key={item.key} style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '10px 12px', background: 'var(--surface-2)', borderRadius: 8, cursor: 'pointer', fontSize: 13 }}>
+                <input type="checkbox" checked={(checklist as any)[item.key]} onChange={e => setChecklist(c => ({ ...c, [item.key]: e.target.checked }))} style={{ width: 16, height: 16 }} />
+                {item.label}
+              </label>
+            ))}
+          </div>
+
+          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '10px' }}>
+            <span style={{ fontSize: '12px', fontWeight: '600', letterSpacing: '0.06em', textTransform: 'uppercase', color: 'var(--text-muted)' }}>Deductions</span>
+            <button onClick={() => setDeductions(d => [...d, { reason: '', amount: '' }])} className="bb-btn-secondary" style={{ fontSize: '11px', padding: '5px 10px' }}><Plus size={12} /> Add</button>
+          </div>
+          {deductions.map((d, i) => (
+            <div key={i} style={{ display: 'flex', gap: 8, marginBottom: 8 }}>
+              <input className="bb-input" placeholder="Reason (damage, unpaid dues...)" value={d.reason} onChange={e => setDeductions(ds => ds.map((x, xi) => xi === i ? { ...x, reason: e.target.value } : x))} />
+              <input className="bb-input" style={{ maxWidth: 110 }} type="number" placeholder="₹" value={d.amount} onChange={e => setDeductions(ds => ds.map((x, xi) => xi === i ? { ...x, amount: e.target.value } : x))} />
+              <button onClick={() => setDeductions(ds => ds.filter((_, xi) => xi !== i))} className="bb-icon-btn" style={{ width: 40, height: 40, minWidth: 40, minHeight: 40 }}><Trash2 size={14} /></button>
+            </div>
+          ))}
+
+          <div style={{ background: 'var(--surface-2)', borderRadius: 10, padding: 14, margin: '16px 0' }}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 13, marginBottom: 6 }}><span style={{ color: 'var(--text-muted)' }}>Deposit</span><span>{formatCurrency(depositAmount)}</span></div>
+            <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 13, marginBottom: 6 }}><span style={{ color: 'var(--text-muted)' }}>Total deductions</span><span style={{ color: totalDeductions > 0 ? '#f87171' : 'inherit' }}>−{formatCurrency(totalDeductions)}</span></div>
+            <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 15, fontWeight: 700, borderTop: '1px solid var(--border)', paddingTop: 8, marginTop: 4 }}><span>Refund due</span><span style={{ color: 'var(--teal-500)' }}>{formatCurrency(refundAmount)}</span></div>
+          </div>
+
+          <div style={{ marginBottom: '20px' }}>
+            <label style={{ display: 'block', fontSize: '12px', fontWeight: '600', letterSpacing: '0.06em', textTransform: 'uppercase', color: 'var(--text-muted)', marginBottom: '8px' }}>Refund Mode</label>
+            <select className="bb-input" value={refundMode} onChange={e => setRefundMode(e.target.value)}>
+              <option value="upi">UPI</option><option value="bank_transfer">Bank Transfer</option><option value="cash">Cash</option>
+            </select>
+          </div>
+
+          {!allChecked && <div style={{ fontSize: 12, color: '#fbbf24', marginBottom: 12 }}>Complete all checklist items before finalizing.</div>}
+          <button onClick={completeMoveOut} disabled={!allChecked || settling} className="bb-btn-primary" style={{ width: '100%', justifyContent: 'center' }}>
+            {settling ? <Loader2 size={14} style={{ animation: 'spin 1s linear infinite' }} /> : <ClipboardCheck size={14} />}
+            Complete Move-Out — Refund {formatCurrency(refundAmount)}
+          </button>
+        </Modal>
       )}
     </div>
   )

@@ -2,6 +2,34 @@
 
 Newest first.
 
+## 2026-09-04 (part 5) · Distinct admin login, move-out settlement, shared components, lease renewal
+- **Admin login (`/login`) redesigned from scratch** — owner correctly flagged it as a reskinned
+  copy of the resident login. New identity: near-black background with a faint structural grid,
+  the actual shield PWA icon as the mark, "Admin Console" framing, sharper/more restrained
+  typography. Resident login (`/portal`) also got a real elevation pass (glass-card treatment,
+  refined depth/spacing) while keeping its distinct warm/consumer character — the two are now
+  intentionally different premium styles, not the same template with different fields.
+- **Shared UI components** (`components/ui/`): `PageHeader`, `StatCard`/`StatGrid`, `EmptyState`,
+  `Badge` (with a `STATUS_TONE` map so pages stop re-deriving the same color logic), `Modal` +
+  `FormField`. Used immediately in the two new features below rather than left unused — existing
+  pages can adopt incrementally.
+- **Move-out checklist + deposit settlement** (`deposit_settlements` table): the Notices page's
+  "Mark as Vacated" is now "Move-Out & Settle Deposit" — a real checklist (keys returned, room
+  condition, dues cleared, furniture/fixtures) that must be fully checked before finalizing,
+  itemized deductions with live-computed refund total, refund mode, and on completion: creates
+  the settlement record, marks the notice completed, sets the resident vacated, frees their bed,
+  and recomputes the room's occupancy status (full/partial/available) — all in one action instead
+  of the previous instant, no-record status flip.
+- **Admin-only lease renewal** (`residents.lease_end_date`/`lease_renewed_at`): a "Renew Lease"
+  action on the resident detail page (Stay Details card) — admin sets a new rent (prefilled at
+  +7.5%, the agreement's 5-10% clause) and new term end date; updates rent + appends an audit note.
+  **Explicitly never surfaced to residents** — verified with a grep that neither column is
+  referenced anywhere under `app/portal/*`. (Note: Postgres RLS is row-level, not column-level, so
+  a technically curious resident inspecting their own network response could see the raw field —
+  the requirement as stated was "don't show them any expiry warning" at the UI level, which this
+  fully satisfies; true column-level hiding would need a Postgres view, not done here as
+  out-of-scope for the stated concern.)
+
 ## 2026-09-04 (part 4) · Premium admin icon + UI polish pass (UX-01/02 first slice)
 - **New admin icon:** generated a distinct SVG (dark charcoal/navy gradient square, teal shield +
   checkmark — "control/authority", separate from the resident app's teal "B" monogram), rasterized
