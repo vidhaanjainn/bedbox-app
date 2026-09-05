@@ -5,6 +5,8 @@ import { useRouter } from 'next/navigation'
 import { createClient } from '@/lib/supabase/client'
 import { Check } from 'lucide-react'
 
+const MONTH_NAMES = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec']
+
 export default function ReceiptPage() {
   const router = useRouter()
   const supabase = createClient()
@@ -23,8 +25,8 @@ export default function ReceiptPage() {
       const {data:res} = await supabase.from('residents').select('id,name,email').eq('portal_user_id',session.user.id).single()
       if (!res) return
       setResident(res)
-      const {data:rents} = await supabase.from('rent_records').select('id,month,amount,paid,electricity_amount').eq('resident_id',res.id).eq('paid',true).order('created_at',{ascending:false})
-      setRentRecords(rents||[])
+      const {data:rents} = await supabase.from('rent_payments').select('id,month,year,total_amount,electricity_amount').eq('resident_id',res.id).eq('status','paid').order('year',{ascending:false}).order('month',{ascending:false})
+      setRentRecords((rents||[]).map(r=>({...r, label:`${MONTH_NAMES[r.month-1]} ${r.year}`})))
       const {data:reqs} = await supabase.from('receipt_requests').select('id,month,status,sent_at').eq('resident_id',res.id).order('created_at',{ascending:false})
       setExisting(reqs||[])
     }
@@ -58,11 +60,11 @@ export default function ReceiptPage() {
         <div style={{fontSize:12,color:'rgba(255,255,255,0.4)',fontWeight:600,letterSpacing:'0.08em',textTransform:'uppercase',marginBottom:12}}>Select month</div>
         <div style={{display:'flex',flexDirection:'column',gap:8,marginBottom:24}}>
           {rentRecords.map(r=>{
-            const done2=requested.includes(r.month)
-            const sel=selected===r.month
-            return <button key={r.id} onClick={()=>!done2&&setSelected(r.month)} disabled={done2}
+            const done2=requested.includes(r.label)
+            const sel=selected===r.label
+            return <button key={r.id} onClick={()=>!done2&&setSelected(r.label)} disabled={done2}
               style={{display:'flex',justifyContent:'space-between',alignItems:'center',padding:'14px 16px',borderRadius:12,cursor:done2?'not-allowed':'pointer',background:sel?'rgba(0,212,200,0.08)':'rgba(255,255,255,0.04)',border:`1px solid ${sel?'rgba(0,212,200,0.35)':'rgba(255,255,255,0.08)'}`,color:done2?'rgba(255,255,255,0.3)':'#fff',fontFamily:"'DM Sans',sans-serif",textAlign:'left',opacity:done2?0.6:1}}>
-              <div><div style={{fontSize:14,fontWeight:500}}>{r.month}</div><div style={{fontSize:12,color:'rgba(255,255,255,0.4)',marginTop:2}}>₹{((r.amount||0)+(r.electricity_amount||0)).toLocaleString('en-IN')} paid</div></div>
+              <div><div style={{fontSize:14,fontWeight:500}}>{r.label}</div><div style={{fontSize:12,color:'rgba(255,255,255,0.4)',marginTop:2}}>₹{Number(r.total_amount||0).toLocaleString('en-IN')} paid</div></div>
               {done2&&<span style={{fontSize:12,color:'#00d4c8'}}>✓ Requested</span>}
               {sel&&!done2&&<span style={{fontSize:12,color:'#00d4c8'}}>● Selected</span>}
             </button>

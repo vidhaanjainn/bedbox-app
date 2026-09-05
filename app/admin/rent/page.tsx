@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from 'react'
 import { createClient } from '@/lib/supabase/client'
+import { getCurrentAdmin, CurrentAdmin } from '@/lib/current-admin'
 import { formatCurrency, formatDate } from '@/lib/utils'
 import { CreditCard, Plus, Search, CheckCircle, Clock, AlertCircle, Loader2, X, Upload, MessageCircle, FileSpreadsheet } from 'lucide-react'
 
@@ -25,15 +26,17 @@ export default function RentPage() {
   const [screenshot, setScreenshot] = useState<File | null>(null)
   const [syncing, setSyncing] = useState(false)
   const [syncMsg, setSyncMsg] = useState('')
+  const [currentAdmin, setCurrentAdmin] = useState<CurrentAdmin | null>(null)
   const supabase = createClient()
 
+  useEffect(() => { getCurrentAdmin(supabase).then(setCurrentAdmin) }, [])
   useEffect(() => { fetchPayments() }, [monthFilter, yearFilter])
 
   const fetchPayments = async () => {
     setLoading(true)
     const { data } = await supabase
       .from('rent_payments')
-      .select('*, resident:residents(name, room_number, mobile)')
+      .select('*, resident:residents(name, room_number, mobile), collected_admin:admins!rent_payments_collected_by_fkey(name)')
       .eq('month', monthFilter)
       .eq('year', yearFilter)
       .order('status')
@@ -91,6 +94,7 @@ export default function RentPage() {
       notes: logForm.notes || null,
       paid_at: isFullyPaid ? new Date().toISOString() : null,
       status: isFullyPaid ? 'paid' : 'partial',
+      collected_by: currentAdmin?.id || null,
     }).eq('id', selectedPayment.id)
 
     setShowLogModal(false)
@@ -238,7 +242,10 @@ export default function RentPage() {
                     </td>
                     <td style={{ fontWeight: '700', color: 'var(--text-primary)' }}>{formatCurrency(p.total_amount)}</td>
                     <td style={{ color: '#34d399', fontWeight: '600' }}>{formatCurrency(p.amount_paid)}</td>
-                    <td style={{ textTransform: 'capitalize', fontSize: '12px' }}>{p.payment_mode?.replace('_', ' ') || '—'}</td>
+                    <td style={{ fontSize: '12px' }}>
+                      <div style={{ textTransform: 'capitalize' }}>{p.payment_mode?.replace('_', ' ') || '—'}</div>
+                      {p.collected_admin?.name && <div style={{ color: 'var(--text-muted)', marginTop: '2px' }}>by {p.collected_admin.name.split(' ')[0]}</div>}
+                    </td>
                     <td>
                       <span className="status-badge" style={{
                         background: p.status === 'paid' ? 'rgba(52,211,153,0.1)' : p.status === 'partial' ? 'rgba(251,191,36,0.1)' : 'rgba(239,68,68,0.1)',

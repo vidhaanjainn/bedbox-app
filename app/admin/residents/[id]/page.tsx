@@ -122,7 +122,7 @@ export default function ResidentDetailPage() {
       { data: maint },
       { data: noticeData },
     ] = await Promise.all([
-      supabase.from('residents').select('*, bed:beds(bed_number, room:rooms(room_number, type, floor))').eq('id', id).single(),
+      supabase.from('residents').select('*, bed:beds(bed_number, room:rooms(room_number, type, floor)), onboarded_by_admin:admins!residents_onboarded_by_fkey(name)').eq('id', id).single(),
       supabase.from('rent_payments').select('*').eq('resident_id', id).order('year', { ascending: false }).order('month', { ascending: false }),
       supabase.from('electricity_readings').select('*').eq('resident_id', id).order('year', { ascending: false }).order('month', { ascending: false }),
       supabase.from('maintenance_requests').select('*').eq('resident_id', id).order('created_at', { ascending: false }),
@@ -158,8 +158,18 @@ export default function ResidentDetailPage() {
 
   const handleApprove = async () => {
     setApproving(true)
-    await supabase.from('residents').update({ onboarding_status: 'active', status: 'active' }).eq('id', id)
-    setResident((r: any) => ({ ...r, onboarding_status: 'active', status: 'active' }))
+    try {
+      const res = await fetch('/api/approve-resident', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ residentId: id }),
+      })
+      const data = await res.json()
+      if (!res.ok) { alert(data.error || 'Could not approve this resident.'); setApproving(false); return }
+      await fetchAll()
+    } catch {
+      alert('Something went wrong. Please try again.')
+    }
     setApproving(false)
   }
 
@@ -280,6 +290,11 @@ export default function ResidentDetailPage() {
               <span className="status-badge" style={{ background: sc.bg, color: sc.color, borderColor: sc.border }}>{resident.status}</span>
               <span style={{ fontSize: '13px', color: 'var(--text-muted)' }}>Room {resident.room_number} · Joined {formatDate(resident.date_of_joining)}</span>
             </div>
+            {resident.onboarded_by_admin?.name && (
+              <div style={{ fontSize: '12px', color: 'var(--text-muted)', marginTop: '6px' }}>
+                Onboarded by <strong style={{ color: 'var(--text-primary)' }}>{resident.onboarded_by_admin.name}</strong>{resident.onboarded_at ? ` on ${formatDate(resident.onboarded_at)}` : ''}
+              </div>
+            )}
           </div>
         </div>
         <div style={{ display: 'flex', gap: '8px' }}>

@@ -5,6 +5,7 @@ import { createClient } from '@/lib/supabase/client'
 import { useRouter } from 'next/navigation'
 import { Mail, Lock, Eye, EyeOff, Loader2, ArrowRight } from 'lucide-react'
 import Image from 'next/image'
+import Link from 'next/link'
 
 export default function LoginPage() {
   const [email, setEmail] = useState('')
@@ -145,6 +146,11 @@ export default function LoginPage() {
         <p style={{ textAlign: 'center', marginTop: '28px', fontSize: '12px', color: 'rgba(255,255,255,0.25)' }}>
           Residents use the link sent to their email, not this page.
         </p>
+        <div style={{ textAlign: 'center', marginTop: '10px' }}>
+          <Link href="/portal" style={{ fontSize: '12px', color: 'rgba(255,255,255,0.3)', textDecoration: 'none' }}>
+            Login to resident portal instead →
+          </Link>
+        </div>
       </div>
     </div>
   )

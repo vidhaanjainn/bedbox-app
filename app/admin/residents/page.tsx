@@ -21,7 +21,7 @@ export default function ResidentsPage() {
   const fetchResidents = async () => {
     setLoading(true)
     const [{ data }, { data: noticeData }] = await Promise.all([
-      supabase.from('residents').select('*, bed:beds(bed_number, room:rooms(room_number, type))').order('created_at', { ascending: false }),
+      supabase.from('residents').select('*, bed:beds(bed_number, room:rooms(room_number, type)), onboarded_by_admin:admins!residents_onboarded_by_fkey(name)').order('created_at', { ascending: false }),
       supabase.from('notice_periods').select('resident_id, last_day_of_stay').eq('status', 'active'),
     ])
     setResidents(data || [])
@@ -129,6 +129,7 @@ export default function ResidentsPage() {
                       <span style={{ fontSize: '11px', fontWeight: '600', padding: '3px 8px', borderRadius: '999px', background: r.onboarding_status === 'active' ? 'rgba(52,211,153,0.1)' : r.onboarding_status === 'submitted' ? 'rgba(52,211,153,0.15)' : 'rgba(100,116,139,0.1)', color: r.onboarding_status === 'active' ? '#34d399' : r.onboarding_status === 'submitted' ? '#34d399' : '#94a3b8' }}>
                         {r.onboarding_status === 'active' ? '✓ Active' : r.onboarding_status === 'submitted' ? '⏳ Approve' : r.onboarding_status === 'pending' ? 'Sent' : 'Not sent'}
                       </span>
+                      {r.onboarded_by_admin?.name && <div style={{ fontSize: '10px', color: 'var(--text-muted)', marginTop: '3px' }}>by {r.onboarded_by_admin.name.split(' ')[0]}</div>}
                     </td>
                     <td>
                       <span className="status-badge" style={(() => { const c: Record<string, any> = { active: { background: 'rgba(52,211,153,0.1)', color: '#34d399', borderColor: 'rgba(52,211,153,0.3)' }, pending: { background: 'rgba(251,191,36,0.1)', color: '#fbbf24', borderColor: 'rgba(251,191,36,0.3)' }, notice: { background: 'rgba(249,115,22,0.1)', color: '#f97316', borderColor: 'rgba(249,115,22,0.3)' }, vacated: { background: 'rgba(100,116,139,0.1)', color: '#94a3b8', borderColor: 'rgba(100,116,139,0.3)' } }; return c[r.status] || {} })()}>{r.status}</span>

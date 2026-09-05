@@ -2,6 +2,7 @@
 
 import { useState, useEffect } from 'react'
 import { createClient } from '@/lib/supabase/client'
+import { getCurrentAdmin, CurrentAdmin } from '@/lib/current-admin'
 import { useRouter } from 'next/navigation'
 import { ArrowLeft, Upload, CheckCircle, Loader2, User, Home, FileText, Shield, Zap, SkipForward } from 'lucide-react'
 import Link from 'next/link'
@@ -20,8 +21,11 @@ export default function NewResidentPage() {
   const [beds, setBeds] = useState<any[]>([])
   const [error, setError] = useState('')
   const [inviteMode, setInviteMode] = useState(true) // default: invite-first
+  const [currentAdmin, setCurrentAdmin] = useState<CurrentAdmin | null>(null)
   const router = useRouter()
   const supabase = createClient()
+
+  useEffect(() => { getCurrentAdmin(supabase).then(setCurrentAdmin) }, [])
 
   const [form, setForm] = useState({
     name: '', mobile: '', email: '', emergency_contact_name: '',
@@ -145,6 +149,8 @@ export default function NewResidentPage() {
           tc_agreed_at: new Date().toISOString(),
           status: 'active',
           onboarding_status: 'active',
+          onboarded_by: currentAdmin?.id || null,
+          onboarded_at: new Date().toISOString(),
         })
         .select()
         .single()

@@ -91,7 +91,7 @@ export default function PortalLoginPage() {
         }}>
           {step==='mobile'&&<div>
             <h1 style={{fontFamily:"'Syne',sans-serif",fontWeight:700,fontSize:26,margin:'0 0 8px',letterSpacing:'-0.01em'}}>Welcome back</h1>
-            <p style={{color:'rgba(255,255,255,0.4)',fontSize:14,margin:'0 0 32px',lineHeight:1.5}}>Enter your registered mobile number to sign in</p>
+            <p style={{color:'rgba(255,255,255,0.4)',fontSize:14,margin:'0 0 32px',lineHeight:1.5}}>Enter your registered mobile number — we'll email a 6-digit code to sign you in</p>
             <label style={{display:'block',fontSize:11,fontWeight:600,letterSpacing:'0.06em',textTransform:'uppercase',color:'rgba(255,255,255,0.35)',marginBottom:9}}>Mobile number</label>
             <div style={{display:'flex',marginBottom:8}}>
               <div style={{padding:'14px 14px',background:'rgba(0,0,0,0.3)',border:'1px solid rgba(255,255,255,0.08)',borderRight:'none',borderRadius:'12px 0 0 12px',fontSize:14,color:'rgba(255,255,255,0.45)',fontWeight:500}}>+91</div>
@@ -130,8 +130,9 @@ export default function PortalLoginPage() {
           </div>}
           {step==='otp'&&<div>
             <h1 style={{fontFamily:"'Syne',sans-serif",fontWeight:700,fontSize:26,margin:'0 0 8px',letterSpacing:'-0.01em'}}>Check your email</h1>
-            <p style={{color:'rgba(255,255,255,0.4)',fontSize:14,margin:'0 0 4px'}}>OTP sent to</p>
-            <p style={{color:'#00d4c8',fontSize:14,fontWeight:600,margin:'0 0 28px'}}>{masked}</p>
+            <p style={{color:'rgba(255,255,255,0.4)',fontSize:14,margin:'0 0 4px'}}>Code sent to</p>
+            <p style={{color:'#00d4c8',fontSize:14,fontWeight:600,margin:'0 0 8px'}}>{masked}</p>
+            <p style={{color:'rgba(255,255,255,0.3)',fontSize:12,margin:'0 0 28px',lineHeight:1.5}}>Not in your inbox within a minute? Check spam/junk — it comes from Supabase, not TheBedBox.</p>
             <label style={{display:'block',fontSize:11,fontWeight:600,letterSpacing:'0.06em',textTransform:'uppercase',color:'rgba(255,255,255,0.35)',marginBottom:9}}>Enter 6-digit OTP</label>
             <input type="number" value={otp} onChange={e=>setOtp(e.target.value.slice(0,6))} placeholder="— — — — — —" onKeyDown={e=>e.key==='Enter'&&handleVerifyOTP()}
               style={{width:'100%',padding:'16px',fontSize:24,letterSpacing:'0.3em',textAlign:'center',background:'rgba(0,0,0,0.3)',border:'1px solid rgba(255,255,255,0.08)',borderRadius:12,color:'#fff',outline:'none',marginBottom:8,boxSizing:'border-box',fontFamily:"'DM Sans',sans-serif"}}
