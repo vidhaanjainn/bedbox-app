@@ -2,7 +2,6 @@
 
 import { useState, useEffect } from 'react'
 import { createClient } from '@/lib/supabase/client'
-import { getCurrentAdmin, CurrentAdmin } from '@/lib/current-admin'
 import { useRouter } from 'next/navigation'
 import { ArrowLeft, Upload, CheckCircle, Loader2, User, Home, FileText, Shield, Zap, SkipForward } from 'lucide-react'
 import Link from 'next/link'
@@ -21,11 +20,8 @@ export default function NewResidentPage() {
   const [beds, setBeds] = useState<any[]>([])
   const [error, setError] = useState('')
   const [inviteMode, setInviteMode] = useState(true) // default: invite-first
-  const [currentAdmin, setCurrentAdmin] = useState<CurrentAdmin | null>(null)
   const router = useRouter()
   const supabase = createClient()
-
-  useEffect(() => { getCurrentAdmin(supabase).then(setCurrentAdmin) }, [])
 
   const [form, setForm] = useState({
     name: '', mobile: '', email: '', emergency_contact_name: '',
@@ -103,11 +99,22 @@ export default function NewResidentPage() {
         await supabase.from('beds').update({ status: 'reserved' }).eq('id', form.bed_id)
       }
 
-      // Auto-generate invite token
+      // Auto-generate invite token and email it straight to the resident —
+      // no manual copy/paste needed unless they have no email on file.
       const { data: token, error: tokenError } = await supabase.rpc('generate_onboard_token', {
         p_resident_id: resident.id
       })
       if (tokenError) throw tokenError
+
+      if (form.email) {
+        try {
+          await fetch('/api/send-onboard-invite', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ residentId: resident.id, link: `${window.location.origin}/onboard/${token}` }),
+          })
+        } catch { /* non-fatal — admin can still send the link manually from the detail page */ }
+      }
 
       // Redirect to detail page — invite link will be shown ready to copy
       router.push(`/admin/residents/${resident.id}?invited=true`)
@@ -149,8 +156,6 @@ export default function NewResidentPage() {
           tc_agreed_at: new Date().toISOString(),
           status: 'active',
           onboarding_status: 'active',
-          onboarded_by: currentAdmin?.id || null,
-          onboarded_at: new Date().toISOString(),
         })
         .select()
         .single()
@@ -179,6 +184,17 @@ export default function NewResidentPage() {
         total_amount: parseFloat(form.rent_amount),
         status: 'pending',
       })
+
+      // Stamp who onboarded them and send the same "you're in, here's how to
+      // log in" email the self-service path sends on approval — walk-ins get
+      // identical treatment instead of silently having no login instructions.
+      try {
+        await fetch('/api/approve-resident', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ residentId: resident.id }),
+        })
+      } catch { /* non-fatal — resident is already active either way */ }
 
       router.push(`/admin/residents/${resident.id}`)
     } catch (err: any) {

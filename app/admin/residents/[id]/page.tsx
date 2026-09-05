@@ -5,7 +5,7 @@ import { createClient } from '@/lib/supabase/client'
 import { formatCurrency, formatDate, getDaysRemaining } from '@/lib/utils'
 import { ArrowLeft, Phone, Mail, MapPin, Building, Calendar, Zap, CreditCard, Clock, Wrench, Edit, Shield, AlertTriangle, Link2, CheckCircle, Copy, Archive, X, FileText, ShieldCheck, Loader2, RefreshCw } from 'lucide-react'
 import Link from 'next/link'
-import { useParams, useRouter } from 'next/navigation'
+import { useParams, useRouter, useSearchParams } from 'next/navigation'
 import { generateAgreementPdf, generatePoliceVerificationPdf } from '@/lib/documents'
 import { AGREEMENT_CLAUSES } from '@/lib/agreement-clauses'
 import { Modal } from '@/components/ui/Modal'
@@ -13,6 +13,8 @@ import { Modal } from '@/components/ui/Modal'
 export default function ResidentDetailPage() {
   const { id } = useParams()
   const router = useRouter()
+  const searchParams = useSearchParams()
+  const [justInvited, setJustInvited] = useState(false)
   const [resident, setResident] = useState<any>(null)
   const [rentPayments, setRentPayments] = useState<any[]>([])
   const [electricityReadings, setElectricityReadings] = useState<any[]>([])
@@ -21,6 +23,7 @@ export default function ResidentDetailPage() {
   const [loading, setLoading] = useState(true)
   const [inviteLink, setInviteLink] = useState('')
   const [inviteLoading, setInviteLoading] = useState(false)
+  const [inviteEmailStatus, setInviteEmailStatus] = useState('')
   const [copied, setCopied] = useState(false)
   const [approving, setApproving] = useState(false)
   const [showArchiveModal, setShowArchiveModal] = useState(false)
@@ -112,6 +115,12 @@ export default function ResidentDetailPage() {
   }
 
   useEffect(() => { fetchAll() }, [id])
+  useEffect(() => {
+    if (searchParams.get('invited') === 'true') {
+      setJustInvited(true)
+      router.replace(`/admin/residents/${id}`)
+    }
+  }, [])
 
   const fetchAll = async () => {
     setLoading(true)
@@ -143,10 +152,27 @@ export default function ResidentDetailPage() {
 
   const handleGenerateInvite = async () => {
     setInviteLoading(true)
+    setInviteEmailStatus('')
     const { data, error } = await supabase.rpc('generate_onboard_token', { p_resident_id: id })
     if (error || !data) { alert('Failed to generate invite link. Try again.'); setInviteLoading(false); return }
     const url = `${window.location.origin}/onboard/${data}`
     setInviteLink(url)
+
+    if (resident?.email) {
+      try {
+        const res = await fetch('/api/send-onboard-invite', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ residentId: id, link: url }),
+        })
+        const json = await res.json()
+        setInviteEmailStatus(res.ok ? `✓ Emailed to ${json.email}` : 'Could not email automatically — copy the link below and send manually.')
+      } catch {
+        setInviteEmailStatus('Could not email automatically — copy the link below and send manually.')
+      }
+    } else {
+      setInviteEmailStatus('No email on file — copy the link below and send manually.')
+    }
     setInviteLoading(false)
   }
 
@@ -217,6 +243,12 @@ export default function ResidentDetailPage() {
         <ArrowLeft size={14} /> Back to Residents
       </Link>
 
+      {justInvited && (
+        <div style={{ display: 'flex', alignItems: 'center', gap: '10px', padding: '12px 16px', borderRadius: '10px', marginBottom: '20px', background: 'rgba(52,211,153,0.08)', border: '1px solid rgba(52,211,153,0.25)', fontSize: '13px', color: '#34d399', fontWeight: '600' }}>
+          <CheckCircle size={15} /> Resident created — the onboarding link was emailed automatically if they have an email on file.
+        </div>
+      )}
+
       {/* PORTAL INVITE BANNER — top, always visible */}
       {resident.onboarding_status !== 'active' ? (
         <div style={{ padding: '20px 24px', borderRadius: '14px', marginBottom: '24px', background: resident.onboarding_status === 'submitted' ? 'rgba(52,211,153,0.06)' : 'rgba(0,212,200,0.04)', border: `1px solid ${resident.onboarding_status === 'submitted' ? 'rgba(52,211,153,0.25)' : 'rgba(0,212,200,0.15)'}` }}>
@@ -256,6 +288,11 @@ export default function ResidentDetailPage() {
               </div>
               {inviteLink && (
                 <>
+                  {inviteEmailStatus && (
+                    <div style={{ fontSize: '12px', fontWeight: '600', marginBottom: '10px', color: inviteEmailStatus.startsWith('✓') ? '#34d399' : '#fbbf24' }}>
+                      {inviteEmailStatus}
+                    </div>
+                  )}
                   <div style={{ display: 'flex', gap: '8px', alignItems: 'center' }}>
                     <div style={{ flex: 1, padding: '10px 14px', borderRadius: '8px', fontSize: '12px', fontFamily: 'monospace', wordBreak: 'break-all', color: 'var(--teal-500)', background: 'var(--surface-2)', border: '1px solid var(--border)' }}>
                       {inviteLink}
@@ -265,7 +302,7 @@ export default function ResidentDetailPage() {
                     </button>
                   </div>
                   <div style={{ fontSize: '11px', color: 'var(--text-muted)', marginTop: '8px' }}>
-                    ⚡ Expires in 7 days · One-time use · Paste into WhatsApp
+                    ⚡ Expires in 7 days · One-time use · Also fine to paste into WhatsApp
                   </div>
                 </>
               )}
