@@ -3,16 +3,17 @@ import { NextResponse } from 'next/server'
 
 export async function POST(request: Request) {
   try {
-    const { mobile } = await request.json()
+    const { email } = await request.json()
+    const clean = (email || '').trim().toLowerCase()
 
-    if (!mobile) {
-      return NextResponse.json({ error: 'Mobile number is required.' }, { status: 400 })
+    if (!clean) {
+      return NextResponse.json({ error: 'Email is required.' }, { status: 400 })
     }
 
     const serviceRoleKey = process.env.SUPABASE_SERVICE_ROLE_KEY
     if (!serviceRoleKey) {
-      // Fallback: if service role key not configured, just look up email
-      // OTP will work for residents already in auth.users
+      // Fallback: if service role key not configured, just confirm the resident
+      // exists and is active — OTP send happens client-side regardless.
       const supabase = createClient(
         process.env.NEXT_PUBLIC_SUPABASE_URL!,
         process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
@@ -20,11 +21,11 @@ export async function POST(request: Request) {
       const { data: resident, error } = await supabase
         .from('residents')
         .select('email, onboarding_status')
-        .eq('mobile', mobile)
+        .eq('email', clean)
         .single()
 
       if (error || !resident) {
-        return NextResponse.json({ error: 'No resident found with this mobile. Contact TheBedBox.' }, { status: 404 })
+        return NextResponse.json({ error: 'No resident found with this email. Contact TheBedBox.' }, { status: 404 })
       }
       if (resident.onboarding_status !== 'active') {
         return NextResponse.json({ error: 'Your account is not yet active. Contact TheBedBox.' }, { status: 403 })
@@ -39,29 +40,25 @@ export async function POST(request: Request) {
       { auth: { autoRefreshToken: false, persistSession: false } }
     )
 
-    // Look up resident by mobile
+    // Look up resident by email
     const { data: resident, error: fetchError } = await supabaseAdmin
       .from('residents')
       .select('id, email, onboarding_status, portal_user_id')
-      .eq('mobile', mobile)
+      .eq('email', clean)
       .single()
 
     if (fetchError || !resident) {
-      return NextResponse.json({ error: 'No resident found with this mobile. Contact TheBedBox.' }, { status: 404 })
+      return NextResponse.json({ error: 'No resident found with this email. Contact TheBedBox.' }, { status: 404 })
     }
 
     if (resident.onboarding_status !== 'active') {
       return NextResponse.json({ error: 'Your account is not yet active. Contact TheBedBox.' }, { status: 403 })
     }
 
-    if (!resident.email) {
-      return NextResponse.json({ error: 'No email on file for this resident. Contact TheBedBox.' }, { status: 400 })
-    }
-
     // If portal_user_id is null, the resident has no auth.users entry — create one
     if (!resident.portal_user_id) {
       const { data: authData, error: createError } = await supabaseAdmin.auth.admin.createUser({
-        email: resident.email,
+        email: resident.email!,
         email_confirm: true, // skip email confirmation — we'll OTP them
       })
 

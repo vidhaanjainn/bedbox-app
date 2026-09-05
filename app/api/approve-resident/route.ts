@@ -60,8 +60,8 @@ export async function POST(req: Request) {
               <div style="font-size: 12px; color: rgba(255,255,255,0.4); margin-bottom: 8px; text-transform: uppercase; letter-spacing: 0.05em;">How to log in</div>
               <div style="font-size: 13px; color: rgba(255,255,255,0.7); line-height: 1.8;">
                 1. Open the portal link above<br/>
-                2. Enter your mobile number: <strong style="color: #fff;">${resident.mobile}</strong><br/>
-                3. We'll email a 6-digit code to <strong style="color: #fff;">this email address</strong> — check your inbox (and spam folder)<br/>
+                2. Enter your email: <strong style="color: #fff;">${resident.email}</strong><br/>
+                3. We'll send a 6-digit code to that inbox (check spam if it's slow)<br/>
                 4. Enter the code and you're in
               </div>
             </div>

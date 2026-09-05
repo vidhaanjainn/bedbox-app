@@ -9,8 +9,7 @@ import Link from 'next/link'
 export default function PortalLoginPage() {
   const router = useRouter()
   const supabase = createClient()
-  const [step, setStep] = useState<'mobile'|'otp'|'password'>('mobile')
-  const [mobile, setMobile] = useState('')
+  const [step, setStep] = useState<'email'|'otp'|'password'>('email')
   const [email, setEmail] = useState('')
   const [otp, setOtp] = useState('')
   const [pwEmail, setPwEmail] = useState('')
@@ -36,28 +35,26 @@ export default function PortalLoginPage() {
 
   const handleSendOTP = async () => {
     setError(''); setLoading(true)
-    const clean = mobile.replace(/\s/g,'').replace('+91','')
+    const clean = email.trim().toLowerCase()
 
-    let residentEmail = ''
     try {
       const res = await fetch('/api/ensure-portal-user', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ mobile: clean }),
+        body: JSON.stringify({ email: clean }),
       })
       const json = await res.json()
       if (!res.ok) { setError(json.error || 'Could not send OTP. Please try again.'); setLoading(false); return }
-      residentEmail = json.email
     } catch {
       setError('Could not send OTP. Please try again.'); setLoading(false); return
     }
 
     const { error: otpError } = await supabase.auth.signInWithOtp({
-      email: residentEmail,
+      email: clean,
       options: { shouldCreateUser: false },
     })
     if (otpError) { setError('Could not send OTP. Please try again.'); setLoading(false); return }
-    setEmail(residentEmail); setStep('otp'); startResendTimer(); setLoading(false)
+    setEmail(clean); setStep('otp'); startResendTimer(); setLoading(false)
   }
 
   const handleVerifyOTP = async () => {
@@ -89,20 +86,17 @@ export default function PortalLoginPage() {
           backdropFilter:'blur(20px)',
           boxShadow:'0 1px 0 rgba(255,255,255,0.06) inset, 0 32px 64px -32px rgba(0,0,0,0.7)',
         }}>
-          {step==='mobile'&&<div>
+          {step==='email'&&<div>
             <h1 style={{fontFamily:"'Syne',sans-serif",fontWeight:700,fontSize:26,margin:'0 0 8px',letterSpacing:'-0.01em'}}>Welcome back</h1>
-            <p style={{color:'rgba(255,255,255,0.4)',fontSize:14,margin:'0 0 32px',lineHeight:1.5}}>Enter your registered mobile number — we'll email a 6-digit code to sign you in</p>
-            <label style={{display:'block',fontSize:11,fontWeight:600,letterSpacing:'0.06em',textTransform:'uppercase',color:'rgba(255,255,255,0.35)',marginBottom:9}}>Mobile number</label>
-            <div style={{display:'flex',marginBottom:8}}>
-              <div style={{padding:'14px 14px',background:'rgba(0,0,0,0.3)',border:'1px solid rgba(255,255,255,0.08)',borderRight:'none',borderRadius:'12px 0 0 12px',fontSize:14,color:'rgba(255,255,255,0.45)',fontWeight:500}}>+91</div>
-              <input type="tel" value={mobile} onChange={e=>setMobile(e.target.value)} placeholder="98765 43210" maxLength={10} onKeyDown={e=>e.key==='Enter'&&handleSendOTP()}
-                style={{flex:1,padding:'14px',fontSize:15,letterSpacing:'0.03em',background:'rgba(0,0,0,0.3)',border:'1px solid rgba(255,255,255,0.08)',borderRadius:'0 12px 12px 0',color:'#fff',outline:'none',fontFamily:"'DM Sans',sans-serif"}}
-                onFocus={e=>{e.target.style.borderColor='#00d4c8';e.target.style.boxShadow='0 0 0 3px rgba(0,212,200,0.12)'}} onBlur={e=>{e.target.style.borderColor='rgba(255,255,255,0.08)';e.target.style.boxShadow='none'}}/>
-            </div>
+            <p style={{color:'rgba(255,255,255,0.4)',fontSize:14,margin:'0 0 32px',lineHeight:1.5}}>Enter your registered email — we'll send a 6-digit code to sign you in</p>
+            <label style={{display:'block',fontSize:11,fontWeight:600,letterSpacing:'0.06em',textTransform:'uppercase',color:'rgba(255,255,255,0.35)',marginBottom:9}}>Email address</label>
+            <input type="email" value={email} onChange={e=>setEmail(e.target.value)} placeholder="you@example.com" onKeyDown={e=>e.key==='Enter'&&handleSendOTP()}
+              style={{width:'100%',padding:'14px',fontSize:15,background:'rgba(0,0,0,0.3)',border:'1px solid rgba(255,255,255,0.08)',borderRadius:12,color:'#fff',outline:'none',fontFamily:"'DM Sans',sans-serif",boxSizing:'border-box',marginBottom:8}}
+              onFocus={e=>{e.target.style.borderColor='#00d4c8';e.target.style.boxShadow='0 0 0 3px rgba(0,212,200,0.12)'}} onBlur={e=>{e.target.style.borderColor='rgba(255,255,255,0.08)';e.target.style.boxShadow='none'}}/>
             {error&&<div style={{fontSize:13,color:'#ff6b6b',margin:'12px 0 0',padding:'10px 12px',background:'rgba(255,107,107,0.08)',borderRadius:10}}>{error}</div>}
-            <button onClick={handleSendOTP} disabled={mobile.replace(/\s/g,'').length<10||loading}
-              style={{width:'100%',padding:'14px',borderRadius:12,fontSize:15,fontWeight:700,display:'flex',alignItems:'center',justifyContent:'center',gap:8,background:mobile.replace(/\s/g,'').length<10||loading?'rgba(255,255,255,0.08)':'linear-gradient(135deg,#00d4c8,#0099ff)',color:mobile.replace(/\s/g,'').length<10||loading?'rgba(255,255,255,0.3)':'#070d1a',border:'none',cursor:'pointer',fontFamily:"'DM Sans',sans-serif",marginTop:20,boxShadow:mobile.replace(/\s/g,'').length<10||loading?'none':'0 10px 28px -10px rgba(0,212,200,0.45)',transition:'box-shadow 0.2s ease'}}>
-              {loading?'Sending...':<>Send OTP <ArrowRight size={16} /></>}
+            <button onClick={handleSendOTP} disabled={!email.includes('@')||!email.includes('.')||loading}
+              style={{width:'100%',padding:'14px',borderRadius:12,fontSize:15,fontWeight:700,display:'flex',alignItems:'center',justifyContent:'center',gap:8,background:!email.includes('@')||!email.includes('.')||loading?'rgba(255,255,255,0.08)':'linear-gradient(135deg,#00d4c8,#0099ff)',color:!email.includes('@')||!email.includes('.')||loading?'rgba(255,255,255,0.3)':'#070d1a',border:'none',cursor:'pointer',fontFamily:"'DM Sans',sans-serif",marginTop:20,boxShadow:!email.includes('@')||!email.includes('.')||loading?'none':'0 10px 28px -10px rgba(0,212,200,0.45)',transition:'box-shadow 0.2s ease'}}>
+              {loading?'Sending...':<>Send Code <ArrowRight size={16} /></>}
             </button>
             <div style={{textAlign:'center',marginTop:16}}>
               <button onClick={()=>{setStep('password');setError('')}} style={{fontSize:11,color:'rgba(255,255,255,0.2)',background:'none',border:'none',cursor:'pointer',padding:0}}>Sign in with password instead</button>
@@ -125,7 +119,7 @@ export default function PortalLoginPage() {
               {loading?'Signing in...':<>Sign In <ArrowRight size={16} /></>}
             </button>
             <div style={{textAlign:'center',marginTop:16}}>
-              <button onClick={()=>{setStep('mobile');setError('')}} style={{fontSize:13,color:'#00d4c8',background:'none',border:'none',cursor:'pointer',padding:0,fontWeight:600}}>← Use mobile OTP instead</button>
+              <button onClick={()=>{setStep('email');setError('')}} style={{fontSize:13,color:'#00d4c8',background:'none',border:'none',cursor:'pointer',padding:0,fontWeight:600}}>← Use email code instead</button>
             </div>
           </div>}
           {step==='otp'&&<div>
@@ -143,7 +137,7 @@ export default function PortalLoginPage() {
               {loading?'Verifying...':<>Verify & Continue <ArrowRight size={16} /></>}
             </button>
             <div style={{textAlign:'center'}}>
-              {resendTimer>0?<span style={{fontSize:13,color:'rgba(255,255,255,0.3)'}}>Resend in {resendTimer}s</span>:<button onClick={()=>{setStep('mobile');setOtp('');setError('')}} style={{fontSize:13,color:'#00d4c8',background:'none',border:'none',cursor:'pointer',padding:0,fontWeight:600}}>← Try a different number</button>}
+              {resendTimer>0?<span style={{fontSize:13,color:'rgba(255,255,255,0.3)'}}>Resend in {resendTimer}s</span>:<button onClick={()=>{setStep('email');setOtp('');setError('')}} style={{fontSize:13,color:'#00d4c8',background:'none',border:'none',cursor:'pointer',padding:0,fontWeight:600}}>← Try a different email</button>}
             </div>
           </div>}
         </div>
