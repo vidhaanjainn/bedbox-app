@@ -149,15 +149,17 @@ async function sendAdminMonthlyDigest(supabase: ReturnType<typeof adminClient>, 
 
   const [{ data: admins }, { data: rentRows }, { data: staffRows }, { data: payouts }] = await Promise.all([
     supabase.from('admins').select('email, name').eq('is_active', true).not('email', 'is', null),
-    supabase.from('rent_payments').select('status, total_amount, amount_paid').eq('month', month).eq('year', year),
+    supabase.from('rent_payments').select('status, total_amount, amount_paid, residents(is_test_account)').eq('month', month).eq('year', year),
     supabase.from('staff').select('id, name, monthly_salary').eq('is_active', true),
     supabase.from('staff_payouts').select('staff_id, status').eq('month', month).eq('year', year),
   ])
   if (!admins?.length) return { sent: 0, error: 'no active admin emails on file' }
 
-  const paidCount = rentRows?.filter(r => r.status === 'paid').length || 0
-  const totalCount = rentRows?.length || 0
-  const outstanding = (rentRows || []).reduce((s, r) => s + Math.max(0, Number(r.total_amount) - Number(r.amount_paid || 0)), 0)
+  // The review/test resident account never counts toward real collection totals.
+  const realRentRows = (rentRows || []).filter((r: any) => !r.residents?.is_test_account)
+  const paidCount = realRentRows.filter(r => r.status === 'paid').length
+  const totalCount = realRentRows.length
+  const outstanding = realRentRows.reduce((s, r) => s + Math.max(0, Number(r.total_amount) - Number(r.amount_paid || 0)), 0)
 
   const paidStaffIds = new Set((payouts || []).filter(p => p.status === 'paid').map(p => p.staff_id))
   const unpaidStaff = (staffRows || []).filter(s => !paidStaffIds.has(s.id))

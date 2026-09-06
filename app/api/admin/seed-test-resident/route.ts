@@ -48,7 +48,7 @@ export async function POST() {
   const { data: existingResident } = await admin.from('residents').select('id').eq('mobile', TEST_MOBILE).maybeSingle()
 
   if (existingResident) {
-    await admin.from('residents').update({ portal_user_id: authUserId, email: TEST_EMAIL, name: TEST_NAME }).eq('id', existingResident.id)
+    await admin.from('residents').update({ portal_user_id: authUserId, email: TEST_EMAIL, name: TEST_NAME, is_test_account: true }).eq('id', existingResident.id)
   } else {
     await admin.from('residents').insert({
       name: TEST_NAME,
@@ -58,8 +58,9 @@ export async function POST() {
       rent_amount: 8000,
       status: 'active',
       onboarding_status: 'active',
+      is_test_account: true,
       date_of_joining: new Date().toISOString().split('T')[0],
-      notes: '🧪 Admin review account — used to test the resident portal UX. Not a real resident; no bed occupied. Log in at /portal via the "Sign in with password" link (email: vidhaanj29@gmail.com / password: admin).',
+      notes: '🧪 Admin review account — used to test the resident portal UX. Not a real resident; no bed occupied. Excluded from all admin financial totals. Log in at /portal via the "Sign in with password" link (email: vidhaanj29@gmail.com / password: admin).',
     })
   }
 

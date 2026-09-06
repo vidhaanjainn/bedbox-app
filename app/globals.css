@@ -28,6 +28,16 @@
 * { box-sizing: border-box; }
 html { scroll-behavior: smooth; }
 
+html, body {
+  /* Hard backstop: the page itself must never scroll sideways, no matter
+     what individual widget misbehaves. This has recurred repeatedly from
+     flex rows whose text children don't shrink below their intrinsic width
+     (flexbox's `min-width: auto` default) — each instance gets fixed on
+     its own, but this guarantees a fresh one can only clip content, never
+     drag the whole page/sidebar sideways again. */
+  overflow-x: hidden;
+}
+
 body {
   background-color: var(--navy-900);
   color: var(--text-primary);

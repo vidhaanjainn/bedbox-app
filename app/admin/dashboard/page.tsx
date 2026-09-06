@@ -44,21 +44,23 @@ export default function DashboardPage() {
         supabase.from('residents').select('*, bed:beds(bed_number, room:rooms(room_number))').eq('status', 'active').order('created_at', { ascending: false }).limit(5),
         supabase.from('notice_periods').select('*, resident:residents(name, room_number)').eq('status', 'active'),
         supabase.from('maintenance_requests').select('*, resident:residents(name)').in('status', ['open', 'in_progress']).order('created_at', { ascending: false }).limit(5),
-        supabase.from('rent_payments').select('*, resident:residents(name, room_number)'),
+        supabase.from('rent_payments').select('*, resident:residents(name, room_number, is_test_account)'),
       ])
 
       const totalBeds = beds?.length || 0
       const occupiedBeds = beds?.filter(b => b.status === 'occupied').length || 0
-      const monthlyIncome = rentPayments?.filter(r => {
-        const now = new Date()
-        return r.status === 'paid'
-      }).reduce((sum: number, r: any) => sum + r.amount_paid, 0) || 0
+
+      // The review/test resident account should never skew real financial
+      // totals — excluded from every rent-derived number on this page.
+      const realRentPayments = (rentPayments || []).filter((r: any) => !r.resident?.is_test_account)
+
+      const monthlyIncome = realRentPayments.filter(r => r.status === 'paid').reduce((sum: number, r: any) => sum + r.amount_paid, 0)
 
       // Only rows with an actual outstanding balance count as "pending" —
       // the raw rentPayments array includes fully-paid rows too, which
       // contribute ₹0 to the total (so the amount looked right) but were
       // still being counted (so "N pending" and the table below were wrong).
-      const unpaidRent = (rentPayments || [])
+      const unpaidRent = realRentPayments
         .filter((r: any) => Number(r.total_amount) - Number(r.amount_paid || 0) > 0)
         .sort((a: any, b: any) => (Number(b.total_amount) - Number(b.amount_paid || 0)) - (Number(a.total_amount) - Number(a.amount_paid || 0)))
       const pendingRent = unpaidRent.reduce((sum: number, r: any) => sum + (Number(r.total_amount) - Number(r.amount_paid || 0)), 0)
@@ -276,16 +278,16 @@ export default function DashboardPage() {
                   padding: '12px', borderRadius: '10px',
                   background: 'var(--surface-2)', marginBottom: '8px'
                 }}>
-                  <div>
-                    <div style={{ fontSize: '14px', fontWeight: '600', color: 'var(--text-primary)' }}>
+                  <div style={{ flex: 1, minWidth: 0 }}>
+                    <div style={{ fontSize: '14px', fontWeight: '600', color: 'var(--text-primary)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
                       {notice.resident?.name}
                     </div>
-                    <div style={{ fontSize: '12px', color: 'var(--text-muted)', marginTop: '2px' }}>
+                    <div style={{ fontSize: '12px', color: 'var(--text-muted)', marginTop: '2px', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
                       Room {notice.resident?.room_number} · Noticed {formatDate(notice.notice_date)}
                     </div>
                   </div>
                   <div style={{
-                    textAlign: 'right',
+                    textAlign: 'right', flexShrink: 0, marginLeft: '10px',
                     background: daysLeft <= 14 ? 'rgba(239,68,68,0.1)' : 'rgba(249,115,22,0.1)',
                     border: `1px solid ${daysLeft <= 14 ? 'rgba(239,68,68,0.3)' : 'rgba(249,115,22,0.3)'}`,
                     borderRadius: '8px', padding: '6px 10px'

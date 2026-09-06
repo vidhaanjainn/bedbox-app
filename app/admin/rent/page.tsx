@@ -43,11 +43,14 @@ export default function RentPage() {
     setLoading(true)
     const { data } = await supabase
       .from('rent_payments')
-      .select('*, resident:residents(name, room_number, mobile), collected_admin:admins!rent_payments_collected_by_fkey(name)')
+      .select('*, resident:residents(name, room_number, mobile, is_test_account), collected_admin:admins!rent_payments_collected_by_fkey(name)')
       .eq('month', monthFilter)
       .eq('year', yearFilter)
       .order('status')
-    setPayments(data || [])
+    // The review/test resident account never appears in the real Rent
+    // Tracker ledger or its totals — manage it from the resident's own
+    // detail page instead.
+    setPayments((data || []).filter((p: any) => !p.resident?.is_test_account))
     setLoading(false)
   }
 
