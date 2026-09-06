@@ -53,7 +53,15 @@ export default function DashboardPage() {
         const now = new Date()
         return r.status === 'paid'
       }).reduce((sum: number, r: any) => sum + r.amount_paid, 0) || 0
-      const pendingRent = rentPayments?.reduce((sum: number, r: any) => sum + (r.total_amount - r.amount_paid), 0) || 0
+
+      // Only rows with an actual outstanding balance count as "pending" —
+      // the raw rentPayments array includes fully-paid rows too, which
+      // contribute ₹0 to the total (so the amount looked right) but were
+      // still being counted (so "N pending" and the table below were wrong).
+      const unpaidRent = (rentPayments || [])
+        .filter((r: any) => Number(r.total_amount) - Number(r.amount_paid || 0) > 0)
+        .sort((a: any, b: any) => (Number(b.total_amount) - Number(b.amount_paid || 0)) - (Number(a.total_amount) - Number(a.amount_paid || 0)))
+      const pendingRent = unpaidRent.reduce((sum: number, r: any) => sum + (Number(r.total_amount) - Number(r.amount_paid || 0)), 0)
 
       setData({
         totalBeds,
@@ -67,7 +75,7 @@ export default function DashboardPage() {
         recentResidents: residents || [],
         activeNoticesList: notices || [],
         openMaintenanceList: maintenance || [],
-        unpaidRent: rentPayments || [],
+        unpaidRent,
       })
     } catch (err) {
       console.error(err)
