@@ -34,6 +34,27 @@ export function getDaysRemaining(endDate: string): number {
   return differenceInDays(new Date(endDate), new Date())
 }
 
+type NoticeLike = { last_day_of_stay?: string | null; last_day_per_agreement?: string | null } | null | undefined
+
+// Single source of truth for "how many days until this resident is actually
+// gone" — every page used to compute this ad hoc, and half of them read
+// last_day_per_agreement (the formal 60-day legal notice deadline, always
+// auto-set to notice_date+60) instead of last_day_of_stay (the actual/
+// expected vacate date, which is what admins care about for room turnover
+// and is usually sooner). That mismatch is exactly why the same notice
+// showed different "days left" on different pages. last_day_of_stay wins
+// whenever it's set; the agreement date is only a fallback for notices that
+// don't have an actual date yet.
+export function getNoticeTargetDate(notice: NoticeLike): string | null {
+  if (!notice) return null
+  return notice.last_day_of_stay || notice.last_day_per_agreement || null
+}
+
+export function getNoticeDaysRemaining(notice: NoticeLike): number | null {
+  const target = getNoticeTargetDate(notice)
+  return target ? getDaysRemaining(target) : null
+}
+
 export function getOccupancyColor(rate: number): string {
   if (rate >= 90) return 'text-emerald-400'
   if (rate >= 70) return 'text-teal-400'

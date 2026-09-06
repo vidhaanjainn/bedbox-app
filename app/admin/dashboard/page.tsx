@@ -3,7 +3,7 @@
 import { useEffect, useState } from 'react'
 import { useRouter } from 'next/navigation'
 import { createClient } from '@/lib/supabase/client'
-import { formatCurrency, formatDate, getStatusColor, getDaysRemaining } from '@/lib/utils'
+import { formatCurrency, formatDate, getStatusColor, getNoticeDaysRemaining } from '@/lib/utils'
 import {
   Bed, Users, TrendingUp, AlertCircle, Wrench,
   Clock, Zap, ChevronRight, ArrowUpRight, RefreshCw
@@ -269,7 +269,7 @@ export default function DashboardPage() {
             </div>
           ) : (
             data!.activeNoticesList.map((notice: any) => {
-              const daysLeft = getDaysRemaining(notice.last_day_per_agreement)
+              const daysLeft = getNoticeDaysRemaining(notice) ?? 0
               return (
                 <div key={notice.id} style={{
                   display: 'flex', alignItems: 'center', justifyContent: 'space-between',

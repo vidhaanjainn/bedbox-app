@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from 'react'
 import { createClient } from '@/lib/supabase/client'
-import { formatDate, getDaysRemaining } from '@/lib/utils'
+import { formatDate, getNoticeDaysRemaining, getNoticeTargetDate } from '@/lib/utils'
 import { Bell, Plus, X, Loader2, AlertTriangle, CheckCircle, RefreshCw, FileSpreadsheet, ClipboardCheck, Trash2 } from 'lucide-react'
 import { Modal, FormField } from '@/components/ui/Modal'
 import { formatCurrency } from '@/lib/utils'
@@ -246,8 +246,10 @@ export default function NoticesPage() {
       ) : (
         <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(320px, 1fr))', gap: '16px' }}>
           {notices.map(n => {
-            const daysLeft = getDaysRemaining(n.last_day_per_agreement)
+            const daysLeft = getNoticeDaysRemaining(n) ?? 0
             const urgent = daysLeft <= 14
+            const target = getNoticeTargetDate(n)
+            const totalWindowDays = target ? Math.max(1, Math.round((new Date(target).getTime() - new Date(n.notice_date).getTime()) / 86400000)) : 60
             return (
               <div key={n.id} className="glass-card-hover" style={{
                 padding: '24px',
@@ -307,7 +309,7 @@ export default function NoticesPage() {
                 {n.status === 'active' && (
                   <div className="bb-progress" style={{ marginBottom: '16px' }}>
                     <div className="bb-progress-bar" style={{
-                      width: `${Math.max(0, Math.min(100, ((60 - daysLeft) / 60) * 100))}%`,
+                      width: `${Math.max(0, Math.min(100, ((totalWindowDays - daysLeft) / totalWindowDays) * 100))}%`,
                       background: urgent ? 'linear-gradient(90deg, #f87171, #ef4444)' : undefined
                     }} />
                   </div>

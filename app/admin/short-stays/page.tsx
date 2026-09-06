@@ -7,6 +7,7 @@ import { Hotel, Plus, X, Loader2, Calendar, IndianRupee, CheckCircle, Clock, Upl
 
 export default function ShortStaysPage() {
   const [stays, setStays] = useState<any[]>([])
+  const [allStays, setAllStays] = useState<any[]>([])
   const [beds, setBeds] = useState<any[]>([])
   const [loading, setLoading] = useState(true)
   const [showModal, setShowModal] = useState(false)
@@ -32,6 +33,12 @@ export default function ShortStaysPage() {
     if (statusFilter !== 'all') q = q.eq('status', statusFilter)
     const { data } = await q
     setStays(data || [])
+
+    // Fetched separately, unfiltered, so the header stats ("N active",
+    // "Checking Out Soon") always reflect true totals — not just whichever
+    // status tab happens to be selected right now.
+    const { data: all } = await supabase.from('short_stays').select('id, status, checkout_date, checkin_date, amount_paid')
+    setAllStays(all || [])
 
     const { data: b } = await supabase.from('beds')
       .select('*, room:rooms(room_number)')
@@ -134,7 +141,7 @@ export default function ShortStaysPage() {
             Short Stays
           </h1>
           <p style={{ color: 'var(--text-muted)', fontSize: '14px', margin: 0 }}>
-            {stays.filter(s => s.status === 'active').length} active · Daily / weekly guests
+            {allStays.filter(s => s.status === 'active').length} active · Daily / weekly guests
           </p>
         </div>
         <button onClick={() => setShowModal(true)} className="bb-btn-primary" style={{ gap: '8px' }}>
@@ -162,9 +169,9 @@ export default function ShortStaysPage() {
       {/* Stats Row */}
       <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(160px, 1fr))', gap: '12px', marginBottom: '28px' }}>
         {[
-          { label: 'Active Guests', value: stays.filter(s => s.status === 'active').length, color: '#34d399' },
-          { label: 'Checking Out Soon', value: stays.filter(s => s.status === 'active' && getDaysLeft(s.checkout_date) <= 2).length, color: '#fbbf24' },
-          { label: 'Revenue This Month', value: formatCurrency(stays.filter(s => new Date(s.checkin_date).getMonth() === new Date().getMonth()).reduce((sum, s) => sum + (s.amount_paid || 0), 0)), color: 'var(--teal-500)' },
+          { label: 'Active Guests', value: allStays.filter(s => s.status === 'active').length, color: '#34d399' },
+          { label: 'Checking Out Soon', value: allStays.filter(s => s.status === 'active' && getDaysLeft(s.checkout_date) <= 2).length, color: '#fbbf24' },
+          { label: 'Revenue This Month', value: formatCurrency(allStays.filter(s => new Date(s.checkin_date).getMonth() === new Date().getMonth()).reduce((sum, s) => sum + (s.amount_paid || 0), 0)), color: 'var(--teal-500)' },
         ].map((stat, i) => (
           <div key={i} className="stat-card" style={{ padding: '16px' }}>
             <div style={{ fontSize: '22px', fontWeight: '700', color: stat.color, fontFamily: 'Syne, sans-serif' }}>{stat.value}</div>

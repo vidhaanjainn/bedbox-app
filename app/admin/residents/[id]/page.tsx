@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from 'react'
 import { createClient } from '@/lib/supabase/client'
-import { formatCurrency, formatDate, getDaysRemaining } from '@/lib/utils'
+import { formatCurrency, formatDate, getNoticeDaysRemaining, getNoticeTargetDate } from '@/lib/utils'
 import { ArrowLeft, Phone, Mail, MapPin, Building, Calendar, Zap, CreditCard, Clock, Wrench, Edit, Shield, AlertTriangle, Link2, CheckCircle, Copy, Archive, X, FileText, ShieldCheck, Loader2, RefreshCw } from 'lucide-react'
 import Link from 'next/link'
 import { useParams, useRouter, useSearchParams } from 'next/navigation'
@@ -368,7 +368,7 @@ export default function ResidentDetailPage() {
           <div style={{ flex: 1 }}>
             <span style={{ color: '#f97316', fontWeight: '600', fontSize: '14px' }}>Active Notice Period</span>
             <span style={{ color: 'var(--text-muted)', fontSize: '13px', marginLeft: '8px' }}>
-              Last day: {formatDate(notice.last_day_per_agreement)} · <strong style={{ color: getDaysRemaining(notice.last_day_per_agreement) <= 14 ? '#f87171' : '#f97316' }}>{getDaysRemaining(notice.last_day_per_agreement)} days remaining</strong>
+              Last day: {formatDate(getNoticeTargetDate(notice) || notice.last_day_per_agreement)} · <strong style={{ color: (getNoticeDaysRemaining(notice) ?? 0) <= 14 ? '#f87171' : '#f97316' }}>{getNoticeDaysRemaining(notice) ?? 0} days remaining</strong>
             </span>
           </div>
         </div>

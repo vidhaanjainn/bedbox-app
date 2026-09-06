@@ -8,6 +8,7 @@ import { MAINTENANCE_CATEGORIES } from '@/lib/utils'
 
 export default function MaintenancePage() {
   const [tasks, setTasks] = useState<any[]>([])
+  const [allTasks, setAllTasks] = useState<any[]>([])
   const [residents, setResidents] = useState<any[]>([])
   const [loading, setLoading] = useState(true)
   const [showModal, setShowModal] = useState(false)
@@ -33,6 +34,12 @@ export default function MaintenancePage() {
 
     const { data } = await query
     setTasks(data || [])
+
+    // Fetched separately, unfiltered, so the "X open · Y in progress ·
+    // Z resolved" summary always reflects the true totals — not just
+    // whichever status tab happens to be selected right now.
+    const { data: all } = await supabase.from('maintenance_requests').select('status')
+    setAllTasks(all || [])
 
     const { data: res } = await supabase.from('residents').select('id, name, room_number').eq('status', 'active')
     setResidents(res || [])
@@ -71,10 +78,10 @@ export default function MaintenancePage() {
   }
 
   const counts = {
-    all: tasks.length,
-    open: tasks.filter(t => t.status === 'open').length,
-    in_progress: tasks.filter(t => t.status === 'in_progress').length,
-    resolved: tasks.filter(t => t.status === 'resolved').length,
+    all: allTasks.length,
+    open: allTasks.filter(t => t.status === 'open').length,
+    in_progress: allTasks.filter(t => t.status === 'in_progress').length,
+    resolved: allTasks.filter(t => t.status === 'resolved').length,
   }
 
   const priorityConfig: Record<string, { color: string, bg: string, label: string }> = {

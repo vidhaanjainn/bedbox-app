@@ -205,12 +205,16 @@ async function sendNoticeExpiryAlerts(supabase: ReturnType<typeof adminClient>, 
   target.setUTCDate(target.getUTCDate() + 3)
   const targetStr = target.toISOString().split('T')[0]
 
-  const { data: notices } = await supabase
+  // Matched in JS against last_day_of_stay falling back to
+  // last_day_per_agreement — a notice with no actual vacate date filed yet
+  // (last_day_of_stay left blank) would otherwise never trigger this alert.
+  const { data: allActive } = await supabase
     .from('notice_periods')
-    .select('id, last_day_of_stay, residents(name, room_number)')
+    .select('id, last_day_of_stay, last_day_per_agreement, residents(name, room_number)')
     .eq('status', 'active')
-    .eq('last_day_of_stay', targetStr)
     .is('expiry_alerted_at', null)
+
+  const notices = (allActive || []).filter(n => (n.last_day_of_stay || n.last_day_per_agreement) === targetStr)
 
   if (!notices?.length) return { alerted: 0 }
   if (dryRun) {

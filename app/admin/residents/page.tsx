@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from 'react'
 import { createClient } from '@/lib/supabase/client'
-import { formatCurrency, formatDate } from '@/lib/utils'
+import { formatCurrency, formatDate, getNoticeDaysRemaining, getNoticeTargetDate } from '@/lib/utils'
 import { Users, Plus, Search, Eye, Mail, Phone, CheckCircle } from 'lucide-react'
 import Link from 'next/link'
 import { useRouter } from 'next/navigation'
@@ -22,7 +22,7 @@ export default function ResidentsPage() {
     setLoading(true)
     const [{ data }, { data: noticeData }] = await Promise.all([
       supabase.from('residents').select('*, bed:beds(bed_number, room:rooms(room_number, type)), onboarded_by_admin:admins!residents_onboarded_by_fkey(name)').order('created_at', { ascending: false }),
-      supabase.from('notice_periods').select('resident_id, last_day_of_stay').eq('status', 'active'),
+      supabase.from('notice_periods').select('resident_id, last_day_of_stay, last_day_per_agreement').eq('status', 'active'),
     ])
     setResidents(data || [])
     const noticeMap: Record<string, any> = {}
@@ -36,8 +36,10 @@ export default function ResidentsPage() {
   const daysLeftFor = (residentId: string) => {
     const n = notices[residentId]
     if (!n) return null
-    const days = Math.ceil((new Date(n.last_day_of_stay).getTime() - Date.now()) / 86400000)
-    return { days: Math.max(0, days), date: n.last_day_of_stay }
+    const target = getNoticeTargetDate(n)
+    if (!target) return null
+    const days = getNoticeDaysRemaining(n) ?? 0
+    return { days: Math.max(0, days), date: target }
   }
 
   const pendingApprovals = residents.filter(r => r.onboarding_status === 'submitted')
