@@ -78,9 +78,10 @@ export default function NoticesPage() {
   const applySubmission = async (sub: any) => {
     const draft = reviewDrafts[sub.id]
     if (!draft?.resident_id || !draft?.last_day_of_stay) { alert('Pick a resident and a last day of stay first.'); return }
+    const noticeDate = parseSheetDate(sub.submitted_at) || new Date().toISOString().split('T')[0]
     await supabase.from('notice_periods').insert({
       resident_id: draft.resident_id,
-      notice_date: parseSheetDate(sub.submitted_at) || new Date().toISOString().split('T')[0],
+      notice_date: noticeDate,
       last_day_of_stay: draft.last_day_of_stay,
       reason: sub.reason || null,
       status: 'active',
@@ -88,6 +89,14 @@ export default function NoticesPage() {
     })
     await supabase.from('residents').update({ status: 'notice' }).eq('id', draft.resident_id)
     await supabase.from('notice_form_submissions').update({ review_status: 'applied', matched_resident_id: draft.resident_id }).eq('id', sub.id)
+    try {
+      const agreementEnd = new Date(new Date(noticeDate).getTime() + 60 * 24 * 60 * 60 * 1000).toISOString().split('T')[0]
+      await fetch('/api/notify/notice-filed', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ residentId: draft.resident_id, lastDayOfStay: draft.last_day_of_stay, lastDayPerAgreement: agreementEnd, noticeDate }),
+      })
+    } catch { /* non-fatal — notice is already recorded */ }
     fetchAll()
   }
 
@@ -110,6 +119,17 @@ export default function NoticesPage() {
     })
 
     await supabase.from('residents').update({ status: 'notice' }).eq('id', form.resident_id)
+    try {
+      // last_day_per_agreement is auto-computed server-side by a DB trigger
+      // (notice_date + 60 days) — mirrored here so the confirmation email
+      // has it without a round trip to re-fetch the just-inserted row.
+      const agreementEnd = new Date(new Date(form.notice_date).getTime() + 60 * 24 * 60 * 60 * 1000).toISOString().split('T')[0]
+      await fetch('/api/notify/notice-filed', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ residentId: form.resident_id, lastDayOfStay: form.last_day_of_stay || null, lastDayPerAgreement: agreementEnd, noticeDate: form.notice_date }),
+      })
+    } catch { /* non-fatal — notice is already recorded */ }
 
     setShowModal(false)
     setForm({ resident_id: '', notice_date: new Date().toISOString().split('T')[0], reason: '', last_day_of_stay: '' })

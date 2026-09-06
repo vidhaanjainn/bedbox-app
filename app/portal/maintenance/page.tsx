@@ -21,9 +21,16 @@ export default function MaintenancePage() {
     setSubmitting(true)
     const {data:{session}} = await supabase.auth.getSession()
     if (!session) { router.replace('/portal'); return }
-    const {data:res} = await supabase.from('residents').select('id').eq('portal_user_id',session.user.id).single()
+    const {data:res} = await supabase.from('residents').select('id,room_number').eq('portal_user_id',session.user.id).single()
     if (!res) { setError('Session error. Please login again.'); setSubmitting(false); return }
-    const {error:e} = await supabase.from('maintenance_requests').insert({resident_id:res.id,category:cat,description:desc})
+    const catLabel = CATS.find(c=>c.id===cat)?.label || 'Other'
+    const {error:e} = await supabase.from('maintenance_requests').insert({
+      resident_id: res.id,
+      category: cat,
+      description: desc,
+      title: `${catLabel} issue${res.room_number ? ` — Room ${res.room_number}` : ''}`,
+      submitted_by: 'resident',
+    })
     if (e) { setError('Something went wrong. Try again.'); setSubmitting(false); return }
     try {
       await fetch('/api/notify/complaint-filed', {

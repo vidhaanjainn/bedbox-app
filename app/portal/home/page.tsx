@@ -4,18 +4,18 @@ import { useEffect, useState } from 'react'
 import { useRouter } from 'next/navigation'
 import { createClient } from '@/lib/supabase/client'
 import Link from 'next/link'
-import { Wrench, Receipt, ClipboardList, Phone, Wifi, MapPin, Cross, Pill, ShoppingCart, UtensilsCrossed, TreePine, TrainFront } from 'lucide-react'
+import { Wrench, Receipt, ClipboardList, Phone, Wifi, MapPin, Cross, Pill, ShoppingCart, UtensilsCrossed, TreePine, TrainFront, ChevronDown, Star, Upload, X, Loader2, Check, IndianRupee } from 'lucide-react'
 
 const CATEGORY_META: Record<string, { label: string; Icon: typeof MapPin }> = {
   hospital: { label: 'Hospitals', Icon: Cross },
   pharmacy: { label: 'Pharmacies', Icon: Pill },
   grocery: { label: 'Grocery & Essentials', Icon: ShoppingCart },
-  restaurant: { label: 'Restaurants', Icon: UtensilsCrossed },
+  restaurant: { label: 'Food Vendors', Icon: UtensilsCrossed },
   attraction: { label: 'Places to Visit', Icon: TreePine },
   transport: { label: 'Transport', Icon: TrainFront },
   other: { label: 'Other', Icon: MapPin },
 }
-const CATEGORY_ORDER = ['hospital', 'pharmacy', 'grocery', 'restaurant', 'attraction', 'transport', 'other']
+const CATEGORY_ORDER = ['restaurant', 'hospital', 'pharmacy', 'grocery', 'transport', 'attraction', 'other']
 
 export default function PortalHomePage() {
   const router = useRouter()
@@ -25,8 +25,22 @@ export default function PortalHomePage() {
   const [pastArrears, setPastArrears] = useState(0)
   const [wifiPassword, setWifiPassword] = useState('')
   const [wifiNetwork, setWifiNetwork] = useState('')
+  const [upiId, setUpiId] = useState('')
+  const [upiPayeeName, setUpiPayeeName] = useState('TheBedBox')
   const [places, setPlaces] = useState<any[]>([])
+  const [staff, setStaff] = useState<any[]>([])
+  const [ratings, setRatings] = useState<any[]>([])
+  const [myRatings, setMyRatings] = useState<Record<string, number>>({})
+  const [houseInfoOpen, setHouseInfoOpen] = useState(false)
   const [loading, setLoading] = useState(true)
+
+  const [showPayModal, setShowPayModal] = useState(false)
+  const [payAmount, setPayAmount] = useState('')
+  const [payMode, setPayMode] = useState('upi')
+  const [payScreenshot, setPayScreenshot] = useState<File | null>(null)
+  const [paySubmitting, setPaySubmitting] = useState(false)
+  const [payMsg, setPayMsg] = useState('')
+
   const now = new Date()
   const currentMonth = now.getMonth() + 1
   const currentYear = now.getFullYear()
@@ -42,16 +56,13 @@ export default function PortalHomePage() {
 
       const { data: rents } = await supabase
         .from('rent_payments')
-        .select('id, month, year, total_amount, amount_paid, status, electricity_amount, paid_at')
+        .select('id, month, year, total_amount, amount_paid, status, electricity_amount, paid_at, resident_reported_at, resident_reported_amount')
         .eq('resident_id', res.id)
         .order('year', { ascending: false })
         .order('month', { ascending: false })
         .limit(4)
       setRentRecords(rents || [])
 
-      // Arrears = unpaid balance from BEFORE this month — queried separately
-      // (not capped at 4 rows) so a resident who's fallen behind further
-      // back still sees the true total, not just what fits in the recent list.
       const { data: unpaid } = await supabase
         .from('rent_payments')
         .select('total_amount, amount_paid, month, year')
@@ -60,19 +71,87 @@ export default function PortalHomePage() {
       const past = (unpaid || []).filter(r => r.year < currentYear || (r.year === currentYear && r.month < currentMonth))
       setPastArrears(past.reduce((sum, r) => sum + Math.max(0, Number(r.total_amount) - Number(r.amount_paid || 0)), 0))
 
-      const { data: settingsRows } = await supabase.from('settings').select('key, value').in('key', ['wifi_password', 'wifi_network_name'])
+      const { data: settingsRows } = await supabase.from('settings').select('key, value').in('key', ['wifi_password', 'wifi_network_name', 'upi_id', 'upi_payee_name'])
       settingsRows?.forEach(s => {
         if (s.key === 'wifi_password') setWifiPassword(s.value || '')
         if (s.key === 'wifi_network_name') setWifiNetwork(s.value || '')
+        if (s.key === 'upi_id') setUpiId(s.value || '')
+        if (s.key === 'upi_payee_name') setUpiPayeeName(s.value || 'TheBedBox')
       })
 
       const { data: placesData } = await supabase.from('nearby_places').select('*').order('category').order('sort_order')
       setPlaces(placesData || [])
 
+      const { data: staffData } = await supabase.from('staff').select('name, role, phone').eq('is_active', true).not('phone', 'is', null)
+      setStaff(staffData || [])
+
+      const { data: ratingRows } = await supabase.from('vendor_ratings').select('place_id, resident_id, rating')
+      setRatings(ratingRows || [])
+      const mine: Record<string, number> = {}
+      ratingRows?.forEach(r => { if (r.resident_id === res.id) mine[r.place_id] = r.rating })
+      setMyRatings(mine)
+
       setLoading(false)
     }
     load()
   }, [])
+
+  const rateVendor = async (placeId: string, rating: number) => {
+    if (!resident) return
+    setMyRatings(m => ({ ...m, [placeId]: rating }))
+    await supabase.from('vendor_ratings').upsert(
+      { place_id: placeId, resident_id: resident.id, rating, updated_at: new Date().toISOString() },
+      { onConflict: 'place_id,resident_id' }
+    )
+    const { data: ratingRows } = await supabase.from('vendor_ratings').select('place_id, resident_id, rating')
+    setRatings(ratingRows || [])
+  }
+
+  const avgRatingFor = (placeId: string) => {
+    const rows = ratings.filter(r => r.place_id === placeId)
+    if (!rows.length) return null
+    return { avg: rows.reduce((s, r) => s + r.rating, 0) / rows.length, count: rows.length }
+  }
+
+  const openPayModal = (outstanding: number) => {
+    setPayAmount(String(outstanding))
+    setPayMode('upi')
+    setPayScreenshot(null)
+    setPayMsg('')
+    setShowPayModal(true)
+  }
+
+  const submitPaymentProof = async () => {
+    if (!current || !payAmount) return
+    setPaySubmitting(true)
+    setPayMsg('')
+    try {
+      let screenshotPath = ''
+      if (payScreenshot) {
+        const upRes = await fetch('/api/portal/payment-upload-url', {
+          method: 'POST', headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ rentPaymentId: current.id }),
+        })
+        const upData = await upRes.json()
+        if (!upRes.ok) throw new Error(upData.error || 'Could not prepare upload.')
+        const { error: uploadError } = await supabase.storage.from('resident-docs').uploadToSignedUrl(upData.path, upData.uploadToken, payScreenshot)
+        if (uploadError) throw new Error('Upload failed. Please try again.')
+        screenshotPath = upData.path
+      }
+      const res = await fetch('/api/portal/report-payment', {
+        method: 'POST', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ rentPaymentId: current.id, amount: parseFloat(payAmount), paymentMode: payMode, screenshotPath }),
+      })
+      const data = await res.json()
+      if (!res.ok) throw new Error(data.error || 'Could not save your payment report.')
+      setPayMsg('✓ Thanks! We\'ll verify and update your status shortly.')
+      setTimeout(() => setShowPayModal(false), 2000)
+    } catch (err: any) {
+      setPayMsg(err?.message || 'Something went wrong. Please try again.')
+    } finally {
+      setPaySubmitting(false)
+    }
+  }
 
   if (loading) return <div style={{ padding: 28 }}>{[1, 2, 3].map(i => <div key={i} style={{ height: i === 1 ? 80 : 120, borderRadius: 12, marginBottom: 16, background: 'rgba(255,255,255,0.04)' }} />)}</div>
 
@@ -80,6 +159,8 @@ export default function PortalHomePage() {
   const outstanding = current ? Math.max(0, Number(current.total_amount) - Number(current.amount_paid || 0)) : 0
   const monthNames = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec']
   const currentMonthLabel = `${monthNames[currentMonth - 1]} ${currentYear}`
+
+  const upiLink = upiId ? `upi://pay?pa=${encodeURIComponent(upiId)}&pn=${encodeURIComponent(upiPayeeName)}&am=${outstanding}&cu=INR&tn=${encodeURIComponent('Rent ' + currentMonthLabel)}` : ''
 
   const groupedPlaces = CATEGORY_ORDER
     .map(cat => ({ cat, items: places.filter(p => p.category === cat) }))
@@ -113,6 +194,25 @@ export default function PortalHomePage() {
           {current?.electricity_amount > 0 && <div style={{ fontSize: 12, color: 'rgba(255,255,255,0.4)' }}>Includes electricity: ₹{current.electricity_amount}</div>}
           {current?.status === 'paid' && current.paid_at && <div style={{ marginTop: 8, fontSize: 12, color: 'rgba(0,212,200,0.7)' }}>✓ Paid on {new Date(current.paid_at).toLocaleDateString('en-IN', { day: 'numeric', month: 'short', year: 'numeric' })}</div>}
           {!current && <div style={{ fontSize: 12, color: 'rgba(255,255,255,0.3)', marginTop: 4 }}>Bill not generated yet for this month</div>}
+
+          {current && current.status !== 'paid' && current.resident_reported_at && (
+            <div style={{ marginTop: 12, padding: '8px 12px', borderRadius: 10, background: 'rgba(56,189,248,0.08)', border: '1px solid rgba(56,189,248,0.2)', fontSize: 12, color: '#7dd3fc' }}>
+              ✓ You reported ₹{Number(current.resident_reported_amount).toLocaleString('en-IN')} paid — awaiting confirmation from TheBedBox.
+            </div>
+          )}
+
+          {current && current.status !== 'paid' && (
+            <div style={{ display: 'flex', gap: 8, marginTop: 14 }}>
+              {upiId && (
+                <a href={upiLink} style={{ flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 6, padding: '12px', borderRadius: 12, background: 'linear-gradient(135deg,#00d4c8,#0099ff)', color: '#070d1a', fontSize: 13, fontWeight: 700, textDecoration: 'none' }}>
+                  <IndianRupee size={14} /> Pay via UPI
+                </a>
+              )}
+              <button onClick={() => openPayModal(outstanding)} style={{ flex: 1, padding: '12px', borderRadius: 12, background: 'rgba(255,255,255,0.06)', border: '1px solid rgba(255,255,255,0.12)', color: '#fff', fontSize: 13, fontWeight: 600, cursor: 'pointer' }}>
+                I've Paid
+              </button>
+            </div>
+          )}
         </div>
 
         {pastArrears > 0 && (
@@ -140,15 +240,21 @@ export default function PortalHomePage() {
           </div>
         )}
 
-        {/* WiFi */}
-        {wifiPassword && (
-          <div style={{ background: 'rgba(0,153,255,0.06)', border: '1px solid rgba(0,153,255,0.15)', borderRadius: 14, padding: '16px 18px', marginBottom: 16 }}>
-            <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 8 }}>
-              <Wifi size={16} color="#0099ff" />
-              <span style={{ fontSize: 12, color: '#0099ff', fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.05em' }}>WiFi</span>
+        {/* Staff contacts — source of truth is Staff & Expenses in the admin console */}
+        {staff.length > 0 && (
+          <div style={{ marginBottom: 20 }}>
+            <div style={{ fontSize: 12, color: 'rgba(255,255,255,0.4)', fontWeight: 600, letterSpacing: '0.08em', textTransform: 'uppercase', marginBottom: 12 }}>Need help around the house?</div>
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+              {staff.map((s, i) => (
+                <a key={i} href={`tel:${s.phone}`} style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '12px 14px', borderRadius: 12, background: 'rgba(255,255,255,0.04)', border: '1px solid rgba(255,255,255,0.07)', textDecoration: 'none', color: '#fff' }}>
+                  <div>
+                    <div style={{ fontSize: 13, fontWeight: 600 }}>{s.name}</div>
+                    <div style={{ fontSize: 11, color: 'rgba(255,255,255,0.4)', textTransform: 'capitalize' }}>{s.role}</div>
+                  </div>
+                  <Phone size={16} color="#00d4c8" />
+                </a>
+              ))}
             </div>
-            {wifiNetwork && <div style={{ fontSize: 13, color: 'rgba(255,255,255,0.6)', marginBottom: 4 }}>Network: <strong style={{ color: '#fff' }}>{wifiNetwork}</strong></div>}
-            <div style={{ fontSize: 13, color: 'rgba(255,255,255,0.6)' }}>Password: <strong style={{ color: '#fff' }}>{wifiPassword}</strong></div>
           </div>
         )}
 
@@ -162,7 +268,7 @@ export default function PortalHomePage() {
           ))}
         </div>
 
-        {/* Nearby places */}
+        {/* Nearby places — food vendors get a rating widget */}
         {groupedPlaces.length > 0 && (
           <div style={{ marginBottom: 24 }}>
             <div style={{ fontSize: 12, color: 'rgba(255,255,255,0.4)', fontWeight: 600, letterSpacing: '0.08em', textTransform: 'uppercase', marginBottom: 12 }}>Around TheBedBox</div>
@@ -174,17 +280,87 @@ export default function PortalHomePage() {
                   {meta && <meta.Icon size={14} color="#00d4c8" />}
                   {meta?.label || g.cat}
                 </div>
-                {g.items.map((p: any) => (
-                  <div key={p.id} style={{ display: 'flex', justifyContent: 'space-between', padding: '8px 0', borderBottom: '1px solid rgba(255,255,255,0.04)' }}>
-                    <span style={{ fontSize: 13, color: 'rgba(255,255,255,0.75)' }}>{p.name}</span>
-                    {p.distance_note && <span style={{ fontSize: 11, color: 'rgba(255,255,255,0.3)' }}>{p.distance_note}</span>}
+                {g.items.map((p: any) => {
+                  const agg = avgRatingFor(p.id)
+                  const mine = myRatings[p.id] || 0
+                  return (
+                  <div key={p.id} style={{ padding: '8px 0', borderBottom: '1px solid rgba(255,255,255,0.04)' }}>
+                    <div style={{ display: 'flex', justifyContent: 'space-between' }}>
+                      <span style={{ fontSize: 13, color: 'rgba(255,255,255,0.75)' }}>{p.name}</span>
+                      {p.distance_note && <span style={{ fontSize: 11, color: 'rgba(255,255,255,0.3)' }}>{p.distance_note}</span>}
+                    </div>
+                    {g.cat === 'restaurant' && (
+                      <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginTop: 4 }}>
+                        {[1, 2, 3, 4, 5].map(n => (
+                          <button key={n} onClick={() => rateVendor(p.id, n)} style={{ background: 'none', border: 'none', cursor: 'pointer', padding: 0 }}>
+                            <Star size={14} fill={n <= mine ? '#fbbf24' : 'none'} color={n <= mine ? '#fbbf24' : 'rgba(255,255,255,0.25)'} />
+                          </button>
+                        ))}
+                        {agg && <span style={{ fontSize: 11, color: 'rgba(255,255,255,0.4)' }}>{agg.avg.toFixed(1)} ({agg.count})</span>}
+                      </div>
+                    )}
                   </div>
-                ))}
+                )})}
               </div>
             )})}
           </div>
         )}
+
+        {/* House info — WiFi etc., collapsed by default */}
+        {wifiPassword && (
+          <div style={{ marginBottom: 24 }}>
+            <button onClick={() => setHouseInfoOpen(o => !o)} style={{ width: '100%', display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '12px 14px', borderRadius: 12, background: 'rgba(255,255,255,0.03)', border: '1px solid rgba(255,255,255,0.07)', color: 'rgba(255,255,255,0.6)', fontSize: 13, fontWeight: 600, cursor: 'pointer' }}>
+              <span style={{ display: 'flex', alignItems: 'center', gap: 8 }}><Wifi size={15} /> House Info</span>
+              <ChevronDown size={16} style={{ transform: houseInfoOpen ? 'rotate(180deg)' : 'none', transition: 'transform 0.2s' }} />
+            </button>
+            {houseInfoOpen && (
+              <div style={{ padding: '14px 16px', marginTop: 8, borderRadius: 12, background: 'rgba(0,153,255,0.06)', border: '1px solid rgba(0,153,255,0.15)' }}>
+                {wifiNetwork && <div style={{ fontSize: 13, color: 'rgba(255,255,255,0.6)', marginBottom: 4 }}>Network: <strong style={{ color: '#fff' }}>{wifiNetwork}</strong></div>}
+                <div style={{ fontSize: 13, color: 'rgba(255,255,255,0.6)' }}>Password: <strong style={{ color: '#fff' }}>{wifiPassword}</strong></div>
+              </div>
+            )}
+          </div>
+        )}
       </div>
+
+      {/* Pay confirmation modal */}
+      {showPayModal && (
+        <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.7)', display: 'flex', alignItems: 'flex-end', zIndex: 100 }}>
+          <div style={{ width: '100%', maxWidth: 480, margin: '0 auto', background: '#0d1526', borderTopLeftRadius: 20, borderTopRightRadius: 20, padding: 24, boxSizing: 'border-box' }}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 20 }}>
+              <h3 style={{ fontFamily: "'Syne',sans-serif", fontSize: 18, fontWeight: 700, margin: 0 }}>Report your payment</h3>
+              <button onClick={() => setShowPayModal(false)} style={{ background: 'none', border: 'none', color: 'rgba(255,255,255,0.5)', cursor: 'pointer' }}><X size={20} /></button>
+            </div>
+            <p style={{ fontSize: 12, color: 'rgba(255,255,255,0.4)', marginBottom: 18, lineHeight: 1.5 }}>Let us know you've paid — we'll verify and update your status. This doesn't mark rent as paid automatically.</p>
+
+            <label style={{ display: 'block', fontSize: 11, fontWeight: 600, letterSpacing: '0.06em', textTransform: 'uppercase', color: 'rgba(255,255,255,0.35)', marginBottom: 8 }}>Amount paid (₹)</label>
+            <input type="number" value={payAmount} onChange={e => setPayAmount(e.target.value)}
+              style={{ width: '100%', padding: 12, borderRadius: 10, background: 'rgba(0,0,0,0.3)', border: '1px solid rgba(255,255,255,0.1)', color: '#fff', outline: 'none', boxSizing: 'border-box', marginBottom: 14, fontFamily: "'DM Sans',sans-serif" }} />
+
+            <label style={{ display: 'block', fontSize: 11, fontWeight: 600, letterSpacing: '0.06em', textTransform: 'uppercase', color: 'rgba(255,255,255,0.35)', marginBottom: 8 }}>Payment mode</label>
+            <select value={payMode} onChange={e => setPayMode(e.target.value)}
+              style={{ width: '100%', padding: 12, borderRadius: 10, background: 'rgba(0,0,0,0.3)', border: '1px solid rgba(255,255,255,0.1)', color: '#fff', outline: 'none', boxSizing: 'border-box', marginBottom: 14, fontFamily: "'DM Sans',sans-serif" }}>
+              <option value="upi">UPI / GPay</option>
+              <option value="bank_transfer">Bank Transfer</option>
+              <option value="cash">Cash</option>
+            </select>
+
+            <label style={{ display: 'block', fontSize: 11, fontWeight: 600, letterSpacing: '0.06em', textTransform: 'uppercase', color: 'rgba(255,255,255,0.35)', marginBottom: 8 }}>Screenshot (optional)</label>
+            <label style={{ display: 'flex', alignItems: 'center', gap: 10, padding: 14, borderRadius: 10, border: `2px dashed ${payScreenshot ? '#00d4c8' : 'rgba(255,255,255,0.15)'}`, background: payScreenshot ? 'rgba(0,212,200,0.06)' : 'rgba(255,255,255,0.03)', cursor: 'pointer', marginBottom: 16 }}>
+              <input type="file" accept="image/*" style={{ display: 'none' }} onChange={e => e.target.files?.[0] && setPayScreenshot(e.target.files[0])} />
+              {payScreenshot ? <><Check size={16} color="#00d4c8" /><span style={{ fontSize: 13, color: '#00d4c8' }}>{payScreenshot.name}</span></> : <><Upload size={16} color="rgba(255,255,255,0.4)" /><span style={{ fontSize: 13, color: 'rgba(255,255,255,0.5)' }}>Tap to attach</span></>}
+            </label>
+
+            {payMsg && <div style={{ fontSize: 13, color: payMsg.startsWith('✓') ? '#00d4c8' : '#ff6b6b', marginBottom: 14, padding: '10px 12px', background: payMsg.startsWith('✓') ? 'rgba(0,212,200,0.08)' : 'rgba(255,107,107,0.08)', borderRadius: 8 }}>{payMsg}</div>}
+
+            <button onClick={submitPaymentProof} disabled={paySubmitting || !payAmount}
+              style={{ width: '100%', padding: 14, borderRadius: 12, fontSize: 15, fontWeight: 700, background: !payAmount || paySubmitting ? 'rgba(255,255,255,0.08)' : 'linear-gradient(135deg,#00d4c8,#0099ff)', color: !payAmount || paySubmitting ? 'rgba(255,255,255,0.3)' : '#070d1a', border: 'none', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8 }}>
+              {paySubmitting ? <Loader2 size={16} style={{ animation: 'spin 1s linear infinite' }} /> : null}
+              {paySubmitting ? 'Submitting...' : 'Submit'}
+            </button>
+          </div>
+        </div>
+      )}
     </div>
   )
 }

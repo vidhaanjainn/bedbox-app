@@ -15,6 +15,8 @@ export default function SettingsPage() {
   const [rateCard, setRateCard] = useState<Record<string, string>>({ single: '7000', double: '6000', triple: '5500' })
   const [wifiPassword, setWifiPassword] = useState('')
   const [wifiNetwork, setWifiNetwork] = useState('')
+  const [upiId, setUpiId] = useState('')
+  const [upiPayeeName, setUpiPayeeName] = useState('TheBedBox')
   const [places, setPlaces] = useState<any[]>([])
   const [newPlace, setNewPlace] = useState({ category: 'attraction', name: '', distance_note: '' })
   const [adminEmail, setAdminEmail] = useState('')
@@ -132,6 +134,8 @@ export default function SettingsPage() {
         if (s.key === 'rate_card') { try { setRateCard(JSON.parse(s.value)) } catch {} }
         if (s.key === 'wifi_password') setWifiPassword(s.value || '')
         if (s.key === 'wifi_network_name') setWifiNetwork(s.value || '')
+        if (s.key === 'upi_id') setUpiId(s.value || '')
+        if (s.key === 'upi_payee_name') setUpiPayeeName(s.value || 'TheBedBox')
       })
     }
   }
@@ -222,6 +226,21 @@ export default function SettingsPage() {
         </div>
         <div style={{ marginTop: '12px', fontSize: '12px', color: 'var(--text-muted)', padding: '10px 14px', background: 'var(--surface-2)', borderRadius: '8px' }}>
           💡 Changes take effect from the next billing cycle. Residents are notified per your agreement terms.
+        </div>
+      </div>
+
+      {/* Payment info (resident portal — powers the Pay Rent button) */}
+      <div className="glass-card" style={{ padding: '24px', marginBottom: '20px' }}>
+        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '20px' }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}><CreditCard size={16} color="var(--teal-500)" /><h3 style={{ fontFamily: 'Syne, sans-serif', fontSize: '15px', fontWeight: '600', color: 'var(--text-primary)', margin: 0 }}>Payment Info (resident portal)</h3></div>
+          <Btn section="payment" onClick={() => save('payment', () => Promise.all([upsert('upi_id', upiId), upsert('upi_payee_name', upiPayeeName)]))} />
+        </div>
+        <p style={{ fontSize: '13px', color: 'var(--text-muted)', marginBottom: '16px' }}>
+          Shown to residents as a one-tap "Pay Rent via UPI" button on their home screen.
+        </p>
+        <div className="bb-grid-2" style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '16px' }}>
+          <Field label="UPI ID" value={upiId} onChange={setUpiId} />
+          <Field label="Payee name" value={upiPayeeName} onChange={setUpiPayeeName} />
         </div>
       </div>
 

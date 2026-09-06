@@ -77,6 +77,10 @@ export function moneyINR(amount: number) {
   return `₹${Math.round(amount).toLocaleString('en-IN')}`
 }
 
+export function formatDateLong(date: string) {
+  return new Date(date).toLocaleDateString('en-IN', { day: 'numeric', month: 'long', year: 'numeric' })
+}
+
 export const emailShell = (title: string, bodyHtml: string) => `
   <div style="font-family: 'DM Sans', sans-serif; max-width: 480px; margin: 0 auto; padding: 32px; background: #fafaf9; border-radius: 16px; border: 1px solid #eee;">
     <div style="display:flex;align-items:center;gap:10px;margin-bottom:24px">

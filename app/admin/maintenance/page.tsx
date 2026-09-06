@@ -3,8 +3,35 @@
 import { useEffect, useState } from 'react'
 import { createClient } from '@/lib/supabase/client'
 import { formatDate } from '@/lib/utils'
-import { Wrench, Plus, X, Loader2, ChevronDown } from 'lucide-react'
+import { Wrench, Plus, X, Loader2, ChevronDown, MessageCircle, Copy } from 'lucide-react'
 import { MAINTENANCE_CATEGORIES } from '@/lib/utils'
+
+const CATEGORY_HINDI: Record<string, string> = {
+  electrical: 'बिजली',
+  plumbing: 'प्लंबिंग',
+  furniture: 'फर्नीचर',
+  appliance: 'उपकरण',
+  cleanliness: 'सफाई',
+  other: 'अन्य',
+}
+
+// Bilingual, copy-paste-ready message for plumbers/electricians who aren't
+// saved contacts in the app — wa.me with no number opens WhatsApp's own
+// contact picker instead of requiring a stored phone number.
+function contractorMessage(task: any): string {
+  const room = task.resident?.room_number || 'N/A'
+  const issue = task.description || task.title
+  const hindiCat = CATEGORY_HINDI[task.category] || 'अन्य'
+  return [
+    `TheBedBox — Room ${room}`,
+    `Issue: ${issue}`,
+    '',
+    `कमरा नंबर ${room} में ${hindiCat} से जुड़ी समस्या है:`,
+    issue,
+    '',
+    'कृपया जल्द से जल्द विजिट करें। धन्यवाद।',
+  ].join('\n')
+}
 
 export default function MaintenancePage() {
   const [tasks, setTasks] = useState<any[]>([])
@@ -14,6 +41,15 @@ export default function MaintenancePage() {
   const [showModal, setShowModal] = useState(false)
   const [saving, setSaving] = useState(false)
   const [statusFilter, setStatusFilter] = useState('all')
+  const [copiedId, setCopiedId] = useState('')
+
+  const copyContractorMessage = async (task: any) => {
+    try {
+      await navigator.clipboard.writeText(contractorMessage(task))
+      setCopiedId(task.id)
+      setTimeout(() => setCopiedId(''), 2000)
+    } catch { /* clipboard unavailable — WhatsApp button still works */ }
+  }
   const [form, setForm] = useState({
     title: '', description: '', category: 'plumbing', priority: 'medium',
     resident_id: '', assigned_to: '', submitted_by: 'admin'
@@ -191,7 +227,15 @@ export default function MaintenancePage() {
 
                     {/* Actions */}
                     {task.status !== 'resolved' && task.status !== 'cancelled' && (
-                      <div style={{ display: 'flex', gap: '8px', marginTop: '12px' }}>
+                      <div style={{ display: 'flex', gap: '8px', marginTop: '12px', flexWrap: 'wrap' }}>
+                        <a href={`https://wa.me/?text=${encodeURIComponent(contractorMessage(task))}`} target="_blank" rel="noopener noreferrer"
+                          style={{ display: 'flex', alignItems: 'center', gap: '5px', padding: '5px 12px', borderRadius: '7px', border: '1px solid rgba(52,211,153,0.3)', background: 'rgba(52,211,153,0.08)', color: '#34d399', fontSize: '12px', fontWeight: '600', textDecoration: 'none' }}>
+                          <MessageCircle size={12} /> Share with Plumber/Electrician
+                        </a>
+                        <button onClick={() => copyContractorMessage(task)}
+                          style={{ display: 'flex', alignItems: 'center', gap: '5px', padding: '5px 12px', borderRadius: '7px', border: '1px solid var(--border)', background: 'transparent', color: 'var(--text-muted)', fontSize: '12px', fontWeight: '600', cursor: 'pointer' }}>
+                          <Copy size={12} /> {copiedId === task.id ? 'Copied!' : 'Copy Message'}
+                        </button>
                         {task.status === 'open' && (
                           <button onClick={() => updateStatus(task.id, 'in_progress')}
                             style={{ padding: '5px 12px', borderRadius: '7px', border: '1px solid rgba(59,130,246,0.3)', background: 'rgba(59,130,246,0.08)', color: '#60a5fa', fontSize: '12px', fontWeight: '600', cursor: 'pointer' }}>

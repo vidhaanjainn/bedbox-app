@@ -144,6 +144,11 @@ export default function RentPage() {
     }
   }
 
+  const viewPaymentProof = async (path: string) => {
+    const { data } = await supabase.storage.from('resident-docs').createSignedUrl(path, 300)
+    if (data?.signedUrl) window.open(data.signedUrl, '_blank')
+  }
+
   const requestReceipt = async (paymentId: string) => {
     await supabase.from('rent_payments').update({ receipt_requested_at: new Date().toISOString() }).eq('id', paymentId)
     alert('Receipt request noted. You can now generate and send the receipt.')
@@ -279,6 +284,11 @@ export default function RentPage() {
                       }}>
                         {p.status}
                       </span>
+                      {p.resident_reported_at && p.status !== 'paid' && (
+                        <div style={{ marginTop: 4, fontSize: 10, fontWeight: 700, color: '#38bdf8', display: 'flex', alignItems: 'center', gap: 3 }}>
+                          <AlertCircle size={10} /> Reported {formatCurrency(p.resident_reported_amount)}
+                        </div>
+                      )}
                     </td>
                     <td>
                       <div style={{ display: 'flex', gap: '6px' }}>
@@ -297,9 +307,18 @@ export default function RentPage() {
                             <MessageCircle size={12} /> WhatsApp
                           </a>
                         )}
+                        {p.resident_payment_screenshot_path && (
+                          <button
+                            onClick={() => viewPaymentProof(p.resident_payment_screenshot_path)}
+                            title="View resident's payment screenshot"
+                            style={{ padding: '4px 10px', borderRadius: '6px', border: '1px solid rgba(56,189,248,0.3)', background: 'rgba(56,189,248,0.08)', color: '#38bdf8', fontSize: '11px', fontWeight: '600', cursor: 'pointer' }}
+                          >
+                            Proof
+                          </button>
+                        )}
                         {p.status !== 'paid' && (
                           <button
-                            onClick={() => { setSelectedPayment(p); setShowLogModal(true); setLogForm({ amount: String(p.total_amount - p.amount_paid), payment_mode: 'upi', notes: '', collected_by: currentAdmin?.id || '', electricity: p.electricity_logged_at ? String(p.electricity_amount) : '' }) }}
+                            onClick={() => { setSelectedPayment(p); setShowLogModal(true); setLogForm({ amount: String(p.resident_reported_amount || (p.total_amount - p.amount_paid)), payment_mode: p.payment_mode || 'upi', notes: '', collected_by: currentAdmin?.id || '', electricity: p.electricity_logged_at ? String(p.electricity_amount) : '' }) }}
                             style={{
                               padding: '4px 10px', borderRadius: '6px', border: '1px solid rgba(0,212,200,0.3)',
                               background: 'rgba(0,212,200,0.08)', color: 'var(--teal-500)',

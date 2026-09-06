@@ -53,7 +53,7 @@ export default function NoticePage() {
       await fetch('/api/notify/notice-filed', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ residentId: resident.id, lastDay: vacateDate }),
+        body: JSON.stringify({ residentId: resident.id, lastDayOfStay: vacateDate, noticeDate: today }),
       })
     } catch { /* non-fatal — notice is already recorded */ }
     setDone(true); setSubmitting(false)
