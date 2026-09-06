@@ -5,17 +5,19 @@ import { sendEmail, emailShell, moneyINR } from '@/lib/notify'
 import { sendPushToAdmins } from '@/lib/push'
 
 // Resident-gated: records a payment claim (amount + mode + proof screenshot)
-// against a specific rent_payments row. This does NOT mark the invoice
-// paid — amount_paid/status stay admin-controlled — it just flags the row
-// for admin review with everything they need to verify and confirm it via
-// the existing Log Payment flow.
+// for a given month. Creates that month's rent_payments row first if it
+// doesn't exist yet (residents shouldn't be blocked from paying just
+// because an admin hasn't run "Generate Monthly" for them). This never
+// marks the invoice paid — amount_paid/status stay admin-controlled — it
+// just flags the row for admin review with everything needed to verify it
+// via the existing Log Payment flow.
 export async function POST(req: Request) {
   const supabase = await createClient()
   const { data: { user } } = await supabase.auth.getUser()
   if (!user) return NextResponse.json({ error: 'Not signed in.' }, { status: 401 })
 
-  const { rentPaymentId, amount, paymentMode, screenshotPath } = await req.json()
-  if (!rentPaymentId || !amount) return NextResponse.json({ error: 'rentPaymentId and amount are required.' }, { status: 400 })
+  const { month, year, amount, paymentMode, screenshotPath } = await req.json()
+  if (!month || !year || !amount) return NextResponse.json({ error: 'month, year, and amount are required.' }, { status: 400 })
 
   const admin = createAdminClient(
     process.env.NEXT_PUBLIC_SUPABASE_URL!,
@@ -23,14 +25,29 @@ export async function POST(req: Request) {
     { auth: { autoRefreshToken: false, persistSession: false } }
   )
 
-  const { data: payment } = await admin
+  const { data: resident } = await admin.from('residents').select('id, name, room_number, rent_amount, portal_user_id').eq('portal_user_id', user.id).single()
+  if (!resident) return NextResponse.json({ error: 'Resident not found.' }, { status: 404 })
+
+  let { data: payment } = await admin
     .from('rent_payments')
-    .select('id, month, year, resident_id, residents(name, room_number, portal_user_id)')
-    .eq('id', rentPaymentId)
-    .single()
-  const resident = (payment as any)?.residents
-  if (!payment || resident?.portal_user_id !== user.id) {
-    return NextResponse.json({ error: 'Not authorized for this payment.' }, { status: 403 })
+    .select('id')
+    .eq('resident_id', resident.id)
+    .eq('month', month)
+    .eq('year', year)
+    .maybeSingle()
+
+  if (!payment) {
+    const rent = Number(resident.rent_amount) || 0
+    const { data: created, error: createError } = await admin.from('rent_payments').insert({
+      resident_id: resident.id,
+      month, year,
+      rent_amount: rent,
+      total_amount: rent,
+      amount_paid: 0,
+      status: 'pending',
+    }).select('id').single()
+    if (createError || !created) return NextResponse.json({ error: 'Could not create this month\'s bill.' }, { status: 500 })
+    payment = created
   }
 
   const { error: updateError } = await admin.from('rent_payments').update({
@@ -38,10 +55,10 @@ export async function POST(req: Request) {
     resident_reported_amount: amount,
     resident_payment_screenshot_path: screenshotPath || null,
     payment_mode: paymentMode || null,
-  }).eq('id', rentPaymentId)
+  }).eq('id', payment.id)
   if (updateError) return NextResponse.json({ error: 'Could not save your payment report.' }, { status: 500 })
 
-  const monthLabel = new Date(payment.year, payment.month - 1).toLocaleDateString('en-IN', { month: 'long', year: 'numeric' })
+  const monthLabel = new Date(year, month - 1).toLocaleDateString('en-IN', { month: 'long', year: 'numeric' })
   const roomLabel = resident.room_number ? `Room ${resident.room_number}` : 'Room not on file'
 
   await Promise.all([

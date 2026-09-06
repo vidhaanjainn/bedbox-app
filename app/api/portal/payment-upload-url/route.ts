@@ -2,16 +2,17 @@ import { NextResponse } from 'next/server'
 import { createClient } from '@/lib/supabase/server'
 import { createClient as createAdminClient } from '@supabase/supabase-js'
 
-// Resident-gated: issues a signed upload URL for a payment screenshot, the
-// same pattern as onboarding document uploads — no open storage policy
-// needed, the token itself authorizes one write to one path.
+// Resident-gated: issues a signed upload URL for a payment screenshot. Keyed
+// by resident + month/year rather than an existing rent_payments row, so a
+// resident can attach proof even before an admin has generated that month's
+// bill — the report-payment route creates the row on demand if needed.
 export async function POST(req: Request) {
   const supabase = await createClient()
   const { data: { user } } = await supabase.auth.getUser()
   if (!user) return NextResponse.json({ error: 'Not signed in.' }, { status: 401 })
 
-  const { rentPaymentId } = await req.json()
-  if (!rentPaymentId) return NextResponse.json({ error: 'rentPaymentId is required.' }, { status: 400 })
+  const { month, year } = await req.json()
+  if (!month || !year) return NextResponse.json({ error: 'month and year are required.' }, { status: 400 })
 
   const admin = createAdminClient(
     process.env.NEXT_PUBLIC_SUPABASE_URL!,
@@ -19,16 +20,10 @@ export async function POST(req: Request) {
     { auth: { autoRefreshToken: false, persistSession: false } }
   )
 
-  const { data: payment } = await admin
-    .from('rent_payments')
-    .select('id, resident_id, residents(portal_user_id)')
-    .eq('id', rentPaymentId)
-    .single()
-  if (!payment || (payment as any).residents?.portal_user_id !== user.id) {
-    return NextResponse.json({ error: 'Not authorized for this payment.' }, { status: 403 })
-  }
+  const { data: resident } = await admin.from('residents').select('id').eq('portal_user_id', user.id).single()
+  if (!resident) return NextResponse.json({ error: 'Resident not found.' }, { status: 404 })
 
-  const path = `payments/${payment.resident_id}/${rentPaymentId}-${Date.now()}`
+  const path = `payments/${resident.id}/${year}-${month}-${Date.now()}`
   const { data, error } = await admin.storage.from('resident-docs').createSignedUploadUrl(path)
   if (error || !data) return NextResponse.json({ error: 'Could not prepare upload.' }, { status: 500 })
 
