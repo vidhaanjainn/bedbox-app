@@ -196,16 +196,9 @@ export default function RentPage() {
 
       {/* Month Selector */}
       <div style={{ display: 'flex', gap: '8px', marginBottom: '24px', alignItems: 'center', flexWrap: 'wrap' }}>
-        <div style={{ display: 'flex', gap: '4px', background: 'var(--surface-1)', border: '1px solid var(--border)', borderRadius: '10px', padding: '4px' }}>
-          {months.map((m, i) => (
-            <button key={m} onClick={() => setMonthFilter(i + 1)} style={{
-              padding: '5px 10px', borderRadius: '6px', border: 'none', fontSize: '12px', fontWeight: '600',
-              cursor: 'pointer', transition: 'all 0.15s',
-              background: monthFilter === i + 1 ? 'var(--teal-500)' : 'transparent',
-              color: monthFilter === i + 1 ? 'var(--navy-900)' : 'var(--text-muted)',
-            }}>{m}</button>
-          ))}
-        </div>
+        <select className="bb-input" style={{ width: 'auto' }} value={monthFilter} onChange={e => setMonthFilter(parseInt(e.target.value))}>
+          {months.map((m, i) => <option key={m} value={i + 1}>{m}</option>)}
+        </select>
         <select className="bb-input" style={{ width: 'auto' }} value={yearFilter} onChange={e => setYearFilter(parseInt(e.target.value))}>
           {[2024, 2025, 2026].map(y => <option key={y} value={y}>{y}</option>)}
         </select>
