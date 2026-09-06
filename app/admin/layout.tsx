@@ -30,10 +30,27 @@ const navItems = [
 export default function AdminLayout({ children }: { children: React.ReactNode }) {
   const [sidebarOpen, setSidebarOpen] = useState(true)
   const [mobileOpen, setMobileOpen] = useState(false)
+  const [isMobile, setIsMobile] = useState(false)
   const [checkingSession, setCheckingSession] = useState(true)
   const pathname = usePathname()
   const router = useRouter()
   const supabase = createClient()
+
+  // Below 900px the sidebar becomes an off-canvas drawer (see .admin-sidebar
+  // in globals.css) instead of the desktop collapse-to-icons behavior, so
+  // labels should always render inside it regardless of the desktop
+  // sidebarOpen toggle's last state.
+  useEffect(() => {
+    const check = () => setIsMobile(window.innerWidth <= 900)
+    check()
+    window.addEventListener('resize', check)
+    return () => window.removeEventListener('resize', check)
+  }, [])
+  const showLabels = isMobile ? true : sidebarOpen
+
+  // Close the drawer automatically on navigation — otherwise it stays open
+  // over the new page after tapping a nav link.
+  useEffect(() => { setMobileOpen(false) }, [pathname])
 
   // No persisted session (e.g. never logged in on this device, or explicitly
   // logged out) — send to login instead of rendering an empty dashboard.
@@ -68,14 +85,13 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
           onClick={() => setMobileOpen(false)}
           style={{
             position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.6)',
-            zIndex: 40, display: 'block'
+            zIndex: 150, display: 'block'
           }}
-          className="lg:hidden"
         />
       )}
 
       {/* Sidebar */}
-      <aside style={{
+      <aside className={`admin-sidebar${mobileOpen ? ' mobile-open' : ''}`} style={{
         width: sidebarOpen ? '240px' : '68px',
         minHeight: '100vh',
         background: 'var(--surface-1)',
@@ -108,7 +124,7 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
           }}>
             <Building2 size={18} color="var(--teal-500)" />
           </div>
-          {sidebarOpen && (
+          {showLabels && (
             <div style={{ overflow: 'hidden' }}>
               <div style={{
                 fontFamily: 'Syne, sans-serif',
@@ -121,21 +137,37 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
               </div>
             </div>
           )}
-          <button
-            onClick={() => setSidebarOpen(!sidebarOpen)}
-            style={{
-              marginLeft: 'auto', flexShrink: 0,
-              background: 'none', border: 'none',
-              cursor: 'pointer', color: 'var(--text-muted)',
-              padding: '4px', borderRadius: '6px',
-              display: 'flex', alignItems: 'center'
-            }}
-          >
-            <ChevronRight size={16} style={{
-              transform: sidebarOpen ? 'rotate(180deg)' : 'rotate(0deg)',
-              transition: 'transform 0.25s ease'
-            }} />
-          </button>
+          {isMobile ? (
+            <button
+              onClick={() => setMobileOpen(false)}
+              aria-label="Close menu"
+              style={{
+                marginLeft: 'auto', flexShrink: 0,
+                background: 'none', border: 'none',
+                cursor: 'pointer', color: 'var(--text-muted)',
+                padding: '4px', borderRadius: '6px',
+                display: 'flex', alignItems: 'center'
+              }}
+            >
+              <X size={18} />
+            </button>
+          ) : (
+            <button
+              onClick={() => setSidebarOpen(!sidebarOpen)}
+              style={{
+                marginLeft: 'auto', flexShrink: 0,
+                background: 'none', border: 'none',
+                cursor: 'pointer', color: 'var(--text-muted)',
+                padding: '4px', borderRadius: '6px',
+                display: 'flex', alignItems: 'center'
+              }}
+            >
+              <ChevronRight size={16} style={{
+                transform: sidebarOpen ? 'rotate(180deg)' : 'rotate(0deg)',
+                transition: 'transform 0.25s ease'
+              }} />
+            </button>
+          )}
         </div>
 
         {/* Nav */}
@@ -147,14 +179,14 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
               <Link key={item.href} href={item.href} className={`nav-item ${active ? 'active' : ''}`}
                 style={{
                   marginBottom: '2px',
-                  justifyContent: sidebarOpen ? 'flex-start' : 'center',
-                  padding: sidebarOpen ? '10px 14px' : '10px',
+                  justifyContent: showLabels ? 'flex-start' : 'center',
+                  padding: showLabels ? '10px 14px' : '10px',
                   position: 'relative'
                 }}
-                title={!sidebarOpen ? item.label : undefined}
+                title={!showLabels ? item.label : undefined}
               >
                 <Icon size={18} style={{ flexShrink: 0 }} />
-                {sidebarOpen && (
+                {showLabels && (
                   <span style={{ whiteSpace: 'nowrap', overflow: 'hidden' }}>{item.label}</span>
                 )}
               </Link>
@@ -169,21 +201,34 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
             className="nav-item"
             style={{
               width: '100%',
-              justifyContent: sidebarOpen ? 'flex-start' : 'center',
-              padding: sidebarOpen ? '10px 14px' : '10px',
+              justifyContent: showLabels ? 'flex-start' : 'center',
+              padding: showLabels ? '10px 14px' : '10px',
               background: 'none', border: 'none',
               color: 'var(--text-muted)',
               cursor: 'pointer'
             }}
           >
             <LogOut size={18} style={{ flexShrink: 0 }} />
-            {sidebarOpen && <span>Logout</span>}
+            {showLabels && <span>Logout</span>}
           </button>
         </div>
       </aside>
 
       {/* Main content */}
       <main style={{ flex: 1, minWidth: 0, overflow: 'auto' }}>
+        <div className="admin-mobile-topbar" style={{
+          position: 'sticky', top: 0, zIndex: 60,
+          alignItems: 'center', gap: '12px',
+          padding: '14px 16px',
+          background: 'var(--surface-1)',
+          borderBottom: '1px solid var(--border)',
+        }}>
+          <button onClick={() => setMobileOpen(true)} aria-label="Open menu"
+            style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--text-primary)', display: 'flex', alignItems: 'center', padding: '4px' }}>
+            <Menu size={22} />
+          </button>
+          <span style={{ fontFamily: 'Syne, sans-serif', fontSize: '15px', fontWeight: '700', color: 'var(--text-primary)' }}>TheBedBox</span>
+        </div>
         <div className="bb-page">
           <div style={{ padding: '20px 32px 0' }}><NotificationPrompt dark={false} /></div>
           {children}

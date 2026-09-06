@@ -42,16 +42,21 @@ export default function SettingsPage() {
 
   const handleToggleNotifications = async () => {
     setNotifLoading(true); setNotifMsg('')
-    if (notifSubscribed) {
-      await unsubscribeFromPush()
-      setNotifMsg('Notifications turned off on this device.')
-    } else {
-      const result = await subscribeToPush()
-      if (!result.ok) { setNotifMsg(result.error || 'Could not enable notifications.'); setNotifLoading(false); return }
-      setNotifMsg('✓ Notifications enabled on this device.')
+    try {
+      if (notifSubscribed) {
+        await unsubscribeFromPush()
+        setNotifMsg('Notifications turned off on this device.')
+      } else {
+        const result = await subscribeToPush()
+        if (!result.ok) { setNotifMsg(result.error || 'Could not enable notifications.'); return }
+        setNotifMsg('✓ Notifications enabled on this device.')
+      }
+    } catch (err: any) {
+      setNotifMsg(err?.message || 'Something went wrong.')
+    } finally {
+      setNotifSubscribed(await hasActiveSubscription())
+      setNotifLoading(false)
     }
-    setNotifSubscribed(await hasActiveSubscription())
-    setNotifLoading(false)
   }
 
   const loadPlaces = async () => {

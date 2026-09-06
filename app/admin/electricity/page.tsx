@@ -79,6 +79,7 @@ export default function ElectricityPage() {
         await supabase.from('rent_payments').update({
           electricity_amount: reading.bill_amount,
           total_amount: rentPayment.rent_amount + rentPayment.late_fee + reading.bill_amount,
+          electricity_logged_at: new Date().toISOString(),
         }).eq('id', rentPayment.id)
       }
 

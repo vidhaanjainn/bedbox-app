@@ -279,3 +279,24 @@ input:focus-visible, select:focus-visible, textarea:focus-visible, a:focus-visib
 @media (prefers-reduced-motion: reduce) {
   *, *::before, *::after { animation-duration: 0.01ms !important; transition-duration: 0.01ms !important; }
 }
+
+/* Admin console mobile nav — the sidebar is a normal flex child on desktop
+   (>900px) but becomes a fixed off-canvas drawer on phones/small tablets,
+   opened via the topbar hamburger instead of always eating half the screen. */
+.admin-mobile-topbar { display: none; }
+@media (max-width: 900px) {
+  .admin-sidebar {
+    position: fixed !important;
+    top: 0;
+    left: 0;
+    height: 100dvh !important;
+    width: 78vw !important;
+    max-width: 280px !important;
+    transform: translateX(-100%);
+    transition: transform 0.25s ease;
+    z-index: 200;
+    box-shadow: 20px 0 40px -20px rgba(0,0,0,0.5);
+  }
+  .admin-sidebar.mobile-open { transform: translateX(0); }
+  .admin-mobile-topbar { display: flex !important; }
+}

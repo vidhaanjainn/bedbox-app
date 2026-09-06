@@ -21,15 +21,22 @@ export default function RentPage() {
   const [yearFilter, setYearFilter] = useState(new Date().getFullYear())
   const [showLogModal, setShowLogModal] = useState(false)
   const [selectedPayment, setSelectedPayment] = useState<any>(null)
-  const [logForm, setLogForm] = useState({ amount: '', payment_mode: 'upi', notes: '' })
+  const [logForm, setLogForm] = useState({ amount: '', payment_mode: 'upi', notes: '', collected_by: '', electricity: '' })
   const [logLoading, setLogLoading] = useState(false)
   const [screenshot, setScreenshot] = useState<File | null>(null)
   const [syncing, setSyncing] = useState(false)
   const [syncMsg, setSyncMsg] = useState('')
   const [currentAdmin, setCurrentAdmin] = useState<CurrentAdmin | null>(null)
+  const [admins, setAdmins] = useState<{ id: string; name: string }[]>([])
   const supabase = createClient()
 
-  useEffect(() => { getCurrentAdmin(supabase).then(setCurrentAdmin) }, [])
+  useEffect(() => {
+    getCurrentAdmin(supabase).then(admin => {
+      setCurrentAdmin(admin)
+      if (admin) setLogForm(f => ({ ...f, collected_by: admin.id }))
+    })
+    supabase.from('admins').select('id, name').eq('is_active', true).order('name').then(({ data }) => setAdmins(data || []))
+  }, [])
   useEffect(() => { fetchPayments() }, [monthFilter, yearFilter])
 
   const fetchPayments = async () => {
@@ -84,8 +91,17 @@ export default function RentPage() {
       screenshotPath = path
     }
 
+    // Electricity is optional here — if the admin doesn't have the reading
+    // yet, we leave electricity_logged_at untouched so the caution badge
+    // keeps showing on this record until someone does log it (here or on
+    // the Electricity page), instead of silently treating "not entered" the
+    // same as "zero".
+    const electricityProvided = logForm.electricity.trim() !== ''
+    const electricityAmount = electricityProvided ? parseFloat(logForm.electricity) || 0 : selectedPayment.electricity_amount
+    const totalAmount = Number(selectedPayment.rent_amount) + electricityAmount + Number(selectedPayment.late_fee || 0)
+
     const newPaid = selectedPayment.amount_paid + parseFloat(logForm.amount)
-    const isFullyPaid = newPaid >= selectedPayment.total_amount
+    const isFullyPaid = newPaid >= totalAmount
 
     await supabase.from('rent_payments').update({
       amount_paid: newPaid,
@@ -94,12 +110,15 @@ export default function RentPage() {
       notes: logForm.notes || null,
       paid_at: isFullyPaid ? new Date().toISOString() : null,
       status: isFullyPaid ? 'paid' : 'partial',
-      collected_by: currentAdmin?.id || null,
+      collected_by: logForm.collected_by || currentAdmin?.id || null,
+      electricity_amount: electricityAmount,
+      total_amount: totalAmount,
+      ...(electricityProvided ? { electricity_logged_at: new Date().toISOString() } : {}),
     }).eq('id', selectedPayment.id)
 
     setShowLogModal(false)
     setSelectedPayment(null)
-    setLogForm({ amount: '', payment_mode: 'upi', notes: '' })
+    setLogForm({ amount: '', payment_mode: 'upi', notes: '', collected_by: currentAdmin?.id || '', electricity: '' })
     setScreenshot(null)
     setLogLoading(false)
     fetchPayments()
@@ -236,7 +255,13 @@ export default function RentPage() {
                     <td style={{ color: 'var(--text-primary)', fontWeight: '600' }}>{p.resident?.name}</td>
                     <td>Room {p.resident?.room_number}</td>
                     <td>{formatCurrency(p.rent_amount)}</td>
-                    <td>{p.electricity_amount > 0 ? formatCurrency(p.electricity_amount) : '—'}</td>
+                    <td>
+                      {p.electricity_logged_at ? (p.electricity_amount > 0 ? formatCurrency(p.electricity_amount) : '—') : (
+                        <span title="Electricity reading not logged yet for this month" style={{ display: 'inline-flex', alignItems: 'center', gap: 4, fontSize: 11, fontWeight: 600, color: '#f97316' }}>
+                          <AlertCircle size={12} /> Not logged
+                        </span>
+                      )}
+                    </td>
                     <td style={{ color: p.late_fee > 0 ? '#fbbf24' : 'inherit' }}>
                       {p.late_fee > 0 ? formatCurrency(p.late_fee) : '—'}
                     </td>
@@ -274,7 +299,7 @@ export default function RentPage() {
                         )}
                         {p.status !== 'paid' && (
                           <button
-                            onClick={() => { setSelectedPayment(p); setShowLogModal(true); setLogForm({ amount: String(p.total_amount - p.amount_paid), payment_mode: 'upi', notes: '' }) }}
+                            onClick={() => { setSelectedPayment(p); setShowLogModal(true); setLogForm({ amount: String(p.total_amount - p.amount_paid), payment_mode: 'upi', notes: '', collected_by: currentAdmin?.id || '', electricity: p.electricity_logged_at ? String(p.electricity_amount) : '' }) }}
                             style={{
                               padding: '4px 10px', borderRadius: '6px', border: '1px solid rgba(0,212,200,0.3)',
                               background: 'rgba(0,212,200,0.08)', color: 'var(--teal-500)',
@@ -354,6 +379,30 @@ export default function RentPage() {
                 <option value="upi">UPI / GPay</option>
                 <option value="bank_transfer">Bank Transfer</option>
                 <option value="cash">Cash</option>
+              </select>
+            </div>
+
+            <div style={{ marginBottom: '16px' }}>
+              <label style={{ display: 'block', fontSize: '12px', fontWeight: '600', letterSpacing: '0.06em', textTransform: 'uppercase', color: 'var(--text-muted)', marginBottom: '8px' }}>
+                Electricity this month (₹) <span style={{ textTransform: 'none', fontWeight: 400 }}>— optional</span>
+              </label>
+              <input className="bb-input" type="number" placeholder={selectedPayment?.electricity_logged_at ? 'Already logged' : 'Leave blank if not known yet'}
+                value={logForm.electricity} onChange={e => setLogForm(f => ({ ...f, electricity: e.target.value }))} />
+              {!selectedPayment?.electricity_logged_at && (
+                <div style={{ fontSize: 11, color: '#f97316', marginTop: 6, display: 'flex', alignItems: 'center', gap: 4 }}>
+                  <AlertCircle size={11} /> Not logged yet — will keep showing as a caution until entered here or on the Electricity page.
+                </div>
+              )}
+            </div>
+
+            <div style={{ marginBottom: '16px' }}>
+              <label style={{ display: 'block', fontSize: '12px', fontWeight: '600', letterSpacing: '0.06em', textTransform: 'uppercase', color: 'var(--text-muted)', marginBottom: '8px' }}>
+                Received By
+              </label>
+              <select className="bb-input" value={logForm.collected_by} onChange={e => setLogForm(f => ({ ...f, collected_by: e.target.value }))}>
+                {admins.map(a => (
+                  <option key={a.id} value={a.id}>{a.name}{a.id === currentAdmin?.id ? ' (you)' : ''}</option>
+                ))}
               </select>
             </div>
 

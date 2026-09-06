@@ -236,6 +236,7 @@ export default function ResidentDetailPage() {
     vacated: { bg: 'rgba(100,116,139,0.1)', color: '#94a3b8', border: 'rgba(100,116,139,0.3)' },
   }
   const sc = statusColors[resident.status] || statusColors.active
+  const totalArrears = rentPayments.reduce((sum, p) => sum + Math.max(0, Number(p.total_amount) - Number(p.amount_paid || 0)), 0)
 
   return (
     <div style={{ padding: '32px', maxWidth: '1100px' }} className="animate-fade-in">
@@ -446,7 +447,15 @@ export default function ResidentDetailPage() {
 
       {/* Rent History */}
       <div className="glass-card" style={{ padding: '24px', marginBottom: '24px' }}>
-        <h3 style={{ fontFamily: 'Syne, sans-serif', fontSize: '14px', fontWeight: '600', color: 'var(--text-primary)', margin: '0 0 16px', textTransform: 'uppercase', letterSpacing: '0.06em' }}>Rent History</h3>
+        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '16px', flexWrap: 'wrap', gap: '10px' }}>
+          <h3 style={{ fontFamily: 'Syne, sans-serif', fontSize: '14px', fontWeight: '600', color: 'var(--text-primary)', margin: 0, textTransform: 'uppercase', letterSpacing: '0.06em' }}>Rent History</h3>
+          {totalArrears > 0 && (
+            <div style={{ display: 'flex', alignItems: 'center', gap: 6, padding: '6px 12px', borderRadius: 8, background: 'rgba(239,68,68,0.08)', border: '1px solid rgba(239,68,68,0.25)' }}>
+              <AlertTriangle size={13} color="#f87171" />
+              <span style={{ fontSize: 12, fontWeight: 700, color: '#f87171' }}>Arrears: {formatCurrency(totalArrears)}</span>
+            </div>
+          )}
+        </div>
         {rentPayments.length === 0 ? <p style={{ color: 'var(--text-muted)', fontSize: '14px' }}>No rent records yet.</p> : (
           <table className="bb-table">
             <thead><tr><th>Month</th><th>Rent</th><th>Electricity</th><th>Late Fee</th><th>Total</th><th>Paid</th><th>Mode</th><th>Status</th></tr></thead>
@@ -455,7 +464,13 @@ export default function ResidentDetailPage() {
                 <tr key={p.id}>
                   <td>{new Date(p.year, p.month - 1).toLocaleDateString('en-IN', { month: 'short', year: 'numeric' })}</td>
                   <td>{formatCurrency(p.rent_amount)}</td>
-                  <td>{p.electricity_amount > 0 ? formatCurrency(p.electricity_amount) : '—'}</td>
+                  <td>
+                    {p.electricity_logged_at ? (p.electricity_amount > 0 ? formatCurrency(p.electricity_amount) : '—') : (
+                      <span title="Electricity reading not logged yet for this month" style={{ display: 'inline-flex', alignItems: 'center', gap: 4, fontSize: 11, fontWeight: 600, color: '#f97316' }}>
+                        <AlertTriangle size={11} /> Not logged
+                      </span>
+                    )}
+                  </td>
                   <td style={{ color: p.late_fee > 0 ? '#fbbf24' : 'inherit' }}>{p.late_fee > 0 ? formatCurrency(p.late_fee) : '—'}</td>
                   <td style={{ fontWeight: '600', color: 'var(--text-primary)' }}>{formatCurrency(p.total_amount)}</td>
                   <td style={{ color: '#34d399' }}>{formatCurrency(p.amount_paid)}</td>

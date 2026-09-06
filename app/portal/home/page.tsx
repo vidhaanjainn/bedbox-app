@@ -22,6 +22,7 @@ export default function PortalHomePage() {
   const supabase = createClient()
   const [resident, setResident] = useState<any>(null)
   const [rentRecords, setRentRecords] = useState<any[]>([])
+  const [pastArrears, setPastArrears] = useState(0)
   const [wifiPassword, setWifiPassword] = useState('')
   const [wifiNetwork, setWifiNetwork] = useState('')
   const [places, setPlaces] = useState<any[]>([])
@@ -47,6 +48,17 @@ export default function PortalHomePage() {
         .order('month', { ascending: false })
         .limit(4)
       setRentRecords(rents || [])
+
+      // Arrears = unpaid balance from BEFORE this month — queried separately
+      // (not capped at 4 rows) so a resident who's fallen behind further
+      // back still sees the true total, not just what fits in the recent list.
+      const { data: unpaid } = await supabase
+        .from('rent_payments')
+        .select('total_amount, amount_paid, month, year')
+        .eq('resident_id', res.id)
+        .neq('status', 'paid')
+      const past = (unpaid || []).filter(r => r.year < currentYear || (r.year === currentYear && r.month < currentMonth))
+      setPastArrears(past.reduce((sum, r) => sum + Math.max(0, Number(r.total_amount) - Number(r.amount_paid || 0)), 0))
 
       const { data: settingsRows } = await supabase.from('settings').select('key, value').in('key', ['wifi_password', 'wifi_network_name'])
       settingsRows?.forEach(s => {
@@ -102,6 +114,16 @@ export default function PortalHomePage() {
           {current?.status === 'paid' && current.paid_at && <div style={{ marginTop: 8, fontSize: 12, color: 'rgba(0,212,200,0.7)' }}>✓ Paid on {new Date(current.paid_at).toLocaleDateString('en-IN', { day: 'numeric', month: 'short', year: 'numeric' })}</div>}
           {!current && <div style={{ fontSize: 12, color: 'rgba(255,255,255,0.3)', marginTop: 4 }}>Bill not generated yet for this month</div>}
         </div>
+
+        {pastArrears > 0 && (
+          <div style={{ background: 'rgba(255,100,100,0.08)', border: '1px solid rgba(255,100,100,0.25)', borderRadius: 14, padding: '14px 16px', marginBottom: 16, display: 'flex', alignItems: 'center', gap: 10 }}>
+            <span style={{ fontSize: 18 }}>⚠️</span>
+            <div>
+              <div style={{ fontSize: 13, fontWeight: 700, color: '#ff6b6b' }}>Past dues: ₹{pastArrears.toLocaleString('en-IN')}</div>
+              <div style={{ fontSize: 11, color: 'rgba(255,255,255,0.45)', marginTop: 1 }}>Outstanding from previous months, in addition to this month's rent.</div>
+            </div>
+          </div>
+        )}
 
         {rentRecords.filter(r => !(r.month === currentMonth && r.year === currentYear)).length > 0 && (
           <div style={{ marginBottom: 20 }}>

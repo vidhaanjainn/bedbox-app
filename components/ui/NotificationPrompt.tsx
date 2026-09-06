@@ -23,7 +23,12 @@ export default function NotificationPrompt({ dark = true }: { dark?: boolean }) 
 
   const handleEnable = async () => {
     setLoading(true); setError('')
-    const result = await subscribeToPush()
+    let result: { ok: boolean; error?: string }
+    try {
+      result = await subscribeToPush()
+    } catch (err: any) {
+      result = { ok: false, error: err?.message || 'Could not enable notifications.' }
+    }
     setLoading(false)
     if (!result.ok) { setError(result.error || 'Could not enable notifications.'); return }
     setVisible(false)
