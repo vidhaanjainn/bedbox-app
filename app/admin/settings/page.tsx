@@ -110,6 +110,27 @@ export default function SettingsPage() {
     }
   }
 
+  const [resettingId, setResettingId] = useState('')
+  const [resetMsg, setResetMsg] = useState<Record<string, string>>({})
+
+  const resetAdminPassword = async (id: string) => {
+    setResettingId(id)
+    setResetMsg(m => ({ ...m, [id]: '' }))
+    try {
+      const res = await fetch('/api/admin/reset-password', {
+        method: 'POST', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ adminId: id }),
+      })
+      const data = await res.json()
+      if (!res.ok) { setResetMsg(m => ({ ...m, [id]: data.error || 'Could not reset password.' })); return }
+      setResetMsg(m => ({ ...m, [id]: data.emailed ? `✓ Emailed new password: ${data.tempPassword}` : `✓ New password (email failed to send): ${data.tempPassword}` }))
+    } catch {
+      setResetMsg(m => ({ ...m, [id]: 'Something went wrong.' }))
+    } finally {
+      setResettingId('')
+    }
+  }
+
   const toggleAdmin = async (id: string, is_active: boolean) => {
     const res = await fetch('/api/admin/invite', {
       method: 'PATCH',
@@ -317,22 +338,35 @@ export default function SettingsPage() {
         ) : (
           <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
             {admins.map(a => (
-              <div key={a.id} style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '10px 14px', background: 'var(--surface-2)', borderRadius: '8px' }}>
-                <div>
-                  <div style={{ fontSize: '13px', fontWeight: '600', color: 'var(--text-primary)' }}>{a.name} <span style={{ fontWeight: '400', color: 'var(--text-muted)', fontSize: '11px', textTransform: 'capitalize' }}>· {a.role?.replace('_', ' ')}</span></div>
-                  <div style={{ fontSize: '12px', color: 'var(--text-muted)' }}>{a.email}</div>
+              <div key={a.id} style={{ padding: '10px 14px', background: 'var(--surface-2)', borderRadius: '8px' }}>
+                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+                  <div>
+                    <div style={{ fontSize: '13px', fontWeight: '600', color: 'var(--text-primary)' }}>{a.name} <span style={{ fontWeight: '400', color: 'var(--text-muted)', fontSize: '11px', textTransform: 'capitalize' }}>· {a.role?.replace('_', ' ')}</span></div>
+                    <div style={{ fontSize: '12px', color: 'var(--text-muted)' }}>{a.email}</div>
+                  </div>
+                  <div style={{ display: 'flex', gap: '6px', alignItems: 'center' }}>
+                    <button
+                      onClick={() => resetAdminPassword(a.id)}
+                      disabled={resettingId === a.id}
+                      title="If they're stuck on the invite email, this sets a working password and emails it to them directly"
+                      style={{ padding: '4px 10px', borderRadius: '6px', border: '1px solid rgba(56,189,248,0.3)', background: 'rgba(56,189,248,0.08)', color: '#38bdf8', fontSize: '11px', fontWeight: '600', cursor: 'pointer' }}
+                    >
+                      {resettingId === a.id ? 'Resetting...' : 'Reset Password'}
+                    </button>
+                    <button
+                      onClick={() => toggleAdmin(a.id, a.is_active)}
+                      style={{
+                        padding: '4px 10px', borderRadius: '6px', border: '1px solid var(--border)',
+                        background: a.is_active ? 'rgba(52,211,153,0.08)' : 'rgba(239,68,68,0.08)',
+                        color: a.is_active ? '#34d399' : '#f87171',
+                        fontSize: '11px', fontWeight: '600', cursor: 'pointer'
+                      }}
+                    >
+                      {a.is_active ? 'Active' : 'Deactivated'}
+                    </button>
+                  </div>
                 </div>
-                <button
-                  onClick={() => toggleAdmin(a.id, a.is_active)}
-                  style={{
-                    padding: '4px 10px', borderRadius: '6px', border: '1px solid var(--border)',
-                    background: a.is_active ? 'rgba(52,211,153,0.08)' : 'rgba(239,68,68,0.08)',
-                    color: a.is_active ? '#34d399' : '#f87171',
-                    fontSize: '11px', fontWeight: '600', cursor: 'pointer'
-                  }}
-                >
-                  {a.is_active ? 'Active' : 'Deactivated'}
-                </button>
+                {resetMsg[a.id] && <div style={{ fontSize: '11px', color: resetMsg[a.id].startsWith('✓') ? '#34d399' : '#f87171', marginTop: '8px' }}>{resetMsg[a.id]}</div>}
               </div>
             ))}
           </div>
