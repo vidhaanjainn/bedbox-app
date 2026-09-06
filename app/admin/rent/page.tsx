@@ -9,7 +9,7 @@ import { CreditCard, Plus, Search, CheckCircle, Clock, AlertCircle, Loader2, X, 
 function waReminderLink(mobile: string, name: string, room: string, outstanding: number) {
   const digits = (mobile || '').replace(/\D/g, '')
   const phone = digits.length === 10 ? `91${digits}` : digits
-  const message = `Hi ${name.split(' ')[0]}, this is a friendly reminder from TheBedBox — your rent of ₹${Math.round(outstanding).toLocaleString('en-IN')} for Room ${room} is due. Please pay at your earliest convenience. Thank you! 🙏`
+  const message = `Hi ${name.split(' ')[0]},\n\nYour rental and electricity charges are due for this month. Clearing today?`
   return `https://wa.me/${phone}?text=${encodeURIComponent(message)}`
 }
 
