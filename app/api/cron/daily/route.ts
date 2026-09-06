@@ -2,6 +2,7 @@ import { NextResponse } from 'next/server'
 import { createClient } from '@supabase/supabase-js'
 import { sendEmail, emailShell, moneyINR } from '@/lib/notify'
 import { syncNoticeFormSubmissions } from '@/lib/notice-form-sync'
+import { sendPushToAdmins } from '@/lib/push'
 
 // AUTO-01 + AUTO-02 + AUTO-03 (daily): runs once a day via Vercel Cron (see vercel.json).
 //   1. Ensures every active resident has a rent_payments row for the current month.
@@ -182,6 +183,12 @@ async function sendAdminMonthlyDigest(supabase: ReturnType<typeof adminClient>, 
     return { sent: admins.length }
   }
 
+  await sendPushToAdmins({
+    title: 'Monthly rent + payouts reminder',
+    body: `${paidCount}/${totalCount} rent collected · ${unpaidStaff.length} payout(s) pending`,
+    url: '/admin/rent',
+  })
+
   let sent = 0
   for (const admin of admins) {
     const result = await sendEmail({ to: admin.email!, subject, html })
@@ -189,6 +196,50 @@ async function sendAdminMonthlyDigest(supabase: ReturnType<typeof adminClient>, 
   }
   if (sent > 0) await supabase.from('settings').upsert({ key: 'last_admin_digest_sent_date', value: todayStr }, { onConflict: 'key' })
   return { sent }
+}
+
+// AUTO-08: warns admins 3 days before any resident's last day of stay, once
+// per notice (expiry_alerted_at dedupes across multiple daily cron runs).
+async function sendNoticeExpiryAlerts(supabase: ReturnType<typeof adminClient>, dryRun: boolean) {
+  const target = new Date()
+  target.setUTCDate(target.getUTCDate() + 3)
+  const targetStr = target.toISOString().split('T')[0]
+
+  const { data: notices } = await supabase
+    .from('notice_periods')
+    .select('id, last_day_of_stay, residents(name, room_number)')
+    .eq('status', 'active')
+    .eq('last_day_of_stay', targetStr)
+    .is('expiry_alerted_at', null)
+
+  if (!notices?.length) return { alerted: 0 }
+  if (dryRun) {
+    console.log(`[DRY RUN] would alert admins about ${notices.length} resident(s) leaving ${targetStr}`)
+    return { alerted: notices.length }
+  }
+
+  for (const n of notices as any[]) {
+    const resident = n.residents
+    const roomLabel = resident?.room_number ? `Room ${resident.room_number}` : ''
+    await Promise.all([
+      sendPushToAdmins({
+        title: 'Move-out in 3 days',
+        body: `${resident?.name || 'A resident'} ${roomLabel} — last day ${targetStr}`,
+        url: '/admin/residents',
+      }),
+      sendEmail({
+        to: process.env.ADMIN_NOTIFY_EMAIL || 'thebedbox.in@gmail.com',
+        subject: `⏳ ${resident?.name || 'A resident'} moves out in 3 days`,
+        html: emailShell('Move-out in 3 days', `
+          <p style="color:#475569;font-size:14px;line-height:1.6;margin:0">
+            <strong style="color:#0f172a">${resident?.name || 'A resident'}</strong> ${roomLabel ? `(${roomLabel}) ` : ''}is due to move out on <strong>${targetStr}</strong>. Plan the deposit settlement and room turnover.
+          </p>
+        `),
+      }),
+    ])
+    await supabase.from('notice_periods').update({ expiry_alerted_at: new Date().toISOString() }).eq('id', n.id)
+  }
+  return { alerted: notices.length }
 }
 
 export async function GET(req: Request) {
@@ -205,6 +256,7 @@ export async function GET(req: Request) {
   const reminderResult = await sendReminders(supabase, dryRun)
   const noticeFormResult = dryRun ? { imported: 0 } : await syncNoticeFormSubmissions().catch(() => ({ imported: 0 }))
   const digestResult = await sendAdminMonthlyDigest(supabase, dryRun)
+  const expiryResult = await sendNoticeExpiryAlerts(supabase, dryRun)
 
   return NextResponse.json({
     dryRun,
@@ -212,5 +264,6 @@ export async function GET(req: Request) {
     remindersSent: reminderResult.sent,
     noticeFormRowsImported: 'imported' in noticeFormResult ? noticeFormResult.imported : 0,
     adminDigestSent: digestResult.sent,
+    moveOutAlertsSent: expiryResult.alerted,
   })
 }

@@ -1,8 +1,15 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { sendEmail } from '@/lib/notify'
+import { sendPushToAdmins } from '@/lib/push'
 
 export async function POST(req: NextRequest) {
   const { residentName, residentEmail, residentMobile, residentRoom } = await req.json()
+
+  await sendPushToAdmins({
+    title: 'New onboarding submitted',
+    body: `${residentName} completed onboarding — needs approval`,
+    url: '/admin/residents',
+  })
 
   await sendEmail({
     to: process.env.ADMIN_NOTIFY_EMAIL || 'thebedbox.in@gmail.com',

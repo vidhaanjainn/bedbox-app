@@ -2,6 +2,51 @@
 
 Newest first.
 
+## 2026-09-06 · Push notifications, onboarding-flow security + friction fixes, email templates
+- **Push notification system (new):** self-hosted Web Push via VAPID (no 3rd-party account,
+  works on installed PWAs incl. iOS 16.4+). New `push_subscriptions` table (RLS: each user owns
+  their own row), `lib/push.ts` (server send + dead-subscription cleanup), `lib/push-client.ts`
+  + `components/ui/NotificationPrompt.tsx` (dismissible enable banner, shown to admins and
+  residents), a Notifications toggle in Settings, and `public/sw.js` push/notificationclick
+  handlers. Wired into: new bookings, onboarding submitted, notice-to-vacate filed (resident- and
+  Google-Form-sourced), maintenance complaints, the monthly rent/payout digest, and a new
+  3-days-before-move-out alert (`notice_periods.expiry_alerted_at` dedupes it to once).
+- **Fixed a live auth hole:** `generate_onboard_token` (mints resident onboarding links) had no
+  admin check and was executable by the anon role — anyone with a resident's internal id could
+  mint a valid onboarding link for them. Now admin-only, `EXECUTE` revoked from anon/public.
+- **Onboarding is now frictionless:** links are emailed to the resident automatically the moment
+  they're created/invited, instead of requiring the admin to copy/paste into WhatsApp every time
+  (manual copy still shown as a fallback). The walk-in/full-manual resident path now sends the
+  same "you're in, here's how to log in" email the self-service approval path sends — both ways
+  of adding a resident end in the same place instead of one going silent.
+- **Resident login now asks for email, not mobile** — the OTP always went to email, so asking for
+  mobile first was a pointless, confusing extra step. Mobile stays required on the resident record
+  for everything else (WhatsApp, emergency contact).
+- **Fixed the resident PWA icon:** `/icons/icon-192.png` and `/icons/icon-512.png` were referenced
+  by `manifest.json` and the apple-touch-icon but never actually existed — residents adding the
+  app to their home screen got a blank/default icon. Generated proper branded icons
+  (`scripts/resident-icon.svg` → PNG via sharp).
+- **Supabase Auth email templates:** wrote polished, on-brand HTML for the OTP/Magic-Link and
+  Admin-Invite templates (`supabase/email-templates/`) for the owner to paste into the dashboard
+  now that custom SMTP (Resend) is configured — replaces Supabase's plain default templates and
+  its restrictive default send-rate limit.
+- **Files:** `lib/push.ts`, `lib/push-client.ts` (new); `components/ui/NotificationPrompt.tsx`
+  (new); `app/api/push/{subscribe,unsubscribe}/route.ts` (new); `app/api/notify/{notice-filed,
+  complaint-filed}/route.ts` (new); `app/api/send-onboard-invite/route.ts` (new); `public/sw.js`,
+  `app/api/cron/daily/route.ts`, `app/api/notify-admin/route.ts`, `app/api/booking-form/route.ts`,
+  `app/admin/layout.tsx` (was missing SW registration entirely), `app/portal/layout.tsx`,
+  `app/admin/settings/page.tsx`, `app/admin/residents/new/page.tsx`,
+  `app/admin/residents/[id]/page.tsx`, `app/portal/{page,notice/page,maintenance/page,
+  receipt/page}.tsx`, `app/api/ensure-portal-user/route.ts`, `app/api/approve-resident/route.ts`.
+- **DB migrations:** `add_admin_attribution_and_secure_receipt_requests` (rent_payments
+  .collected_by, residents.onboarded_by/onboarded_at, RLS on receipt_requests which had none),
+  `lock_down_generate_onboard_token`, `add_push_subscriptions`.
+- **Testing:** `npm run build` clean after each batch; deployed and spot-checked live routes via
+  curl after each push.
+- **Remaining:** owner needs to paste the two email templates into the Supabase dashboard; push
+  notifications need a real device test (self-test via Settings → Enable Notifications) since the
+  sandbox here can't grant browser notification permission.
+
 ## 2026-09-04 (part 6) · Editability audit, vendor payouts, admin monthly digest, review login
 - **Editability audit found a real bug:** the resident edit page and the manual "add resident"
   form both wrote to `emergency_contact_number`, but onboarding (self-service) and this session's

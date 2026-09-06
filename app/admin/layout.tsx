@@ -4,6 +4,7 @@ import { useState, useEffect } from 'react'
 import Link from 'next/link'
 import { usePathname, useRouter } from 'next/navigation'
 import { createClient } from '@/lib/supabase/client'
+import NotificationPrompt from '@/components/ui/NotificationPrompt'
 import {
   LayoutDashboard, Users, BookOpen, Hotel, Bed,
   CreditCard, Zap, Bell, Wrench, BarChart3,
@@ -40,6 +41,10 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
     supabase.auth.getSession().then(({ data }) => {
       if (!data.session) { router.replace('/login') } else { setCheckingSession(false) }
     })
+  }, [])
+
+  useEffect(() => {
+    if ('serviceWorker' in navigator) { navigator.serviceWorker.register('/sw.js').catch(() => {}) }
   }, [])
 
   const handleLogout = async () => {
@@ -179,7 +184,10 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
 
       {/* Main content */}
       <main style={{ flex: 1, minWidth: 0, overflow: 'auto' }}>
-        <div className="bb-page">{children}</div>
+        <div className="bb-page">
+          <div style={{ padding: '20px 32px 0' }}><NotificationPrompt dark={false} /></div>
+          {children}
+        </div>
       </main>
     </div>
   )

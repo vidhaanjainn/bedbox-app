@@ -25,6 +25,13 @@ export default function MaintenancePage() {
     if (!res) { setError('Session error. Please login again.'); setSubmitting(false); return }
     const {error:e} = await supabase.from('maintenance_requests').insert({resident_id:res.id,category:cat,description:desc})
     if (e) { setError('Something went wrong. Try again.'); setSubmitting(false); return }
+    try {
+      await fetch('/api/notify/complaint-filed', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ residentId: res.id, category: cat, description: desc }),
+      })
+    } catch { /* non-fatal — request is already recorded */ }
     setDone(true); setSubmitting(false)
   }
 

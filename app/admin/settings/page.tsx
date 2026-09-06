@@ -2,7 +2,8 @@
 
 import { useEffect, useState } from 'react'
 import { createClient } from '@/lib/supabase/client'
-import { Building, Zap, CreditCard, User, Save, Eye, EyeOff, Users, UserPlus, Loader2, Wifi, MapPin, Plus, Trash2 } from 'lucide-react'
+import { isPushSupported, hasActiveSubscription, subscribeToPush, unsubscribeFromPush } from '@/lib/push-client'
+import { Building, Zap, CreditCard, User, Save, Eye, EyeOff, Users, UserPlus, Loader2, Wifi, MapPin, Plus, Trash2, Bell } from 'lucide-react'
 
 export default function SettingsPage() {
   const supabase = createClient()
@@ -30,8 +31,28 @@ export default function SettingsPage() {
   const [inviteForm, setInviteForm] = useState({ name: '', email: '', phone: '', role: 'staff' })
   const [inviting, setInviting] = useState(false)
   const [inviteMsg, setInviteMsg] = useState('')
+  const [notifSubscribed, setNotifSubscribed] = useState(false)
+  const [notifLoading, setNotifLoading] = useState(false)
+  const [notifMsg, setNotifMsg] = useState('')
 
-  useEffect(() => { loadSettings(); loadAdmins(); loadPlaces() }, [])
+  useEffect(() => {
+    loadSettings(); loadAdmins(); loadPlaces()
+    hasActiveSubscription().then(setNotifSubscribed)
+  }, [])
+
+  const handleToggleNotifications = async () => {
+    setNotifLoading(true); setNotifMsg('')
+    if (notifSubscribed) {
+      await unsubscribeFromPush()
+      setNotifMsg('Notifications turned off on this device.')
+    } else {
+      const result = await subscribeToPush()
+      if (!result.ok) { setNotifMsg(result.error || 'Could not enable notifications.'); setNotifLoading(false); return }
+      setNotifMsg('✓ Notifications enabled on this device.')
+    }
+    setNotifSubscribed(await hasActiveSubscription())
+    setNotifLoading(false)
+  }
 
   const loadPlaces = async () => {
     const { data } = await supabase.from('nearby_places').select('*').order('category').order('sort_order')
@@ -335,6 +356,22 @@ export default function SettingsPage() {
           {seedingTestResident ? 'Setting up...' : 'Create Test Resident Login'}
         </button>
         {testResidentMsg && <div style={{ fontSize: '12px', color: testResidentMsg.startsWith('✓') ? '#34d399' : '#f87171', marginTop: '10px' }}>{testResidentMsg}</div>}
+      </div>
+
+      <div className="glass-card" style={{ padding: '24px', marginTop: '20px' }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: '10px', marginBottom: '16px' }}><Bell size={16} color="var(--teal-500)" /><h3 style={{ fontFamily: 'Syne, sans-serif', fontSize: '15px', fontWeight: '600', color: 'var(--text-primary)', margin: 0 }}>Notifications</h3></div>
+        <p style={{ fontSize: '13px', color: 'var(--text-muted)', marginBottom: '16px' }}>
+          Get push notifications on this device for new bookings, onboarding submissions, complaints, notice-to-vacate filings, and the monthly rent/payout reminder.
+        </p>
+        {!isPushSupported() ? (
+          <div style={{ fontSize: '13px', color: 'var(--text-muted)' }}>Not supported on this browser/device.</div>
+        ) : (
+          <button onClick={handleToggleNotifications} disabled={notifLoading} className={notifSubscribed ? 'bb-btn-secondary' : 'bb-btn-primary'} style={{ fontSize: '13px' }}>
+            {notifLoading ? <Loader2 size={13} style={{ animation: 'spin 1s linear infinite' }} /> : <Bell size={13} />}
+            {notifLoading ? 'Working...' : notifSubscribed ? 'Turn Off Notifications' : 'Enable Notifications'}
+          </button>
+        )}
+        {notifMsg && <div style={{ fontSize: '12px', color: notifMsg.startsWith('✓') ? '#34d399' : '#f87171', marginTop: '10px' }}>{notifMsg}</div>}
       </div>
     </div>
   )

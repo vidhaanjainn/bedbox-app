@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server'
 import { createClient } from '@supabase/supabase-js'
 import { google } from 'googleapis'
+import { sendPushToAdmins } from '@/lib/push'
 
 // Your Google Sheet ID — update via GOOGLE_SHEET_ID env var if you ever change sheets
 const SHEET_ID = process.env.GOOGLE_SHEET_ID || '1Nz1daHvT4w5RyrYxkLlrEYrWtjjBvYJetwGdMo85FAs'
@@ -77,6 +78,12 @@ async function saveToSupabase(data: Record<string, string>) {
 }
 
 async function notifyAdmin(data: Record<string, string>) {
+  await sendPushToAdmins({
+    title: 'New room inquiry',
+    body: `${data.name} — ${data.mobile}${data.roomType ? ` · ${data.roomType}` : ''}`,
+    url: '/admin/bookings',
+  })
+
   const resendKey = process.env.RESEND_API_KEY
   if (!resendKey) return
 

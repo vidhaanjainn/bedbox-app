@@ -49,6 +49,13 @@ export default function NoticePage() {
     })
     if (noticeError) { setError('Something went wrong. Try again.'); setSubmitting(false); return }
     await supabase.from('residents').update({ status: 'notice' }).eq('id', resident.id)
+    try {
+      await fetch('/api/notify/notice-filed', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ residentId: resident.id, lastDay: vacateDate }),
+      })
+    } catch { /* non-fatal — notice is already recorded */ }
     setDone(true); setSubmitting(false)
   }
 
