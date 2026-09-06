@@ -180,6 +180,7 @@ export default function ElectricityPage() {
             <p style={{ color: 'var(--text-muted)', fontSize: '14px' }}>No readings for this month yet.</p>
           </div>
         ) : (
+          <div style={{ overflowX: 'auto' }}>
           <table className="bb-table">
             <thead>
               <tr>
@@ -223,6 +224,7 @@ export default function ElectricityPage() {
               ))}
             </tbody>
           </table>
+          </div>
         )}
       </div>
 

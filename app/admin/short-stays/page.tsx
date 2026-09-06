@@ -239,7 +239,7 @@ export default function ShortStaysPage() {
               <button onClick={() => setShowModal(false)} style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--text-muted)' }}><X size={20} /></button>
             </div>
             <div style={{ padding: '24px', display: 'flex', flexDirection: 'column', gap: '16px' }}>
-              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '16px' }}>
+              <div className="bb-grid-2" style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '16px' }}>
                 <div>
                   <label style={labelStyle}>Guest Name *</label>
                   <input style={inputStyle} value={form.name} onChange={e => setForm(f => ({ ...f, name: e.target.value }))} placeholder="Full name" />
@@ -256,7 +256,7 @@ export default function ShortStaysPage() {
                   {beds.map(b => <option key={b.id} value={b.id}>Room {b.room?.room_number} · Bed {b.bed_number} — ₹{b.rate_daily}/night</option>)}
                 </select>
               </div>
-              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '16px' }}>
+              <div className="bb-grid-2" style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '16px' }}>
                 <div>
                   <label style={labelStyle}>Check-in *</label>
                   <input type="date" style={inputStyle} value={form.checkin_date} onChange={e => setForm(f => ({ ...f, checkin_date: e.target.value }))} />
@@ -266,7 +266,7 @@ export default function ShortStaysPage() {
                   <input type="date" style={inputStyle} value={form.checkout_date} onChange={e => setForm(f => ({ ...f, checkout_date: e.target.value }))} />
                 </div>
               </div>
-              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '16px' }}>
+              <div className="bb-grid-2" style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '16px' }}>
                 <div>
                   <label style={labelStyle}>Daily Rate (₹) *</label>
                   <input style={inputStyle} value={form.daily_rate} onChange={e => setForm(f => ({ ...f, daily_rate: e.target.value }))} placeholder="e.g. 500" />
@@ -297,7 +297,7 @@ export default function ShortStaysPage() {
               {/* Aadhaar Upload */}
               <div>
                 <label style={labelStyle}>Aadhaar (Optional)</label>
-                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '12px' }}>
+                <div className="bb-grid-2" style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '12px' }}>
                   {[{ label: 'Front', file: aadhaarFront, setter: setAadhaarFront }, { label: 'Back', file: aadhaarBack, setter: setAadhaarBack }].map(({ label, file, setter }) => (
                     <label key={label} style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '8px', padding: '14px', border: `2px dashed ${file ? 'rgba(0,212,200,0.4)' : 'var(--border)'}`, borderRadius: '10px', cursor: 'pointer', background: file ? 'rgba(0,212,200,0.05)' : 'transparent', fontSize: '12px', color: file ? 'var(--teal-500)' : 'var(--text-muted)' }}>
                       <Upload size={14} /> {file ? file.name.substring(0, 12) + '…' : `Upload ${label}`}

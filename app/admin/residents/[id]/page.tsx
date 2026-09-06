@@ -375,7 +375,7 @@ export default function ResidentDetailPage() {
       )}
 
       {/* Info Grid */}
-      <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '20px', marginBottom: '24px' }}>
+      <div className="bb-grid-2" style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '20px', marginBottom: '24px' }}>
         <div className="glass-card" style={{ padding: '24px' }}>
           <h3 style={{ fontFamily: 'Syne, sans-serif', fontSize: '14px', fontWeight: '600', color: 'var(--text-primary)', margin: '0 0 16px', textTransform: 'uppercase', letterSpacing: '0.06em' }}>Contact</h3>
           <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
@@ -457,6 +457,7 @@ export default function ResidentDetailPage() {
           )}
         </div>
         {rentPayments.length === 0 ? <p style={{ color: 'var(--text-muted)', fontSize: '14px' }}>No rent records yet.</p> : (
+          <div style={{ overflowX: 'auto' }}>
           <table className="bb-table">
             <thead><tr><th>Month</th><th>Rent</th><th>Electricity</th><th>Late Fee</th><th>Total</th><th>Paid</th><th>Mode</th><th>Status</th></tr></thead>
             <tbody>
@@ -480,6 +481,7 @@ export default function ResidentDetailPage() {
               ))}
             </tbody>
           </table>
+          </div>
         )}
       </div>
 
@@ -487,6 +489,7 @@ export default function ResidentDetailPage() {
       <div className="glass-card" style={{ padding: '24px', marginBottom: '24px' }}>
         <h3 style={{ fontFamily: 'Syne, sans-serif', fontSize: '14px', fontWeight: '600', color: 'var(--text-primary)', margin: '0 0 16px', textTransform: 'uppercase', letterSpacing: '0.06em' }}>Electricity Readings</h3>
         {electricityReadings.length === 0 ? <p style={{ color: 'var(--text-muted)', fontSize: '14px' }}>No electricity readings yet.</p> : (
+          <div style={{ overflowX: 'auto' }}>
           <table className="bb-table">
             <thead><tr><th>Month</th><th>Previous</th><th>Current</th><th>Units</th><th>Bill</th><th>Added to Rent</th></tr></thead>
             <tbody>
@@ -501,6 +504,7 @@ export default function ResidentDetailPage() {
               ))}
             </tbody>
           </table>
+          </div>
         )}
       </div>
 

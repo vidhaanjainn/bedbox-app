@@ -182,7 +182,7 @@ export default function EditResidentPage() {
         {/* Personal Info */}
         <div className="stat-card" style={{ padding: '24px' }}>
           {sectionTitle(<User size={14} color="var(--teal-500)" />, 'Personal Info')}
-          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '16px' }}>
+          <div className="bb-grid-2" style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '16px' }}>
             <div>
               <label style={labelStyle}>Full Name *</label>
               <input style={inputStyle} value={form.name} onChange={e => setForm(f => ({ ...f, name: e.target.value }))} />
@@ -258,7 +258,7 @@ export default function EditResidentPage() {
             </p>
           </div>
 
-          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '16px', marginTop: '16px' }}>
+          <div className="bb-grid-2" style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '16px', marginTop: '16px' }}>
             <div>
               <label style={labelStyle}>Monthly Rent (₹) *</label>
               <input style={inputStyle} value={form.rent_amount} onChange={e => setForm(f => ({ ...f, rent_amount: e.target.value }))} placeholder="e.g. 8500" />

@@ -179,7 +179,7 @@ export default function SettingsPage() {
           <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}><Building size={16} color="var(--teal-500)" /><h3 style={{ fontFamily: 'Syne, sans-serif', fontSize: '15px', fontWeight: '600', color: 'var(--text-primary)', margin: 0 }}>Property Info</h3></div>
           <Btn section="property" onClick={() => save('property', () => Promise.all([upsert('property_name', propertyName), upsert('property_address', propertyAddress), upsert('property_phone', propertyPhone), upsert('property_email', propertyEmail)]))} />
         </div>
-        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '16px' }}>
+        <div className="bb-grid-2" style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '16px' }}>
           <Field label="Property name" value={propertyName} onChange={setPropertyName} />
           <Field label="Phone" value={propertyPhone} onChange={setPropertyPhone} type="tel" />
           <div style={{ gridColumn: '1/-1' }}><Field label="Full address" value={propertyAddress} onChange={setPropertyAddress} /></div>
@@ -193,7 +193,7 @@ export default function SettingsPage() {
           <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}><CreditCard size={16} color="var(--teal-500)" /><h3 style={{ fontFamily: 'Syne, sans-serif', fontSize: '15px', fontWeight: '600', color: 'var(--text-primary)', margin: 0 }}>Rate Card (Monthly Rent)</h3></div>
           <Btn section="rates" onClick={() => save('rates', () => upsert('rate_card', JSON.stringify(rateCard)))} />
         </div>
-        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: '16px' }}>
+        <div className="bb-grid-2" style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: '16px' }}>
           {['single', 'double', 'triple'].map(type => (
             <div key={type}>
               <label style={{ display: 'block', fontSize: '12px', color: 'var(--text-muted)', marginBottom: '8px', textTransform: 'capitalize', fontWeight: '600' }}>{type} occupancy</label>
@@ -231,7 +231,7 @@ export default function SettingsPage() {
           <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}><Wifi size={16} color="var(--teal-500)" /><h3 style={{ fontFamily: 'Syne, sans-serif', fontSize: '15px', fontWeight: '600', color: 'var(--text-primary)', margin: 0 }}>WiFi (shown to residents)</h3></div>
           <Btn section="wifi" onClick={() => save('wifi', () => Promise.all([upsert('wifi_password', wifiPassword), upsert('wifi_network_name', wifiNetwork)]))} />
         </div>
-        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '16px' }}>
+        <div className="bb-grid-2" style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '16px' }}>
           <Field label="Network name (optional)" value={wifiNetwork} onChange={setWifiNetwork} />
           <Field label="Password" value={wifiPassword} onChange={setWifiPassword} />
         </div>
@@ -270,7 +270,7 @@ export default function SettingsPage() {
 
         {showInvite && (
           <div style={{ background: 'var(--surface-2)', borderRadius: '10px', padding: '16px', marginBottom: '16px' }}>
-            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '12px', marginBottom: '12px' }}>
+            <div className="bb-grid-2" style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '12px', marginBottom: '12px' }}>
               <Field label="Name" value={inviteForm.name} onChange={v => setInviteForm(f => ({ ...f, name: v }))} />
               <Field label="Email" value={inviteForm.email} onChange={v => setInviteForm(f => ({ ...f, email: v }))} type="email" />
               <Field label="Phone (optional)" value={inviteForm.phone} onChange={v => setInviteForm(f => ({ ...f, phone: v }))} type="tel" />

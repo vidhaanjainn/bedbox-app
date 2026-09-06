@@ -244,7 +244,7 @@ export default function DashboardPage() {
       </div>
 
       {/* Bottom grid */}
-      <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '20px' }}>
+      <div className="bb-grid-2" style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '20px' }}>
         {/* Active Notices */}
         <div className="glass-card" style={{ padding: '24px' }}>
           <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '20px' }}>
@@ -355,6 +355,7 @@ export default function DashboardPage() {
               All rents collected 🎉
             </div>
           ) : (
+            <div style={{ overflowX: 'auto' }}>
             <table className="bb-table">
               <thead>
                 <tr>
@@ -395,6 +396,7 @@ export default function DashboardPage() {
                 ))}
               </tbody>
             </table>
+            </div>
           )}
         </div>
       </div>

@@ -299,4 +299,13 @@ input:focus-visible, select:focus-visible, textarea:focus-visible, a:focus-visib
   }
   .admin-sidebar.mobile-open { transform: translateX(0); }
   .admin-mobile-topbar { display: flex !important; }
+
+  /* Every hardcoded 2/3-column content or form grid across the admin pages
+     collapses to a single column instead of squeezing side by side. */
+  .bb-grid-2 { grid-template-columns: 1fr !important; }
+
+  /* The notice-review row (info + dropdown + date + 2 buttons, 5 columns on
+     desktop) stacks into a clean vertical card instead of squeezing 5
+     columns into a phone-width row. */
+  .bb-notice-review-row { grid-template-columns: 1fr !important; }
 }

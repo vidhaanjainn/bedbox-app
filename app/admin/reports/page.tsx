@@ -247,7 +247,7 @@ Be direct, specific to Bhopal PG market, and use ₹ for all currency. Keep it c
           </div>
 
           {/* Resident Movement */}
-          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '16px', marginBottom: '28px' }}>
+          <div className="bb-grid-2" style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '16px', marginBottom: '28px' }}>
             <div className="stat-card" style={{ padding: '20px' }}>
               <h3 style={{ fontFamily: 'Syne, sans-serif', fontSize: '14px', fontWeight: '700', color: 'var(--text-primary)', margin: '0 0 16px' }}>Resident Movement</h3>
               {[

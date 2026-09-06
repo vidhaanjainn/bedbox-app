@@ -274,7 +274,7 @@ export default function NewResidentPage() {
           <h3 style={{ fontFamily: 'Syne, sans-serif', fontSize: '13px', fontWeight: '700', color: 'var(--text-muted)', margin: '0 0 16px', textTransform: 'uppercase', letterSpacing: '0.08em' }}>
             Required
           </h3>
-          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '16px', marginBottom: '28px' }}>
+          <div className="bb-grid-2" style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '16px', marginBottom: '28px' }}>
             <div style={{ gridColumn: '1/-1' }}>
               <label style={labelStyle}>Full Name *</label>
               <input className="bb-input" placeholder="Resident's full name"
@@ -299,7 +299,7 @@ export default function NewResidentPage() {
           <h3 style={{ fontFamily: 'Syne, sans-serif', fontSize: '13px', fontWeight: '700', color: 'var(--text-muted)', margin: '0 0 16px', textTransform: 'uppercase', letterSpacing: '0.08em' }}>
             Optional — fill now or update later
           </h3>
-          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '16px' }}>
+          <div className="bb-grid-2" style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '16px' }}>
             <div style={{ gridColumn: '1/-1' }}>
               <label style={labelStyle}>Assign Bed</label>
               <select className="bb-input" value={form.bed_id} onChange={e => handleBedSelect(e.target.value)}>
@@ -397,7 +397,7 @@ export default function NewResidentPage() {
             {step === 1 && (
               <div>
                 <h2 style={{ fontFamily: 'Syne, sans-serif', fontSize: '18px', fontWeight: '600', color: 'var(--text-primary)', margin: '0 0 24px' }}>Personal Information</h2>
-                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '16px' }}>
+                <div className="bb-grid-2" style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '16px' }}>
                   <div style={{ gridColumn: '1/-1' }}>
                     <label style={labelStyle}>Full Name *</label>
                     <input className="bb-input" placeholder="Resident's full name" value={form.name} onChange={e => setForm(f => ({ ...f, name: e.target.value }))} />
@@ -446,7 +446,7 @@ export default function NewResidentPage() {
             {step === 2 && (
               <div>
                 <h2 style={{ fontFamily: 'Syne, sans-serif', fontSize: '18px', fontWeight: '600', color: 'var(--text-primary)', margin: '0 0 24px' }}>Stay Details</h2>
-                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '16px' }}>
+                <div className="bb-grid-2" style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '16px' }}>
                   <div style={{ gridColumn: '1/-1' }}>
                     <label style={labelStyle}>Assign Bed</label>
                     <select className="bb-input" value={form.bed_id} onChange={e => handleBedSelect(e.target.value)}>
@@ -506,7 +506,7 @@ export default function NewResidentPage() {
                   <span style={{ fontSize: '11px', color: 'var(--text-muted)', padding: '4px 10px', borderRadius: '999px', background: 'var(--surface-2)', border: '1px solid var(--border)' }}>Optional</span>
                 </div>
                 <p style={{ color: 'var(--text-muted)', fontSize: '13px', marginBottom: '24px' }}>Aadhaar images stored in a private, encrypted bucket. Only admins can access them.</p>
-                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '16px' }}>
+                <div className="bb-grid-2" style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '16px' }}>
                   {[
                     { label: 'Aadhaar Front', file: aadhaarFront, setter: setAadhaarFront },
                     { label: 'Aadhaar Back', file: aadhaarBack, setter: setAadhaarBack },

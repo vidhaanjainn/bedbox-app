@@ -204,7 +204,7 @@ export default function NoticesPage() {
             {submissions.map(s => {
               const draft = reviewDrafts[s.id] || { resident_id: '', last_day_of_stay: '' }
               return (
-                <div key={s.id} style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr auto auto', gap: '10px', alignItems: 'center', padding: '12px', background: 'var(--surface-2)', borderRadius: '10px' }}>
+                <div key={s.id} className="bb-notice-review-row" style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr auto auto', gap: '10px', alignItems: 'center', padding: '12px', background: 'var(--surface-2)', borderRadius: '10px' }}>
                   <div>
                     <div style={{ fontSize: '13px', fontWeight: '600', color: 'var(--text-primary)' }}>{s.name || '—'} <span style={{ fontWeight: '400', color: 'var(--text-muted)' }}>(Room {s.room_number || '?'})</span></div>
                     <div style={{ fontSize: '11px', color: 'var(--text-muted)' }}>{s.submitted_at} · {s.reason?.slice(0, 60) || 'No reason given'}</div>
