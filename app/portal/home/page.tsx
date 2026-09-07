@@ -4,7 +4,7 @@ import { useEffect, useState } from 'react'
 import { useRouter } from 'next/navigation'
 import { createClient } from '@/lib/supabase/client'
 import Link from 'next/link'
-import { Wrench, Receipt, ClipboardList, Phone, Wifi, MapPin, Cross, Pill, ShoppingCart, UtensilsCrossed, TreePine, TrainFront, ChevronDown, Star, Upload, X, Loader2, Check, IndianRupee, Copy } from 'lucide-react'
+import { Wrench, Receipt, ClipboardList, Phone, Wifi, MapPin, Cross, Pill, ShoppingCart, UtensilsCrossed, TreePine, TrainFront, ChevronDown, Star, Upload, X, Loader2, Check, IndianRupee, Copy, Zap } from 'lucide-react'
 
 const CATEGORY_META: Record<string, { label: string; Icon: typeof MapPin }> = {
   hospital: { label: 'Hospitals', Icon: Cross },
@@ -287,7 +287,7 @@ export default function PortalHomePage() {
         {/* Quick actions */}
         <div style={{ fontSize: 12, color: 'rgba(255,255,255,0.4)', fontWeight: 600, letterSpacing: '0.08em', textTransform: 'uppercase', marginBottom: 12 }}>Quick actions</div>
         <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10, marginBottom: 24 }}>
-          {[{ href: '/portal/maintenance', Icon: Wrench, label: 'Report issue' }, { href: '/portal/receipt', Icon: Receipt, label: 'Get receipt' }, { href: '/portal/notice', Icon: ClipboardList, label: 'Notice to vacate' }, { href: 'tel:+917999546362', Icon: Phone, label: 'Call us' }].map(a => (
+          {[{ href: '/portal/maintenance', Icon: Wrench, label: 'Report issue' }, { href: '/portal/electricity', Icon: Zap, label: 'Electricity reading' }, { href: '/portal/receipt', Icon: Receipt, label: 'Get receipt' }, { href: '/portal/notice', Icon: ClipboardList, label: 'Notice to vacate' }, { href: 'tel:+917999546362', Icon: Phone, label: 'Call us' }].map(a => (
             <Link key={a.href} href={a.href} style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '14px', minHeight: 44, borderRadius: 12, background: 'rgba(255,255,255,0.04)', border: '1px solid rgba(255,255,255,0.07)', textDecoration: 'none', color: 'rgba(255,255,255,0.8)', fontSize: 13, fontWeight: 500 }}>
               <a.Icon size={18} color="#00d4c8" strokeWidth={1.75} />{a.label}
             </Link>

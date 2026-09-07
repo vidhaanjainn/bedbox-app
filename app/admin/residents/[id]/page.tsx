@@ -32,6 +32,7 @@ export default function ResidentDetailPage() {
   const [archiveReasonNotes, setArchiveReasonNotes] = useState('')
   const [archiveDepositStatus, setArchiveDepositStatus] = useState('')
   const [archiveWouldReAdmit, setArchiveWouldReAdmit] = useState<boolean | null>(null)
+  const [archiveFinalElectricityReading, setArchiveFinalElectricityReading] = useState('')
   const [archiveError, setArchiveError] = useState('')
   const [generatingDoc, setGeneratingDoc] = useState<'agreement' | 'police' | null>(null)
   const [docMsg, setDocMsg] = useState('')
@@ -215,10 +216,14 @@ export default function ResidentDetailPage() {
           reasonNotes: archiveReasonNotes,
           depositStatus: archiveDepositStatus,
           wouldReAdmit: archiveWouldReAdmit,
+          finalElectricityReading: archiveFinalElectricityReading ? parseFloat(archiveFinalElectricityReading) : null,
         }),
       })
       const json = await res.json()
       if (!res.ok) { setArchiveError(json.error || 'Something went wrong.'); setArchiving(false); return }
+      if (json.electricityReconciliation?.unbilledMonths?.length > 0) {
+        alert(`Heads up: ${json.electricityReconciliation.note}`)
+      }
       router.push('/admin/residents')
     } catch {
       setArchiveError('Something went wrong. Please try again.')
@@ -607,6 +612,21 @@ export default function ResidentDetailPage() {
                 <option value="fully_deducted">Fully deducted (dues / violation)</option>
                 <option value="pending">Pending - not yet settled</option>
               </select>
+            </div>
+
+            {/* Final electricity reading */}
+            <div style={{ marginBottom: '16px' }}>
+              <label style={{ display: 'block', fontSize: '12px', fontWeight: '600', letterSpacing: '0.06em', textTransform: 'uppercase', color: 'var(--text-muted)', marginBottom: '8px' }}>
+                Final Electricity Reading (optional)
+              </label>
+              <input
+                className="bb-input" type="number" step="0.1" placeholder="Reading at move-out, from their photo"
+                value={archiveFinalElectricityReading}
+                onChange={e => setArchiveFinalElectricityReading(e.target.value)}
+              />
+              <div style={{ fontSize: '11px', color: 'var(--text-muted)', marginTop: '6px' }}>
+                Logs one last reading and checks it against everything already billed, so nothing gets missed at move-out.
+              </div>
             </div>
 
             {/* Would re-admit */}

@@ -2,7 +2,7 @@ import { NextResponse } from 'next/server'
 import { createClient } from '@supabase/supabase-js'
 import { sendEmail, emailShell, moneyINR } from '@/lib/notify'
 import { syncNoticeFormSubmissions } from '@/lib/notice-form-sync'
-import { sendPushToAdmins } from '@/lib/push'
+import { sendPushToAdmins, sendPushToResident } from '@/lib/push'
 
 // AUTO-01 + AUTO-02 + AUTO-03 (daily): runs once a day via Vercel Cron (see vercel.json).
 //   1. Ensures every active resident has a rent_payments row for the current month.
@@ -101,23 +101,32 @@ async function sendReminders(supabase: ReturnType<typeof adminClient>, dryRun: b
       continue
     }
 
-    const result = await sendEmail({
-      to: resident.email,
-      subject: `${tone} - ${moneyINR(outstanding)} ${resident.room_number ? `(Room ${resident.room_number})` : ''}`.trim(),
-      html: emailShell(tone, `
-        <p style="color:#475569;font-size:14px;line-height:1.6;margin:0 0 20px">
-          Hi ${resident.name?.split(' ')[0] || 'there'}, ${daysFromDue < 0
-            ? `your rent is coming up in ${Math.abs(daysFromDue)} day${Math.abs(daysFromDue) === 1 ? '' : 's'}.`
-            : daysFromDue === 0
-              ? 'your rent is due today.'
-              : `your rent is ${daysFromDue} day${daysFromDue === 1 ? '' : 's'} overdue.`}
-        </p>
-        <div style="background:#fff;border:1px solid #e2e8f0;border-radius:12px;padding:18px;margin-bottom:20px">
-          <div style="display:flex;justify-content:space-between;padding:4px 0"><span style="color:#64748b;font-size:13px">Outstanding</span><span style="font-weight:700;color:#0f172a">${moneyINR(outstanding)}</span></div>
-        </div>
-        <p style="color:#94a3b8;font-size:12px;margin:0">Already paid? Please ignore this and let TheBedBox know so we can update your record.</p>
-      `),
-    })
+    const pushBody = daysFromDue < 0
+      ? `Coming up in ${Math.abs(daysFromDue)} day${Math.abs(daysFromDue) === 1 ? '' : 's'} - ${moneyINR(outstanding)}`
+      : daysFromDue === 0
+        ? `Due today - ${moneyINR(outstanding)}`
+        : `${daysFromDue} day${daysFromDue === 1 ? '' : 's'} overdue - ${moneyINR(outstanding)}`
+
+    const [result] = await Promise.all([
+      sendEmail({
+        to: resident.email,
+        subject: `${tone} - ${moneyINR(outstanding)} ${resident.room_number ? `(Room ${resident.room_number})` : ''}`.trim(),
+        html: emailShell(tone, `
+          <p style="color:#475569;font-size:14px;line-height:1.6;margin:0 0 20px">
+            Hi ${resident.name?.split(' ')[0] || 'there'}, ${daysFromDue < 0
+              ? `your rent is coming up in ${Math.abs(daysFromDue)} day${Math.abs(daysFromDue) === 1 ? '' : 's'}.`
+              : daysFromDue === 0
+                ? 'your rent is due today.'
+                : `your rent is ${daysFromDue} day${daysFromDue === 1 ? '' : 's'} overdue.`}
+          </p>
+          <div style="background:#fff;border:1px solid #e2e8f0;border-radius:12px;padding:18px;margin-bottom:20px">
+            <div style="display:flex;justify-content:space-between;padding:4px 0"><span style="color:#64748b;font-size:13px">Outstanding</span><span style="font-weight:700;color:#0f172a">${moneyINR(outstanding)}</span></div>
+          </div>
+          <p style="color:#94a3b8;font-size:12px;margin:0">Already paid? Please ignore this and let TheBedBox know so we can update your record.</p>
+        `),
+      }),
+      sendPushToResident(row.resident_id, { title: tone, body: pushBody, url: '/portal/home' }),
+    ])
 
     if (!('skipped' in result) && !('error' in result)) {
       await supabase.from('rent_payments').update({
@@ -248,6 +257,49 @@ async function sendNoticeExpiryAlerts(supabase: ReturnType<typeof adminClient>, 
   return { alerted: notices.length }
 }
 
+// AUTO-09: from the 1st to the 10th of the month, nudges any active
+// resident who hasn't logged this month's electricity reading yet - once
+// per day per resident (last_electricity_reminded_at dedupes re-runs).
+async function sendElectricityReminders(supabase: ReturnType<typeof adminClient>, dryRun: boolean) {
+  const today = new Date()
+  const day = today.getUTCDate()
+  if (day < 1 || day > 10) return { sent: 0, skipped: 'outside 1st-10th window' }
+
+  const month = today.getUTCMonth() + 1
+  const year = today.getUTCFullYear()
+
+  const { data: residents } = await supabase
+    .from('residents')
+    .select('id, name, portal_user_id, last_electricity_reminded_at')
+    .eq('status', 'active')
+    .not('portal_user_id', 'is', null)
+  if (!residents?.length) return { sent: 0 }
+
+  const { data: loggedRows } = await supabase
+    .from('electricity_readings')
+    .select('resident_id')
+    .eq('month', month).eq('year', year)
+  const logged = new Set((loggedRows || []).map(r => r.resident_id))
+
+  const todayStr = today.toISOString().split('T')[0]
+  let sent = 0
+
+  for (const r of residents) {
+    if (logged.has(r.id)) continue
+    if (r.last_electricity_reminded_at && new Date(r.last_electricity_reminded_at).toISOString().split('T')[0] === todayStr) continue
+
+    if (dryRun) { sent++; continue }
+    await sendPushToResident(r.id, {
+      title: 'Log your electricity reading',
+      body: "Takes 10 seconds - snap the meter and enter today's reading.",
+      url: '/portal/electricity',
+    })
+    await supabase.from('residents').update({ last_electricity_reminded_at: new Date().toISOString() }).eq('id', r.id)
+    sent++
+  }
+  return { sent }
+}
+
 export async function GET(req: Request) {
   const secret = process.env.CRON_SECRET
   const auth = req.headers.get('authorization')
@@ -263,6 +315,7 @@ export async function GET(req: Request) {
   const noticeFormResult = dryRun ? { imported: 0 } : await syncNoticeFormSubmissions().catch(() => ({ imported: 0 }))
   const digestResult = await sendAdminMonthlyDigest(supabase, dryRun)
   const expiryResult = await sendNoticeExpiryAlerts(supabase, dryRun)
+  const electricityResult = await sendElectricityReminders(supabase, dryRun)
 
   return NextResponse.json({
     dryRun,
@@ -271,5 +324,6 @@ export async function GET(req: Request) {
     noticeFormRowsImported: 'imported' in noticeFormResult ? noticeFormResult.imported : 0,
     adminDigestSent: digestResult.sent,
     moveOutAlertsSent: expiryResult.alerted,
+    electricityRemindersSent: electricityResult.sent,
   })
 }

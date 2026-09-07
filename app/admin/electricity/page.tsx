@@ -3,7 +3,7 @@
 import { useEffect, useState } from 'react'
 import { createClient } from '@/lib/supabase/client'
 import { formatCurrency, formatDate } from '@/lib/utils'
-import { Zap, Plus, X, Loader2, CheckCircle } from 'lucide-react'
+import { Zap, Plus, X, Loader2, CheckCircle, Camera, User, Shield } from 'lucide-react'
 
 export default function ElectricityPage() {
   const [readings, setReadings] = useState<any[]>([])
@@ -99,6 +99,15 @@ export default function ElectricityPage() {
   const alreadyLogged = readings.map(r => r.resident_id)
   const pendingResidents = residents.filter(r => !alreadyLogged.includes(r.id))
 
+  const viewPhoto = async (path: string) => {
+    const res = await fetch('/api/admin/document-url', {
+      method: 'POST', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ path }),
+    })
+    const data = await res.json()
+    if (res.ok && data.url) window.open(data.url, '_blank')
+  }
+
   return (
     <div style={{ padding: '32px' }} className="animate-fade-in">
       <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', marginBottom: '32px', gap: '16px', flexWrap: 'wrap' }}>
@@ -191,6 +200,7 @@ export default function ElectricityPage() {
                 <th>Units Used</th>
                 <th>Bill (₹10/unit)</th>
                 <th>Date</th>
+                <th>Source</th>
                 <th>Added to Rent</th>
               </tr>
             </thead>
@@ -211,6 +221,25 @@ export default function ElectricityPage() {
                     {formatCurrency(r.bill_amount)}
                   </td>
                   <td style={{ fontSize: '13px' }}>{formatDate(r.reading_date)}</td>
+                  <td>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+                      <span style={{
+                        display: 'inline-flex', alignItems: 'center', gap: '4px',
+                        fontSize: '11px', fontWeight: '600', padding: '3px 8px', borderRadius: '999px',
+                        background: r.submitted_by === 'resident' ? 'rgba(56,189,248,0.1)' : 'rgba(100,116,139,0.1)',
+                        color: r.submitted_by === 'resident' ? '#7dd3fc' : '#94a3b8',
+                      }}>
+                        {r.submitted_by === 'resident' ? <User size={10} /> : <Shield size={10} />}
+                        {r.submitted_by === 'resident' ? 'Resident' : 'Admin'}
+                      </span>
+                      {r.reading_photo_path && (
+                        <button onClick={() => viewPhoto(r.reading_photo_path)} title="View photo"
+                          style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--teal-500)', padding: 2, display: 'flex' }}>
+                          <Camera size={14} />
+                        </button>
+                      )}
+                    </div>
+                  </td>
                   <td>
                     <span style={{
                       fontSize: '11px', fontWeight: '600', padding: '3px 8px', borderRadius: '999px',

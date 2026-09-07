@@ -3,7 +3,7 @@ import { NextResponse } from 'next/server'
 
 export async function POST(request: Request) {
   try {
-    const { residentId, reason, reasonNotes, depositStatus, wouldReAdmit } = await request.json()
+    const { residentId, reason, reasonNotes, depositStatus, wouldReAdmit, finalElectricityReading } = await request.json()
 
     if (!residentId) {
       return NextResponse.json({ error: 'Resident ID is required.' }, { status: 400 })
@@ -21,7 +21,7 @@ export async function POST(request: Request) {
     // Fetch resident details (for sheets log and bed freeing)
     const { data: resident, error: fetchError } = await supabase
       .from('residents')
-      .select('id, name, email, mobile, room_number, rent_amount, date_of_joining, hometown, occupation, bed_id')
+      .select('id, name, email, mobile, room_number, rent_amount, date_of_joining, hometown, occupation, bed_id, initial_electricity_reading')
       .eq('id', residentId)
       .single()
 
@@ -48,6 +48,64 @@ export async function POST(request: Request) {
         .from('beds')
         .update({ status: 'available' })
         .eq('id', resident.bed_id)
+    }
+
+    // 2b. Electricity reconciliation - the actual point of asking for a
+    // final meter reading at move-out. If given, log one last reading
+    // covering whatever's been used since the last logged month, then
+    // compare total units billed over the whole stay against total units
+    // actually consumed (final - move-in baseline) and flag any month
+    // that has a reading on file but was never folded into rent - both
+    // are real ways a resident could end up having paid less than they
+    // consumed. "Sharing coherence" across roommates on one meter isn't
+    // checked here - each resident has their own reading trail in this
+    // model, not a shared one, so that comparison isn't meaningful yet.
+    let electricityReconciliation: any = null
+    const { data: allReadings } = await supabase
+      .from('electricity_readings')
+      .select('month, year, current_reading, bill_amount, added_to_rent')
+      .eq('resident_id', residentId)
+      .order('year', { ascending: true })
+      .order('month', { ascending: true })
+
+    if (finalElectricityReading != null && resident.date_of_joining) {
+      const now = new Date()
+      const lastRow = (allReadings || [])[((allReadings || []).length || 1) - 1]
+      const previousReading = lastRow ? Number(lastRow.current_reading) : Number(resident.initial_electricity_reading || 0)
+      const finalReading = Number(finalElectricityReading)
+
+      if (finalReading >= previousReading) {
+        const { data: finalRow } = await supabase.from('electricity_readings').insert({
+          resident_id: residentId,
+          bed_id: resident.bed_id,
+          month: now.getMonth() + 1,
+          year: now.getFullYear(),
+          previous_reading: previousReading,
+          current_reading: finalReading,
+          submitted_by: 'admin',
+          reading_date: now.toISOString().split('T')[0],
+        }).select().single()
+        if (finalRow) allReadings?.push(finalRow)
+      }
+    }
+
+    if (allReadings?.length) {
+      const totalBilled = allReadings.reduce((s, r) => s + Number(r.bill_amount || 0), 0)
+      const unbilledMonths = allReadings.filter(r => !r.added_to_rent).map(r => `${r.month}/${r.year}`)
+      const finalReadingValue = allReadings[allReadings.length - 1]?.current_reading
+      const totalUnitsOverStay = finalReadingValue != null
+        ? Number(finalReadingValue) - Number(resident.initial_electricity_reading || 0)
+        : null
+
+      electricityReconciliation = {
+        totalReadingsLogged: allReadings.length,
+        totalBilled,
+        totalUnitsOverStay,
+        unbilledMonths,
+        note: unbilledMonths.length > 0
+          ? `${unbilledMonths.length} logged reading(s) were never added to rent - review before finalizing the deposit.`
+          : 'All logged readings were billed.',
+      }
     }
 
     // 3. Close any active notice period
@@ -93,7 +151,7 @@ export async function POST(request: Request) {
     //   } catch (sheetsErr) { console.error('Google Sheets push failed (non-fatal):', sheetsErr) }
     // }
 
-    return NextResponse.json({ success: true })
+    return NextResponse.json({ success: true, electricityReconciliation })
   } catch (err) {
     console.error('archive-resident error:', err)
     return NextResponse.json({ error: 'Something went wrong. Please try again.' }, { status: 500 })
