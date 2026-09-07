@@ -6,6 +6,7 @@ import { useRouter } from 'next/navigation'
 import { ArrowLeft, Upload, CheckCircle, Loader2, User, Home, FileText, Shield, Zap, SkipForward } from 'lucide-react'
 import Link from 'next/link'
 import { STAY_DURATIONS } from '@/lib/utils'
+import { AGREEMENT_VERSION, renderAgreementClauses } from '@/lib/agreement-clauses'
 
 const STEPS = [
   { id: 1, label: 'Basic Info', icon: User, required: true },
@@ -76,7 +77,7 @@ export default function NewResidentPage() {
         .from('residents')
         .insert({
           name: form.name,
-          mobile: form.mobile,
+          mobile: form.mobile || null,
           email: form.email || null,
           bed_id: form.bed_id || null,
           room_number: form.room_number || null,
@@ -154,6 +155,8 @@ export default function NewResidentPage() {
           stay_type: form.stay_type,
           notes: form.notes || null,
           tc_agreed_at: new Date().toISOString(),
+          agreement_signed_at: new Date().toISOString(),
+          agreement_version: AGREEMENT_VERSION,
           status: 'active',
           onboarding_status: 'active',
         })
@@ -266,7 +269,7 @@ export default function NewResidentPage() {
           <div style={{ display: 'flex', alignItems: 'flex-start', gap: '10px', marginBottom: '28px', padding: '12px 16px', borderRadius: '10px', background: 'rgba(0,212,200,0.06)', border: '1px solid rgba(0,212,200,0.15)' }}>
             <Zap size={16} color="var(--teal-500)" style={{ flexShrink: 0, marginTop: '1px' }} />
             <p style={{ fontSize: '13px', color: 'var(--text-muted)', margin: 0, lineHeight: '1.5' }}>
-              Resident will fill their own personal details, upload Aadhaar, and digitally sign the agreement via their invite link. You only need their name and mobile to get started.
+              Resident will fill their own personal details, upload Aadhaar, and digitally sign the agreement via their invite link. Their room and rent are baked into that agreement automatically - you just need name, email, room, and rent to get started.
             </p>
           </div>
 
@@ -280,30 +283,15 @@ export default function NewResidentPage() {
               <input className="bb-input" placeholder="Resident's full name"
                 value={form.name} onChange={e => setForm(f => ({ ...f, name: e.target.value }))} />
             </div>
-            <div>
-              <label style={labelStyle}>Mobile *</label>
-              <input className="bb-input" placeholder="10-digit mobile" type="tel" maxLength={10}
-                value={form.mobile} onChange={e => setForm(f => ({ ...f, mobile: e.target.value }))} />
-            </div>
-            <div>
-              <label style={labelStyle}>
-                Email
-                <span style={{ fontWeight: '400', color: 'var(--text-muted)', textTransform: 'none', letterSpacing: 0, marginLeft: '4px' }}>(needed to send invite)</span>
-              </label>
+            <div style={{ gridColumn: '1/-1' }}>
+              <label style={labelStyle}>Email *</label>
               <input className="bb-input" placeholder="email@example.com" type="email"
                 value={form.email} onChange={e => setForm(f => ({ ...f, email: e.target.value }))} />
             </div>
-          </div>
-
-          {/* Optional */}
-          <h3 style={{ fontFamily: 'Syne, sans-serif', fontSize: '13px', fontWeight: '700', color: 'var(--text-muted)', margin: '0 0 16px', textTransform: 'uppercase', letterSpacing: '0.08em' }}>
-            Optional - fill now or update later
-          </h3>
-          <div className="bb-grid-2" style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '16px' }}>
-            <div style={{ gridColumn: '1/-1' }}>
-              <label style={labelStyle}>Assign Bed</label>
+            <div>
+              <label style={labelStyle}>Room (assign a bed) *</label>
               <select className="bb-input" value={form.bed_id} onChange={e => handleBedSelect(e.target.value)}>
-                <option value="">Select bed (optional)</option>
+                <option value="">Select bed</option>
                 {beds.map(bed => (
                   <option key={bed.id} value={bed.id}>
                     Room {bed.room?.room_number} - Bed {bed.bed_number} ({bed.room?.type}) · ₹{bed.rate_monthly}/mo
@@ -312,9 +300,21 @@ export default function NewResidentPage() {
               </select>
             </div>
             <div>
-              <label style={labelStyle}>Monthly Rent (₹)</label>
+              <label style={labelStyle}>Monthly Rent (₹) *</label>
               <input className="bb-input" placeholder="Auto-fills from bed" type="number"
                 value={form.rent_amount} onChange={e => setForm(f => ({ ...f, rent_amount: e.target.value }))} />
+            </div>
+          </div>
+
+          {/* Optional */}
+          <h3 style={{ fontFamily: 'Syne, sans-serif', fontSize: '13px', fontWeight: '700', color: 'var(--text-muted)', margin: '0 0 16px', textTransform: 'uppercase', letterSpacing: '0.08em' }}>
+            Optional - fill now or update later
+          </h3>
+          <div className="bb-grid-2" style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '16px' }}>
+            <div>
+              <label style={labelStyle}>Mobile</label>
+              <input className="bb-input" placeholder="10-digit mobile" type="tel" maxLength={10}
+                value={form.mobile} onChange={e => setForm(f => ({ ...f, mobile: e.target.value }))} />
             </div>
             <div>
               <label style={labelStyle}>Security Deposit (₹)</label>
@@ -349,7 +349,9 @@ export default function NewResidentPage() {
             <button
               onClick={() => {
                 if (!form.name.trim()) { setError('Name is required'); return }
-                if (!form.mobile.trim() || form.mobile.length < 10) { setError('Valid 10-digit mobile is required'); return }
+                if (!form.email.trim()) { setError('Email is required to send the invite and for later portal login'); return }
+                if (!form.bed_id) { setError('Please assign a room'); return }
+                if (!form.rent_amount) { setError('Monthly rent is required'); return }
                 setError('')
                 handleSaveAndInvite()
               }}
@@ -539,20 +541,13 @@ export default function NewResidentPage() {
                   <p>8, Mahabali Nagar, Kolar Road, Bhopal (M.P.)</p>
                   <p><strong>Resident:</strong> {form.name || '[Name]'} | Room {form.room_number || '[Room]'} | ₹{form.rent_amount || '[Rent]'}/month</p>
                   <hr style={{ border: 'none', borderTop: '1px solid var(--border)', margin: '12px 0' }} />
-                  <p><strong>1.</strong> Monthly rent of ₹{form.rent_amount || '___'} is payable in advance, on or before 5th of each month. A penalty of ₹200/day applies for late payment after the 5th.</p>
-                  <p><strong>2.</strong> Security deposit of ₹{form.security_deposit || '___'} is non-adjustable and returnable without interest at the end of stay.</p>
-                  <p><strong>3.</strong> Electricity charged at ₹10/unit as per sub-meter reading.</p>
-                  <p><strong>4.</strong> A minimum two months' notice is required to vacate. Failure to give notice results in forfeiture of security deposit.</p>
-                  <p><strong>5.</strong> No subletting, political activity, alcohol, drugs, or smoking on premises.</p>
-                  <p><strong>6.</strong> Management reserves right to inspect rooms at any time.</p>
-                  <p><strong>7.</strong> Damage to property will be charged to the resident.</p>
-                  <p><strong>8.</strong> If rent unpaid by 10th, management reserves right to remove belongings and repossess room.</p>
-                  <p><strong>9.</strong> ₹1000/day penalty if resident fails to vacate after notice period.</p>
-                  <p><strong>10.</strong> Rent subject to 5–10% annual increase after 11 months.</p>
-                  <p><strong>11.</strong> Premises cannot be used for GST registration or business address.</p>
-                  <p><strong>12.</strong> This digital agreement is legally binding under the IT Act 2000. Acceptance timestamp and IP are logged as proof.</p>
-                  <p><strong>13.</strong> Personal data including Aadhaar is collected for KYC purposes under DPDP Act 2023 and stored securely.</p>
-                  <p><strong>14.</strong> Jurisdiction: Bhopal courts only.</p>
+                  {/* Same 28 clauses (and same room/rent/deposit templating) as the
+                      self-onboarding wizard and the generated PDF - this used to be
+                      a separately hand-maintained, abridged copy that could drift
+                      out of sync with the real agreement. */}
+                  {renderAgreementClauses(form).map((clause, i) => (
+                    <p key={i}><strong>{i + 1}.</strong> {clause}</p>
+                  ))}
                 </div>
                 <label style={{ display: 'flex', alignItems: 'flex-start', gap: '12px', cursor: 'pointer', padding: '16px', borderRadius: '10px', background: tcAgreed ? 'rgba(0,212,200,0.05)' : 'var(--surface-2)', border: `1px solid ${tcAgreed ? 'rgba(0,212,200,0.3)' : 'var(--border)'}`, transition: 'all 0.2s ease' }}>
                   <input type="checkbox" checked={tcAgreed} onChange={e => setTcAgreed(e.target.checked)} style={{ width: '18px', height: '18px', marginTop: '2px', accentColor: 'var(--teal-500)', flexShrink: 0 }} />

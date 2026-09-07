@@ -3,7 +3,7 @@
 import { useEffect, useRef, useState } from 'react'
 import { useParams } from 'next/navigation'
 import { createClient } from '@/lib/supabase/client'
-import { AGREEMENT_VERSION, AGREEMENT_CLAUSES } from '@/lib/agreement-clauses'
+import { AGREEMENT_VERSION, renderAgreementClauses } from '@/lib/agreement-clauses'
 import { AlertTriangle, Check, Lock, Paperclip, Eraser, MessageCircle, ExternalLink } from 'lucide-react'
 
 type Step = 'loading' | 'error' | 'welcome' | 'details' | 'docs' | 'agreement' | 'done'
@@ -125,6 +125,7 @@ export default function OnboardPage() {
 
   const stepIndex = { welcome: 0, details: 1, docs: 2, agreement: 3, done: 4 }
   const currentIndex = stepIndex[step as keyof typeof stepIndex] ?? -1
+  const clauses = resident ? renderAgreementClauses(resident) : []
 
   // ── LOADING ──────────────────────────────────────────────────────────────
   if (step === 'loading') return (
@@ -269,10 +270,17 @@ export default function OnboardPage() {
       {step === 'agreement' && (
         <div style={{ animation: 'fadeIn 0.3s ease' }}>
           <h2 style={{ fontFamily: "'Syne',sans-serif", fontWeight: 700, fontSize: 24, margin: '0 0 6px' }}>Tenancy agreement</h2>
-          <p style={{ color: 'rgba(255,255,255,0.4)', fontSize: 14, margin: '0 0 16px' }}>Read all {AGREEMENT_CLAUSES.length} clauses before agreeing</p>
+          <p style={{ color: 'rgba(255,255,255,0.4)', fontSize: 14, margin: '0 0 12px' }}>Read all {clauses.length} clauses before agreeing</p>
+          <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', marginBottom: 16 }}>
+            {[['Resident', resident?.name], ['Room', resident?.room_number || '-'], ['Rent', resident?.rent_amount ? `₹${Number(resident.rent_amount).toLocaleString('en-IN')}/mo` : '-'], ['Deposit', resident?.security_deposit ? `₹${Number(resident.security_deposit).toLocaleString('en-IN')}` : '-']].map(([l, v]) => (
+              <span key={l} style={{ fontSize: 12, padding: '5px 10px', borderRadius: 999, background: 'rgba(0,212,200,0.08)', border: '1px solid rgba(0,212,200,0.2)', color: '#00d4c8' }}>
+                {l}: <strong style={{ color: '#fff' }}>{v}</strong>
+              </span>
+            ))}
+          </div>
           <div style={{ background: 'rgba(255,255,255,0.04)', border: '1px solid rgba(255,255,255,0.08)', borderRadius: 12, padding: '4px 16px', maxHeight: 340, overflowY: 'auto', marginBottom: 20 }}>
-            {AGREEMENT_CLAUSES.map((clause, i) => (
-              <div key={i} style={{ padding: '12px 0', borderBottom: i < AGREEMENT_CLAUSES.length - 1 ? '1px solid rgba(255,255,255,0.05)' : 'none', display: 'flex', gap: 10, fontSize: 13, lineHeight: 1.6, color: 'rgba(255,255,255,0.7)' }}>
+            {clauses.map((clause, i) => (
+              <div key={i} style={{ padding: '12px 0', borderBottom: i < clauses.length - 1 ? '1px solid rgba(255,255,255,0.05)' : 'none', display: 'flex', gap: 10, fontSize: 13, lineHeight: 1.6, color: 'rgba(255,255,255,0.7)' }}>
                 <span style={{ color: '#00d4c8', fontWeight: 600, minWidth: 22, fontSize: 11, paddingTop: 2 }}>{String(i + 1).padStart(2, '0')}</span>
                 <span>{clause}</span>
               </div>
@@ -283,7 +291,7 @@ export default function OnboardPage() {
               {form.agreement_agreed && <span style={{ fontSize: 12, color: '#070d1a', fontWeight: 700 }}>✓</span>}
             </div>
             <span style={{ fontSize: 13, color: 'rgba(255,255,255,0.6)', lineHeight: 1.6 }}>
-              I, <strong style={{ color: '#fff' }}>{resident?.name}</strong>, have read and understood all {AGREEMENT_CLAUSES.length} clauses and agree to be bound by them. I acknowledge this is a legally binding digital agreement.
+              I, <strong style={{ color: '#fff' }}>{resident?.name}</strong>, have read and understood all {clauses.length} clauses and agree to be bound by them. I acknowledge this is a legally binding digital agreement.
             </span>
           </label>
 

@@ -7,7 +7,7 @@ import { ArrowLeft, Phone, Mail, MapPin, Building, Calendar, Zap, CreditCard, Cl
 import Link from 'next/link'
 import { useParams, useRouter, useSearchParams } from 'next/navigation'
 import { generateAgreementPdf, generatePoliceVerificationPdf } from '@/lib/documents'
-import { AGREEMENT_CLAUSES } from '@/lib/agreement-clauses'
+import { renderAgreementClauses } from '@/lib/agreement-clauses'
 import { Modal } from '@/components/ui/Modal'
 
 export default function ResidentDetailPage() {
@@ -115,7 +115,7 @@ export default function ResidentDetailPage() {
         ? await fetchSignatureDataUrl(resident.signature_path)
         : null
       const blob = type === 'agreement'
-        ? generateAgreementPdf(resident, property, AGREEMENT_CLAUSES, signatureDataUrl)
+        ? generateAgreementPdf(resident, property, renderAgreementClauses(resident), signatureDataUrl)
         : generatePoliceVerificationPdf(resident, property)
 
       const path = `${type === 'agreement' ? 'agreements' : 'police-verification'}/${resident.id}.pdf`

@@ -1,17 +1,21 @@
 // Single source of truth for the tenancy agreement clauses - used by the onboarding
-// wizard (app/onboard/[token]/page.tsx) and the admin agreement-PDF generator
-// (lib/documents.ts) so both always show the exact same terms.
+// wizard (app/onboard/[token]/page.tsx), the admin manual-onboarding preview
+// (app/admin/residents/new/page.tsx), and the admin agreement-PDF generator
+// (lib/documents.ts) so all three always show the exact same terms, with the
+// same room/rent/deposit/dates filled in the same way.
 //
 // Bump AGREEMENT_VERSION whenever the clauses below change - it's stored on the
 // resident's record at signing time, so a past resident's proof-of-consent always
 // reflects the exact terms they actually agreed to, even after this text is edited later.
-export const AGREEMENT_VERSION = 'v1-2026-09'
+export const AGREEMENT_VERSION = 'v2-2026-09'
 
+// {{room}}, {{rent}}, {{deposit}}, {{term_end}} are filled in per-resident by
+// renderAgreementClauses() below - never shown raw to a resident or in a PDF.
 export const AGREEMENT_CLAUSES = [
-  "Rent is payable on or before the 5th of each calendar month. A penalty of ₹200 per day shall be levied for each day of delay beyond the 5th. Non-payment by the 10th gives TheBedBox the right to repossess the room and remove the tenant's belongings.",
-  "The security deposit paid at the time of check-in is non-adjustable against rent and is returnable without interest at the end of the tenancy, subject to deductions for unpaid dues, damages, missing items, or any other outstanding charges.",
+  "The monthly rent for Room {{room}} is ₹{{rent}}, payable on or before the 5th of each calendar month. A penalty of ₹200 per day shall be levied for each day of delay beyond the 5th. Non-payment by the 10th gives TheBedBox the right to repossess the room and remove the tenant's belongings.",
+  "The security deposit of ₹{{deposit}} paid at the time of check-in is non-adjustable against rent and is returnable without interest at the end of the tenancy, subject to deductions for unpaid dues, damages, missing items, or any other outstanding charges.",
   "Electricity charges are billed at ₹10 per unit as per the sub-meter reading, payable along with rent. TheBedBox reserves the right to revise this rate in line with revisions by the electricity distribution company.",
-  "Rent shall be subject to an increase of 5–10% after the initial 11-month term. TheBedBox reserves the right to revise rent annually thereafter, with 30 days prior notice.",
+  "Rent shall be subject to an increase of 5-10% after the initial 11-month term (ending {{term_end}}). TheBedBox reserves the right to revise rent annually thereafter, with 30 days prior notice.",
   "A minimum of two calendar months written notice is mandatory before vacating. Failure to give adequate notice will result in forfeiture of the full security deposit. During the notice period, the tenant consents to TheBedBox showing the room to prospective tenants between 9:00 AM and 8:30 PM.",
   "If the tenant fails to vacate on the termination date, a holdover penalty of ₹1,000 per day shall be charged in addition to applicable rent, until physical possession is handed over.",
   "Upon vacating, the tenant shall return the room and all fixtures in the same condition as received (normal wear and tear accepted). Failure to do so makes the tenant liable for full replacement or repair costs.",
@@ -37,3 +41,36 @@ export const AGREEMENT_CLAUSES = [
   "This digital agreement, executed with the tenant's explicit consent including timestamp and IP address, is legally binding under the Information Technology Act, 2000, equivalent to a physically signed contract.",
   "By digitally agreeing, the tenant confirms they have read, understood, and unconditionally accept all clauses above, and that this agreement has not been made under duress, misrepresentation, or coercion.",
 ]
+
+export type AgreementVars = {
+  room_number?: string | null
+  rent_amount?: number | string | null
+  security_deposit?: number | string | null
+  date_of_joining?: string | null
+}
+
+function money(n?: number | string | null): string {
+  const num = Number(n)
+  return Number.isFinite(num) && num > 0 ? num.toLocaleString('en-IN') : '___'
+}
+
+function addMonths(dateStr: string, months: number): string {
+  const d = new Date(dateStr)
+  d.setMonth(d.getMonth() + months)
+  return d.toLocaleDateString('en-IN', { day: '2-digit', month: 'short', year: 'numeric' })
+}
+
+// Fills {{room}}, {{rent}}, {{deposit}}, {{term_end}} into every clause for a
+// specific resident. Falls back to sensible placeholders ("___", "this room")
+// for anything not yet on file, so the preview never shows a raw {{token}}.
+export function renderAgreementClauses(vars: AgreementVars): string[] {
+  const replacements: Record<string, string> = {
+    room: vars.room_number || 'this room',
+    rent: money(vars.rent_amount),
+    deposit: money(vars.security_deposit),
+    term_end: vars.date_of_joining ? addMonths(vars.date_of_joining, 11) : 'the end of the 11-month term',
+  }
+  return AGREEMENT_CLAUSES.map((clause) =>
+    clause.replace(/\{\{(\w+)\}\}/g, (_, key) => replacements[key] ?? `{{${key}}}`)
+  )
+}

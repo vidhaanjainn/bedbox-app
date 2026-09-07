@@ -16,8 +16,12 @@ function adminClient(): SupabaseClient {
   )
 }
 
+type ResidentBasics = {
+  id: string; name: string; email: string | null; mobile: string | null
+  room_number: string | null; rent_amount: number | null; security_deposit: number | null; date_of_joining: string | null
+}
 type TokenCheck =
-  | { resident: { id: string; name: string; email: string | null; mobile: string | null } }
+  | { resident: ResidentBasics }
   | { error: string; status: number }
 
 async function residentForToken(supabase: SupabaseClient, token: string): Promise<TokenCheck> {
@@ -25,7 +29,7 @@ async function residentForToken(supabase: SupabaseClient, token: string): Promis
 
   const { data, error } = await supabase
     .from('residents')
-    .select('id, name, email, mobile, onboard_token_used, onboard_token_expires_at')
+    .select('id, name, email, mobile, room_number, rent_amount, security_deposit, date_of_joining, onboard_token_used, onboard_token_expires_at')
     .eq('onboard_token', token)
     .single()
 
@@ -36,7 +40,13 @@ async function residentForToken(supabase: SupabaseClient, token: string): Promis
   if (!data.onboard_token_expires_at || new Date(data.onboard_token_expires_at) < new Date()) {
     return { error: 'This link has expired. Please contact TheBedBox for a new link.', status: 410 }
   }
-  return { resident: { id: data.id, name: data.name, email: data.email, mobile: data.mobile } }
+  return {
+    resident: {
+      id: data.id, name: data.name, email: data.email, mobile: data.mobile,
+      room_number: data.room_number, rent_amount: data.rent_amount,
+      security_deposit: data.security_deposit, date_of_joining: data.date_of_joining,
+    },
+  }
 }
 
 // GET /api/onboard/[token] - validate token, return only what the wizard displays
@@ -46,7 +56,7 @@ export async function GET(_req: Request, ctx: { params: Promise<{ token: string 
     const supabase = adminClient()
     const check = await residentForToken(supabase, token)
     if ('error' in check) return NextResponse.json({ error: check.error }, { status: check.status })
-    const { name, email, mobile } = check.resident
+    const { name, email, mobile, room_number, rent_amount, security_deposit, date_of_joining } = check.resident
 
     const { data: settingsRows } = await supabase
       .from('settings')
@@ -58,7 +68,10 @@ export async function GET(_req: Request, ctx: { params: Promise<{ token: string 
       { name: settingsMap.whatsapp_group_2_name, link: settingsMap.whatsapp_group_2_link },
     ].filter(g => g.name && g.link)
 
-    return NextResponse.json({ resident: { name, email, mobile }, whatsappGroups })
+    return NextResponse.json({
+      resident: { name, email, mobile, room_number, rent_amount, security_deposit, date_of_joining },
+      whatsappGroups,
+    })
   } catch (err) {
     console.error('onboard GET error:', err)
     return NextResponse.json({ error: 'Something went wrong. Please try again.' }, { status: 500 })
