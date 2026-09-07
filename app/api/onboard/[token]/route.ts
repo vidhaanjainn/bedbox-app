@@ -1,5 +1,8 @@
 import { NextResponse } from 'next/server'
 import { createClient, SupabaseClient } from '@supabase/supabase-js'
+import { sendEmail, emailShell } from '@/lib/notify'
+import { sendPushToAdmins } from '@/lib/push'
+import { APP_URL } from '@/lib/config'
 
 // Secure self-onboarding API (SEC-01 / SEC-02).
 // All token validation happens server-side with the service-role key, so no
@@ -64,8 +67,9 @@ export async function POST(req: Request, ctx: { params: Promise<{ token: string 
     const body = await req.json()
 
     if (body.action === 'upload-url') {
-      const side = body.side === 'back' ? 'back' : 'front'
-      const path = `onboarding/${resident.id}/aadhaar-${side}-${Date.now()}`
+      const side = body.side === 'back' ? 'back' : body.side === 'signature' ? 'signature' : 'front'
+      const prefix = side === 'signature' ? 'signature' : `aadhaar-${side}`
+      const path = `onboarding/${resident.id}/${prefix}-${Date.now()}`
       const { data, error } = await supabase.storage
         .from('resident-docs')
         .createSignedUploadUrl(path)
@@ -96,6 +100,10 @@ export async function POST(req: Request, ctx: { params: Promise<{ token: string 
       if (aadhaarNumber.length !== 12) {
         return NextResponse.json({ error: 'A valid 12-digit Aadhaar number is required.' }, { status: 400 })
       }
+      const signaturePath = docPath(body.signature_path)
+      if (!signaturePath) {
+        return NextResponse.json({ error: 'Please sign the agreement before submitting.' }, { status: 400 })
+      }
 
       const ip =
         req.headers.get('x-forwarded-for')?.split(',')[0]?.trim() ||
@@ -106,13 +114,18 @@ export async function POST(req: Request, ctx: { params: Promise<{ token: string 
         .from('residents')
         .update({
           emergency_contact_name: emergencyName,
+          // Both columns exist in the schema and different parts of the app
+          // read one or the other - keep them in sync, same as the admin's
+          // own manual-onboarding form already does.
           emergency_contact_phone: emergencyPhone,
+          emergency_contact_number: emergencyPhone,
           hometown: str(body.hometown),
           institution: str(body.institution),
           occupation: str(body.occupation, 50),
           aadhaar_number: aadhaarNumber,
           aadhaar_front_url: docPath(body.aadhaar_front_path),
           aadhaar_back_url: docPath(body.aadhaar_back_path),
+          signature_path: signaturePath,
           agreement_signed_at: new Date().toISOString(),
           agreement_ip: ip,
           agreement_version: str(body.agreement_version, 40) || null,
@@ -127,6 +140,35 @@ export async function POST(req: Request, ctx: { params: Promise<{ token: string 
         console.error('onboard submit error:', updateError)
         return NextResponse.json({ error: 'Could not save your details. Please try again.' }, { status: 500 })
       }
+
+      // Notify admins server-side, right here - not as a client-side
+      // fire-and-forget after redirect, which could get lost if the
+      // resident closes the tab a moment too early.
+      await Promise.all([
+        sendPushToAdmins({
+          title: 'New onboarding submitted',
+          body: `${resident.name} completed onboarding - needs your approval`,
+          url: '/admin/residents',
+        }),
+        sendEmail({
+          to: process.env.ADMIN_NOTIFY_EMAIL || 'thebedbox.in@gmail.com',
+          subject: `✅ ${resident.name} has completed onboarding - approval needed`,
+          html: emailShell('New onboarding submission', `
+            <p style="color:#475569;font-size:14px;line-height:1.6;margin:0 0 20px">
+              <strong style="color:#0f172a">${resident.name}</strong> has completed their onboarding
+              and is waiting for your approval before their portal access activates.
+            </p>
+            <div style="background:#fff;border:1px solid #e2e8f0;border-radius:12px;padding:16px;margin-bottom:20px">
+              <div style="display:flex;justify-content:space-between;padding:4px 0"><span style="color:#64748b;font-size:13px">Mobile</span><span style="font-weight:600;color:#0f172a">${resident.mobile || '-'}</span></div>
+              <div style="display:flex;justify-content:space-between;padding:4px 0"><span style="color:#64748b;font-size:13px">Email</span><span style="font-weight:600;color:#0f172a">${resident.email || '-'}</span></div>
+            </div>
+            <a href="${APP_URL}/admin/residents/${resident.id}" style="display:inline-block;padding:14px 28px;background:linear-gradient(135deg,#00d4c8,#0099ff);color:#070d1a;font-weight:700;text-decoration:none;border-radius:10px;font-size:15px">
+              Review &amp; Approve →
+            </a>
+          `),
+        }),
+      ])
+
       return NextResponse.json({ success: true })
     }
 

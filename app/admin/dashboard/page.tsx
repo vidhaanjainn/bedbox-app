@@ -4,9 +4,10 @@ import { useEffect, useState } from 'react'
 import { useRouter } from 'next/navigation'
 import { createClient } from '@/lib/supabase/client'
 import { formatCurrency, formatDate, getStatusColor, getNoticeDaysRemaining } from '@/lib/utils'
+import Link from 'next/link'
 import {
   Bed, Users, TrendingUp, AlertCircle, Wrench,
-  Clock, Zap, ChevronRight, ArrowUpRight, RefreshCw
+  Clock, Zap, ChevronRight, ArrowUpRight, RefreshCw, UserCheck
 } from 'lucide-react'
 
 interface DashboardData {
@@ -22,6 +23,7 @@ interface DashboardData {
   activeNoticesList: any[]
   openMaintenanceList: any[]
   unpaidRent: any[]
+  pendingApprovals: any[]
 }
 
 export default function DashboardPage() {
@@ -39,12 +41,14 @@ export default function DashboardPage() {
         { data: notices },
         { data: maintenance },
         { data: rentPayments },
+        { data: pendingApprovals },
       ] = await Promise.all([
         supabase.from('beds').select('*, room:rooms(room_number)'),
         supabase.from('residents').select('*, bed:beds(bed_number, room:rooms(room_number))').eq('status', 'active').order('created_at', { ascending: false }).limit(5),
         supabase.from('notice_periods').select('*, resident:residents(name, room_number)').eq('status', 'active'),
         supabase.from('maintenance_requests').select('*, resident:residents(name)').in('status', ['open', 'in_progress']).order('created_at', { ascending: false }).limit(5),
         supabase.from('rent_payments').select('*, resident:residents(name, room_number, is_test_account)'),
+        supabase.from('residents').select('id, name, room_number, agreement_signed_at').eq('onboarding_status', 'submitted').order('agreement_signed_at', { ascending: true }),
       ])
 
       const totalBeds = beds?.length || 0
@@ -78,6 +82,7 @@ export default function DashboardPage() {
         activeNoticesList: notices || [],
         openMaintenanceList: maintenance || [],
         unpaidRent,
+        pendingApprovals: pendingApprovals || [],
       })
     } catch (err) {
       console.error(err)
@@ -122,6 +127,32 @@ export default function DashboardPage() {
           Refresh
         </button>
       </div>
+
+      {/* Pending approvals - onboarded residents waiting on you, front and
+          center since these are time-sensitive (a resident with no portal
+          access yet) rather than something to notice buried in a list. */}
+      {data!.pendingApprovals.length > 0 && (
+        <div style={{
+          display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: '12px',
+          padding: '16px 20px', borderRadius: '14px', marginBottom: '24px',
+          background: 'rgba(52,211,153,0.06)', border: '1px solid rgba(52,211,153,0.25)',
+        }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
+            <UserCheck size={20} color="#34d399" />
+            <div>
+              <div style={{ fontSize: '14px', fontWeight: '700', color: '#34d399' }}>
+                {data!.pendingApprovals.length} resident{data!.pendingApprovals.length > 1 ? 's' : ''} waiting on your approval
+              </div>
+              <div style={{ fontSize: '12px', color: 'var(--text-muted)', marginTop: '2px' }}>
+                {data!.pendingApprovals.slice(0, 3).map((r: any) => r.name).join(', ')}{data!.pendingApprovals.length > 3 ? ` +${data!.pendingApprovals.length - 3} more` : ''}
+              </div>
+            </div>
+          </div>
+          <Link href={`/admin/residents/${data!.pendingApprovals[0].id}`} className="bb-btn-primary" style={{ fontSize: '13px' }}>
+            Review Now <ChevronRight size={14} />
+          </Link>
+        </div>
+      )}
 
       {/* Stats Grid */}
       <div style={{

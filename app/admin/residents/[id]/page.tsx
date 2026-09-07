@@ -3,7 +3,7 @@
 import { useEffect, useState } from 'react'
 import { createClient } from '@/lib/supabase/client'
 import { formatCurrency, formatDate, getNoticeDaysRemaining, getNoticeTargetDate } from '@/lib/utils'
-import { ArrowLeft, Phone, Mail, MapPin, Building, Calendar, Zap, CreditCard, Clock, Wrench, Edit, Shield, AlertTriangle, Link2, CheckCircle, Copy, Archive, X, FileText, ShieldCheck, Loader2, RefreshCw } from 'lucide-react'
+import { ArrowLeft, Phone, Mail, MapPin, Building, Calendar, Zap, CreditCard, Clock, Wrench, Edit, Shield, AlertTriangle, Link2, CheckCircle, Copy, Archive, X, FileText, ShieldCheck, Loader2, RefreshCw, MessageCircle } from 'lucide-react'
 import Link from 'next/link'
 import { useParams, useRouter, useSearchParams } from 'next/navigation'
 import { generateAgreementPdf, generatePoliceVerificationPdf } from '@/lib/documents'
@@ -26,6 +26,7 @@ export default function ResidentDetailPage() {
   const [inviteEmailStatus, setInviteEmailStatus] = useState('')
   const [copied, setCopied] = useState(false)
   const [approving, setApproving] = useState(false)
+  const [reviewedForApproval, setReviewedForApproval] = useState(false)
   const [showArchiveModal, setShowArchiveModal] = useState(false)
   const [archiving, setArchiving] = useState(false)
   const [archiveReason, setArchiveReason] = useState('')
@@ -115,6 +116,19 @@ export default function ResidentDetailPage() {
     if (data?.signedUrl) window.open(data.signedUrl, '_blank')
   }
 
+  // Aadhaar images and the signature come from the self-onboarding flow,
+  // which uploads to the resident-docs bucket (not private-docs) - the
+  // admin's own client session has no direct RLS read access there, so
+  // this goes through the admin-gated signed-URL route instead.
+  const viewResidentDoc = async (path: string) => {
+    const res = await fetch('/api/admin/document-url', {
+      method: 'POST', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ path }),
+    })
+    const data = await res.json()
+    if (res.ok && data.url) window.open(data.url, '_blank')
+  }
+
   useEffect(() => { fetchAll() }, [id])
   useEffect(() => {
     if (searchParams.get('invited') === 'true') {
@@ -152,12 +166,24 @@ export default function ResidentDetailPage() {
   }
 
   const handleGenerateInvite = async () => {
+    // Regenerating overwrites the single onboard_token column - if one was
+    // already sent and the resident hasn't used it yet, this silently kills
+    // that link. Warn before doing it, instead of leaving them stuck on a
+    // dead link with no idea why.
+    if (resident?.last_invite_sent_at && !resident?.onboard_token_used) {
+      const sentAgo = formatDate(resident.last_invite_sent_at)
+      const ok = confirm(`An invite link was already sent on ${sentAgo} and hasn't been used yet. Generating a new one will make that old link stop working. Continue?`)
+      if (!ok) return
+    }
+
     setInviteLoading(true)
     setInviteEmailStatus('')
     const { data, error } = await supabase.rpc('generate_onboard_token', { p_resident_id: id })
     if (error || !data) { alert('Failed to generate invite link. Try again.'); setInviteLoading(false); return }
     const url = `${window.location.origin}/onboard/${data}`
     setInviteLink(url)
+    await supabase.from('residents').update({ last_invite_sent_at: new Date().toISOString() }).eq('id', id)
+    setResident((r: any) => ({ ...r, last_invite_sent_at: new Date().toISOString(), onboard_token_used: false }))
 
     if (resident?.email) {
       try {
@@ -167,12 +193,12 @@ export default function ResidentDetailPage() {
           body: JSON.stringify({ residentId: id, link: url }),
         })
         const json = await res.json()
-        setInviteEmailStatus(res.ok ? `✓ Emailed to ${json.email}` : 'Could not email automatically - copy the link below and send manually.')
+        setInviteEmailStatus(res.ok ? `✓ Emailed to ${json.email}` : 'Could not email automatically - copy the link below or send via WhatsApp.')
       } catch {
-        setInviteEmailStatus('Could not email automatically - copy the link below and send manually.')
+        setInviteEmailStatus('Could not email automatically - copy the link below or send via WhatsApp.')
       }
     } else {
-      setInviteEmailStatus('No email on file - copy the link below and send manually.')
+      setInviteEmailStatus('No email on file - copy the link below or send via WhatsApp.')
     }
     setInviteLoading(false)
   }
@@ -181,6 +207,13 @@ export default function ResidentDetailPage() {
     await navigator.clipboard.writeText(inviteLink)
     setCopied(true)
     setTimeout(() => setCopied(false), 2000)
+  }
+
+  const whatsappInviteUrl = () => {
+    const digits = (resident?.mobile || '').replace(/\D/g, '')
+    const number = digits.length === 10 ? `91${digits}` : digits
+    const msg = `Hi ${resident?.name?.split(' ')[0] || ''}! Welcome to TheBedBox. Please complete your onboarding here: ${inviteLink}\n\nThis link is one-time use and expires in 7 days.`
+    return `https://wa.me/${number}?text=${encodeURIComponent(msg)}`
   }
 
   const handleApprove = async () => {
@@ -259,8 +292,8 @@ export default function ResidentDetailPage() {
       {resident.onboarding_status !== 'active' ? (
         <div style={{ padding: '20px 24px', borderRadius: '14px', marginBottom: '24px', background: resident.onboarding_status === 'submitted' ? 'rgba(52,211,153,0.06)' : 'rgba(0,212,200,0.04)', border: `1px solid ${resident.onboarding_status === 'submitted' ? 'rgba(52,211,153,0.25)' : 'rgba(0,212,200,0.15)'}` }}>
           {resident.onboarding_status === 'submitted' ? (
-            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '16px', flexWrap: 'wrap' }}>
-              <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
+            <div>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '12px', marginBottom: '14px' }}>
                 <CheckCircle size={20} color="#34d399" />
                 <div>
                   <div style={{ fontSize: '14px', fontWeight: '700', color: '#34d399' }}>Onboarding submitted - needs your approval</div>
@@ -269,12 +302,34 @@ export default function ResidentDetailPage() {
                   </div>
                 </div>
               </div>
-              <div style={{ display: 'flex', gap: '8px' }}>
-                <Link href={`/admin/residents/${id}/edit`} className="bb-btn-secondary" style={{ fontSize: '13px' }}>Review Details</Link>
-                <button onClick={handleApprove} disabled={approving} className="bb-btn-primary" style={{ fontSize: '13px' }}>
-                  <CheckCircle size={14} />{approving ? 'Activating...' : 'Approve & Activate'}
-                </button>
+
+              <div style={{ display: 'flex', gap: '8px', flexWrap: 'wrap', marginBottom: '14px' }}>
+                {resident.aadhaar_front_url && (
+                  <button onClick={() => viewResidentDoc(resident.aadhaar_front_url)} className="bb-btn-secondary" style={{ fontSize: '12px' }}>
+                    <FileText size={12} /> Aadhaar Front
+                  </button>
+                )}
+                {resident.aadhaar_back_url && (
+                  <button onClick={() => viewResidentDoc(resident.aadhaar_back_url)} className="bb-btn-secondary" style={{ fontSize: '12px' }}>
+                    <FileText size={12} /> Aadhaar Back
+                  </button>
+                )}
+                {resident.signature_path && (
+                  <button onClick={() => viewResidentDoc(resident.signature_path)} className="bb-btn-secondary" style={{ fontSize: '12px' }}>
+                    <Edit size={12} /> Signature
+                  </button>
+                )}
+                <Link href={`/admin/residents/${id}/edit`} className="bb-btn-secondary" style={{ fontSize: '12px' }}>Full Details</Link>
               </div>
+
+              <label style={{ display: 'flex', alignItems: 'flex-start', gap: '8px', cursor: 'pointer', marginBottom: '14px', fontSize: '12px', color: 'var(--text-muted)' }}>
+                <input type="checkbox" checked={reviewedForApproval} onChange={e => setReviewedForApproval(e.target.checked)} style={{ marginTop: '2px' }} />
+                I've checked their Aadhaar, signature, and details above
+              </label>
+
+              <button onClick={handleApprove} disabled={approving || !reviewedForApproval} className="bb-btn-primary" style={{ fontSize: '13px' }}>
+                <CheckCircle size={14} />{approving ? 'Activating...' : 'Approve & Activate'}
+              </button>
             </div>
           ) : (
             <div>
@@ -306,9 +361,14 @@ export default function ResidentDetailPage() {
                     <button onClick={handleCopy} className="bb-btn-secondary" style={{ fontSize: '12px', whiteSpace: 'nowrap', flexShrink: 0 }}>
                       <Copy size={13} />{copied ? '✓ Copied!' : 'Copy'}
                     </button>
+                    {resident.mobile && (
+                      <a href={whatsappInviteUrl()} target="_blank" rel="noopener noreferrer" className="bb-btn-secondary" style={{ fontSize: '12px', whiteSpace: 'nowrap', flexShrink: 0, color: '#34d399', borderColor: 'rgba(52,211,153,0.3)' }}>
+                        <MessageCircle size={13} /> WhatsApp
+                      </a>
+                    )}
                   </div>
                   <div style={{ fontSize: '11px', color: 'var(--text-muted)', marginTop: '8px' }}>
-                    ⚡ Expires in 7 days · One-time use · Also fine to paste into WhatsApp
+                    ⚡ Expires in 7 days · One-time use
                   </div>
                 </>
               )}

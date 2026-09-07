@@ -2,6 +2,7 @@ import { Resend } from 'resend'
 import { NextResponse } from 'next/server'
 import { createClient } from '@/lib/supabase/server'
 import { createClient as createAdminClient } from '@supabase/supabase-js'
+import { APP_URL } from '@/lib/config'
 
 const resend = new Resend(process.env.RESEND_API_KEY)
 
@@ -53,7 +54,7 @@ export async function POST(req: Request) {
             <div style="width: 48px; height: 48px; background: linear-gradient(135deg, #00d4c8, #0099ff); border-radius: 12px; display: flex; align-items: center; justify-content: center; font-size: 22px; font-weight: 700; color: #070d1a; margin-bottom: 24px;">B</div>
             <h2 style="margin: 0 0 8px; font-size: 22px;">You're approved, ${resident.name.split(' ')[0]}! 🎉</h2>
             <p style="color: rgba(255,255,255,0.6); margin: 0 0 28px; line-height: 1.6;">Your onboarding is complete and your room at TheBedBox is ready. You can now log into your resident portal.</p>
-            <a href="https://bedbox-app-alpha.vercel.app/portal" style="display: inline-block; padding: 14px 28px; background: linear-gradient(135deg, #00d4c8, #0099ff); color: #070d1a; font-weight: 700; text-decoration: none; border-radius: 10px; font-size: 15px; margin-bottom: 24px;">
+            <a href="${APP_URL}/portal" style="display: inline-block; padding: 14px 28px; background: linear-gradient(135deg, #00d4c8, #0099ff); color: #070d1a; font-weight: 700; text-decoration: none; border-radius: 10px; font-size: 15px; margin-bottom: 24px;">
               Log into Portal →
             </a>
             <div style="background: rgba(255,255,255,0.06); border-radius: 10px; padding: 16px; margin-bottom: 24px;">

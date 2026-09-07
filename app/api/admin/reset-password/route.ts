@@ -2,6 +2,7 @@ import { NextResponse } from 'next/server'
 import { createClient } from '@/lib/supabase/server'
 import { createClient as createAdminClient } from '@supabase/supabase-js'
 import { sendEmail, emailShell } from '@/lib/notify'
+import { APP_URL } from '@/lib/config'
 
 // Emergency unblock for the invite flow: this app has no page to consume
 // Supabase's invite-confirmation link (no /auth/callback / set-password
@@ -49,7 +50,7 @@ export async function POST(req: Request) {
           <div style="display:flex;justify-content:space-between;padding:4px 0"><span style="color:#64748b;font-size:13px">Email</span><span style="font-weight:600;color:#0f172a">${targetAdmin.email}</span></div>
           <div style="display:flex;justify-content:space-between;padding:4px 0"><span style="color:#64748b;font-size:13px">Temporary password</span><span style="font-weight:700;color:#0f172a">${tempPassword}</span></div>
         </div>
-        <a href="https://bedbox-app-alpha.vercel.app/login" style="display:inline-block;padding:14px 28px;background:linear-gradient(135deg,#00d4c8,#0099ff);color:#070d1a;font-weight:700;text-decoration:none;border-radius:10px;font-size:15px;margin-bottom:20px">
+        <a href="${APP_URL}/login" style="display:inline-block;padding:14px 28px;background:linear-gradient(135deg,#00d4c8,#0099ff);color:#070d1a;font-weight:700;text-decoration:none;border-radius:10px;font-size:15px;margin-bottom:20px">
           Log in to Admin Console →
         </a>
         <p style="color:#94a3b8;font-size:12px;margin:0">You can change this password from Settings once you're signed in.</p>

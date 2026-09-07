@@ -1,10 +1,10 @@
 'use client'
 
-import { useEffect, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { useParams } from 'next/navigation'
 import { createClient } from '@/lib/supabase/client'
 import { AGREEMENT_VERSION, AGREEMENT_CLAUSES } from '@/lib/agreement-clauses'
-import { AlertTriangle, Check, Lock, Paperclip } from 'lucide-react'
+import { AlertTriangle, Check, Lock, Paperclip, Eraser } from 'lucide-react'
 
 type Step = 'loading' | 'error' | 'welcome' | 'details' | 'docs' | 'agreement' | 'done'
 
@@ -28,6 +28,7 @@ export default function OnboardPage() {
     aadhaar_back: null as File | null,
     agreement_agreed: false,
   })
+  const [signatureDataUrl, setSignatureDataUrl] = useState<string | null>(null)
 
   useEffect(() => {
     if (!token) { setStep('error'); setErrorMsg('Invalid link.'); return }
@@ -46,7 +47,7 @@ export default function OnboardPage() {
   }, [token])
 
   // Uploads go to a server-issued signed URL - the token authorizes, no open bucket policy needed
-  const uploadDoc = async (side: 'front' | 'back', file: File) => {
+  const uploadDoc = async (side: 'front' | 'back' | 'signature', file: File | Blob) => {
     const res = await fetch(`/api/onboard/${token}`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
@@ -61,10 +62,12 @@ export default function OnboardPage() {
 
   const handleSubmit = async () => {
     if (!resident) return
+    if (!signatureDataUrl) { alert('Please sign above before submitting.'); return }
     setSubmitting(true)
     try {
       let aadhaarFrontPath = ''
       let aadhaarBackPath = ''
+      let signaturePath = ''
 
       if (form.aadhaar_front) {
         setUploadProgress('Uploading Aadhaar front...')
@@ -74,6 +77,10 @@ export default function OnboardPage() {
         setUploadProgress('Uploading Aadhaar back...')
         aadhaarBackPath = await uploadDoc('back', form.aadhaar_back)
       }
+
+      setUploadProgress('Saving your signature...')
+      const signatureBlob = await (await fetch(signatureDataUrl)).blob()
+      signaturePath = await uploadDoc('signature', signatureBlob)
 
       setUploadProgress('Saving your details...')
       const res = await fetch(`/api/onboard/${token}`, {
@@ -89,6 +96,7 @@ export default function OnboardPage() {
           aadhaar_number: form.aadhaar_number,
           aadhaar_front_path: aadhaarFrontPath,
           aadhaar_back_path: aadhaarBackPath,
+          signature_path: signaturePath,
           agreement_agreed: form.agreement_agreed,
           agreement_version: AGREEMENT_VERSION,
         }),
@@ -96,19 +104,8 @@ export default function OnboardPage() {
       const result = await res.json()
       if (!res.ok) throw new Error(result.error || 'Could not save your details.')
 
-      // Notify admin
-      try {
-        await fetch('/api/notify-admin', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({
-            residentName: resident.name,
-            residentEmail: resident.email,
-            residentMobile: resident.mobile,
-            residentRoom: null,
-          })
-        })
-      } catch {}
+      // Admin notification now happens server-side, inside the submit route
+      // itself - reliable regardless of what happens to this tab next.
 
       // Go to done FIRST before anything else can interfere
       setStep('done')
@@ -261,7 +258,7 @@ export default function OnboardPage() {
               </div>
             ))}
           </div>
-          <label style={{ display: 'flex', gap: 12, alignItems: 'flex-start', cursor: 'pointer', marginBottom: 20 }}>
+          <label style={{ display: 'flex', gap: 12, alignItems: 'flex-start', cursor: 'pointer', marginBottom: 24 }}>
             <div onClick={() => setForm(f => ({ ...f, agreement_agreed: !f.agreement_agreed }))} style={{ width: 20, height: 20, borderRadius: 5, marginTop: 1, flexShrink: 0, border: `2px solid ${form.agreement_agreed ? '#00d4c8' : 'rgba(255,255,255,0.2)'}`, background: form.agreement_agreed ? '#00d4c8' : 'transparent', display: 'flex', alignItems: 'center', justifyContent: 'center', transition: 'all 0.2s' }}>
               {form.agreement_agreed && <span style={{ fontSize: 12, color: '#070d1a', fontWeight: 700 }}>✓</span>}
             </div>
@@ -269,9 +266,13 @@ export default function OnboardPage() {
               I, <strong style={{ color: '#fff' }}>{resident?.name}</strong>, have read and understood all {AGREEMENT_CLAUSES.length} clauses and agree to be bound by them. I acknowledge this is a legally binding digital agreement.
             </span>
           </label>
-          <div style={{ display: 'flex', gap: 10 }}>
+
+          <SectionLabel>Sign below to confirm</SectionLabel>
+          <SignaturePad value={signatureDataUrl} onChange={setSignatureDataUrl} />
+
+          <div style={{ display: 'flex', gap: 10, marginTop: 20 }}>
             <GhostBtn onClick={() => setStep('docs')}>← Back</GhostBtn>
-            <Btn onClick={handleSubmit} disabled={!form.agreement_agreed || submitting}>
+            <Btn onClick={handleSubmit} disabled={!form.agreement_agreed || !signatureDataUrl || submitting}>
               {submitting ? (uploadProgress || 'Submitting...') : 'Submit & Complete ✓'}
             </Btn>
           </div>
@@ -321,6 +322,91 @@ function FileUpload({ label, hint, file, onFile }: { label: string; hint: string
         <input type="file" accept="image/*,.pdf" style={{ display: 'none' }} onChange={e => e.target.files?.[0] && onFile(e.target.files[0])} />
         {file ? <><Check size={20} color="#00d4c8" style={{ marginBottom: 4 }} /><span style={{ fontSize: 13, color: '#00d4c8', fontWeight: 500 }}>{file.name}</span></> : <><Paperclip size={22} color="rgba(255,255,255,0.4)" style={{ marginBottom: 6 }} /><span style={{ fontSize: 13, color: 'rgba(255,255,255,0.6)' }}>Tap to upload</span><span style={{ fontSize: 11, color: 'rgba(255,255,255,0.3)', marginTop: 3 }}>{hint}</span></>}
       </label>
+    </div>
+  )
+}
+
+// Draw-your-signature pad - mouse or touch. Exports a PNG data URL once
+// something's actually been drawn, so the parent can gate submission on it
+// and upload it as a real image, not just another checkbox.
+function SignaturePad({ value, onChange }: { value: string | null; onChange: (v: string | null) => void }) {
+  const canvasRef = useRef<HTMLCanvasElement>(null)
+  const drawing = useRef(false)
+  const hasInk = useRef(false)
+
+  const getCtx = () => canvasRef.current?.getContext('2d') || null
+
+  const setupCanvas = () => {
+    const canvas = canvasRef.current
+    if (!canvas) return
+    const ratio = window.devicePixelRatio || 1
+    const rect = canvas.getBoundingClientRect()
+    canvas.width = rect.width * ratio
+    canvas.height = rect.height * ratio
+    const ctx = getCtx()
+    if (!ctx) return
+    ctx.scale(ratio, ratio)
+    ctx.strokeStyle = '#fff'
+    ctx.lineWidth = 2.5
+    ctx.lineCap = 'round'
+    ctx.lineJoin = 'round'
+  }
+
+  useEffect(() => { setupCanvas() }, [])
+
+  const pointFromEvent = (e: React.PointerEvent<HTMLCanvasElement>) => {
+    const rect = canvasRef.current!.getBoundingClientRect()
+    return { x: e.clientX - rect.left, y: e.clientY - rect.top }
+  }
+
+  const start = (e: React.PointerEvent<HTMLCanvasElement>) => {
+    drawing.current = true
+    const ctx = getCtx()
+    const p = pointFromEvent(e)
+    ctx?.beginPath()
+    ctx?.moveTo(p.x, p.y)
+  }
+  const move = (e: React.PointerEvent<HTMLCanvasElement>) => {
+    if (!drawing.current) return
+    const ctx = getCtx()
+    const p = pointFromEvent(e)
+    ctx?.lineTo(p.x, p.y)
+    ctx?.stroke()
+    hasInk.current = true
+  }
+  const end = () => {
+    if (!drawing.current) return
+    drawing.current = false
+    if (hasInk.current && canvasRef.current) onChange(canvasRef.current.toDataURL('image/png'))
+  }
+  const clear = () => {
+    const canvas = canvasRef.current
+    const ctx = getCtx()
+    if (canvas && ctx) ctx.clearRect(0, 0, canvas.width, canvas.height)
+    hasInk.current = false
+    onChange(null)
+  }
+
+  return (
+    <div style={{ marginBottom: 4 }}>
+      <div style={{ position: 'relative', borderRadius: 12, border: `1px solid ${value ? 'rgba(0,212,200,0.4)' : 'rgba(255,255,255,0.15)'}`, background: 'rgba(255,255,255,0.03)', overflow: 'hidden' }}>
+        <canvas
+          ref={canvasRef}
+          style={{ width: '100%', height: 140, touchAction: 'none', cursor: 'crosshair', display: 'block' }}
+          onPointerDown={start}
+          onPointerMove={move}
+          onPointerUp={end}
+          onPointerLeave={end}
+        />
+        {!value && (
+          <div style={{ position: 'absolute', inset: 0, display: 'flex', alignItems: 'center', justifyContent: 'center', pointerEvents: 'none', fontSize: 13, color: 'rgba(255,255,255,0.25)' }}>
+            Draw your signature here
+          </div>
+        )}
+      </div>
+      <button onClick={clear} type="button" style={{ display: 'flex', alignItems: 'center', gap: 6, marginTop: 8, background: 'none', border: 'none', color: 'rgba(255,255,255,0.4)', fontSize: 12, cursor: 'pointer', padding: 0 }}>
+        <Eraser size={13} /> Clear and redo
+      </button>
     </div>
   )
 }
