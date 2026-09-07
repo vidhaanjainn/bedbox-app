@@ -61,7 +61,10 @@ function row(doc: jsPDF, y: number, label: string, value: string) {
 // Copy of the signed tenancy agreement - clause text + signature metadata.
 // Not the legal instrument itself (that's the timestamp+IP+checkbox captured at
 // signing time), just a durable, readable record of what was agreed and when.
-export function generateAgreementPdf(resident: ResidentForDoc, property: PropertyInfo, clauses: string[]): Blob {
+// `signatureDataUrl` - the resident's drawn signature (PNG data URL), fetched
+// by the caller and placed here automatically. The landlord/property side is
+// left as a blank line deliberately - the owner signs that by hand.
+export function generateAgreementPdf(resident: ResidentForDoc, property: PropertyInfo, clauses: string[], signatureDataUrl?: string | null): Blob {
   const doc = new jsPDF()
   header(doc, property, 'Tenancy Agreement - Signed Copy')
 
@@ -100,6 +103,41 @@ export function generateAgreementPdf(resident: ResidentForDoc, property: Propert
   doc.text('This document records a digital agreement executed with explicit consent, timestamp, and IP address,', 20, y)
   y += 4.5
   doc.text('as permitted under the Information Technology Act, 2000.', 20, y)
+
+  // Signature block - resident's signature auto-placed from what they drew
+  // at onboarding; the landlord/property side is left blank on purpose for
+  // a manual, physical signature.
+  const sigBlockHeight = 42
+  if (y + sigBlockHeight > 280) { doc.addPage(); y = 20 } else { y += 16 }
+
+  const leftX = 20, rightX = 115
+  const sigLineY = y + 22
+
+  if (signatureDataUrl) {
+    try {
+      doc.addImage(signatureDataUrl, 'PNG', leftX, y, 70, 20, undefined, 'FAST')
+    } catch {
+      // Malformed/unreadable image data - fall back to a blank line rather
+      // than fail the whole PDF generation.
+    }
+  }
+  doc.setDrawColor(150)
+  doc.setLineWidth(0.3)
+  doc.line(leftX, sigLineY, leftX + 70, sigLineY)
+  doc.line(rightX, sigLineY, rightX + 70, sigLineY)
+
+  doc.setFont('helvetica', 'normal')
+  doc.setFontSize(9)
+  doc.setTextColor(20)
+  doc.text('Tenant Signature', leftX, sigLineY + 5)
+  doc.text(resident.name, leftX, sigLineY + 10)
+  doc.setTextColor(100)
+  doc.text(date(resident.agreement_signed_at), leftX, sigLineY + 15)
+
+  doc.setTextColor(20)
+  doc.text('Landlord / Property Signature', rightX, sigLineY + 5)
+  doc.setTextColor(150)
+  doc.text('(to be signed manually)', rightX, sigLineY + 10)
 
   return doc.output('blob')
 }

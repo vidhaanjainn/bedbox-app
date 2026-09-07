@@ -4,7 +4,7 @@ import { useEffect, useRef, useState } from 'react'
 import { useParams } from 'next/navigation'
 import { createClient } from '@/lib/supabase/client'
 import { AGREEMENT_VERSION, AGREEMENT_CLAUSES } from '@/lib/agreement-clauses'
-import { AlertTriangle, Check, Lock, Paperclip, Eraser } from 'lucide-react'
+import { AlertTriangle, Check, Lock, Paperclip, Eraser, MessageCircle, ExternalLink } from 'lucide-react'
 
 type Step = 'loading' | 'error' | 'welcome' | 'details' | 'docs' | 'agreement' | 'done'
 
@@ -23,13 +23,13 @@ export default function OnboardPage() {
     hometown: '',
     institution: '',
     occupation: '',
-    aadhaar_number: '',
     aadhaar_front: null as File | null,
     aadhaar_back: null as File | null,
     agreement_agreed: false,
   })
   const [signatureDataUrl, setSignatureDataUrl] = useState<string | null>(null)
   const [submitError, setSubmitError] = useState('')
+  const [whatsappGroups, setWhatsappGroups] = useState<{ name: string; link: string }[]>([])
 
   useEffect(() => {
     if (!token) { setStep('error'); setErrorMsg('Invalid link.'); return }
@@ -42,6 +42,7 @@ export default function OnboardPage() {
           return
         }
         setResident(data.resident)
+        setWhatsappGroups(data.whatsappGroups || [])
         setStep('welcome')
       })
       .catch(() => { setErrorMsg('Could not verify your link. Check your connection and try again.'); setStep('error') })
@@ -96,7 +97,6 @@ export default function OnboardPage() {
           hometown: form.hometown,
           institution: form.institution,
           occupation: form.occupation,
-          aadhaar_number: form.aadhaar_number,
           aadhaar_front_path: aadhaarFrontPath,
           aadhaar_back_path: aadhaarBackPath,
           signature_path: signaturePath,
@@ -121,7 +121,7 @@ export default function OnboardPage() {
   }
 
   const canStep1 = () => form.emergency_contact_name.trim() && form.emergency_contact_phone.trim() && form.hometown.trim() && form.occupation.trim()
-  const canStep2 = () => form.aadhaar_number.length === 12 && form.aadhaar_front && form.aadhaar_back
+  const canStep2 = () => !!form.aadhaar_front && !!form.aadhaar_back
 
   const stepIndex = { welcome: 0, details: 1, docs: 2, agreement: 3, done: 4 }
   const currentIndex = stepIndex[step as keyof typeof stepIndex] ?? -1
@@ -163,6 +163,24 @@ export default function OnboardPage() {
             </div>
           ))}
         </div>
+
+        {whatsappGroups.length > 0 && (
+          <div style={{ marginTop: 20, maxWidth: 320, marginLeft: 'auto', marginRight: 'auto' }}>
+            <div style={{ fontSize: 12, color: 'rgba(255,255,255,0.4)', marginBottom: 10, fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.05em', textAlign: 'left' }}>
+              Join the community
+            </div>
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+              {whatsappGroups.map(g => (
+                <a key={g.link} href={g.link} target="_blank" rel="noopener noreferrer"
+                  style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '13px 16px', borderRadius: 12, background: 'rgba(37,211,102,0.1)', border: '1px solid rgba(37,211,102,0.25)', color: '#25D366', textDecoration: 'none', fontSize: 14, fontWeight: 600 }}>
+                  <MessageCircle size={18} style={{ flexShrink: 0 }} />
+                  <span style={{ flex: 1, textAlign: 'left' }}>Join {g.name}</span>
+                  <ExternalLink size={14} style={{ flexShrink: 0, opacity: 0.6 }} />
+                </a>
+              ))}
+            </div>
+          </div>
+        )}
       </div>
     </Shell>
   )
@@ -234,7 +252,6 @@ export default function OnboardPage() {
         <div style={{ animation: 'fadeIn 0.3s ease' }}>
           <h2 style={{ fontFamily: "'Syne',sans-serif", fontWeight: 700, fontSize: 24, margin: '0 0 6px' }}>Upload Aadhaar</h2>
           <p style={{ color: 'rgba(255,255,255,0.4)', fontSize: 14, margin: '0 0 24px' }}>Required for identity verification. Stored securely.</p>
-          <Field label="Aadhaar number" value={form.aadhaar_number} onChange={v => setForm(f => ({ ...f, aadhaar_number: v.replace(/\D/g, '').slice(0, 12) }))} placeholder="12-digit Aadhaar number" type="tel" />
           <FileUpload label="Aadhaar front side" hint="Name & photo side" file={form.aadhaar_front} onFile={f => setForm(fm => ({ ...fm, aadhaar_front: f }))} />
           <FileUpload label="Aadhaar back side" hint="Address side" file={form.aadhaar_back} onFile={f => setForm(fm => ({ ...fm, aadhaar_back: f }))} />
           <div style={{ display: 'flex', gap: 8, alignItems: 'flex-start', background: 'rgba(255,200,0,0.06)', border: '1px solid rgba(255,200,0,0.15)', borderRadius: 10, padding: 14, marginBottom: 20, fontSize: 13, color: 'rgba(255,200,100,0.8)', lineHeight: 1.6 }}>

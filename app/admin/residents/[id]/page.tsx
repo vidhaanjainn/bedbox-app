@@ -81,13 +81,41 @@ export default function ResidentDetailPage() {
     }
   }
 
+  // The signature lives in the resident-docs bucket (self-onboarding
+  // upload), which the admin's own client session has no direct RLS read
+  // access to - go through the admin-gated signed-URL route, then convert
+  // to a data URL jsPDF can embed directly.
+  const fetchSignatureDataUrl = async (path: string): Promise<string | null> => {
+    try {
+      const res = await fetch('/api/admin/document-url', {
+        method: 'POST', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ path }),
+      })
+      const data = await res.json()
+      if (!res.ok || !data.url) return null
+      const imgRes = await fetch(data.url)
+      const blob = await imgRes.blob()
+      return await new Promise((resolve) => {
+        const reader = new FileReader()
+        reader.onloadend = () => resolve(reader.result as string)
+        reader.onerror = () => resolve(null)
+        reader.readAsDataURL(blob)
+      })
+    } catch {
+      return null
+    }
+  }
+
   const generateAndStore = async (type: 'agreement' | 'police') => {
     setGeneratingDoc(type)
     setDocMsg('')
     try {
       const property = await getSettingsMap()
+      const signatureDataUrl = type === 'agreement' && resident.signature_path
+        ? await fetchSignatureDataUrl(resident.signature_path)
+        : null
       const blob = type === 'agreement'
-        ? generateAgreementPdf(resident, property, AGREEMENT_CLAUSES)
+        ? generateAgreementPdf(resident, property, AGREEMENT_CLAUSES, signatureDataUrl)
         : generatePoliceVerificationPdf(resident, property)
 
       const path = `${type === 'agreement' ? 'agreements' : 'police-verification'}/${resident.id}.pdf`
@@ -100,7 +128,8 @@ export default function ResidentDetailPage() {
       const { data: signed } = await supabase.storage.from('private-docs').createSignedUrl(path, 300)
       if (signed?.signedUrl) window.open(signed.signedUrl, '_blank')
 
-      setDocMsg(`✓ ${type === 'agreement' ? 'Agreement' : 'Police verification form'} generated`)
+      const sigNote = type === 'agreement' && !signatureDataUrl ? ' (no signature on file yet - line left blank)' : ''
+      setDocMsg(`✓ ${type === 'agreement' ? 'Agreement' : 'Police verification form'} generated${sigNote}`)
       fetchAll()
     } catch (err) {
       console.error(err)

@@ -3,7 +3,7 @@
 import { useEffect, useState } from 'react'
 import { createClient } from '@/lib/supabase/client'
 import { isPushSupported, hasActiveSubscription, subscribeToPush, unsubscribeFromPush } from '@/lib/push-client'
-import { Building, Zap, CreditCard, User, Save, Eye, EyeOff, Users, UserPlus, Loader2, Wifi, MapPin, Plus, Trash2, Bell } from 'lucide-react'
+import { Building, Zap, CreditCard, User, Save, Eye, EyeOff, Users, UserPlus, Loader2, Wifi, MapPin, Plus, Trash2, Bell, MessageCircle } from 'lucide-react'
 
 export default function SettingsPage() {
   const supabase = createClient()
@@ -17,6 +17,10 @@ export default function SettingsPage() {
   const [wifiNetwork, setWifiNetwork] = useState('')
   const [upiId, setUpiId] = useState('')
   const [upiPayeeName, setUpiPayeeName] = useState('TheBedBox')
+  const [waGroup1Name, setWaGroup1Name] = useState('')
+  const [waGroup1Link, setWaGroup1Link] = useState('')
+  const [waGroup2Name, setWaGroup2Name] = useState('')
+  const [waGroup2Link, setWaGroup2Link] = useState('')
   const [places, setPlaces] = useState<any[]>([])
   const [newPlace, setNewPlace] = useState({ category: 'attraction', name: '', distance_note: '' })
   const [adminEmail, setAdminEmail] = useState('')
@@ -157,6 +161,10 @@ export default function SettingsPage() {
         if (s.key === 'wifi_network_name') setWifiNetwork(s.value || '')
         if (s.key === 'upi_id') setUpiId(s.value || '')
         if (s.key === 'upi_payee_name') setUpiPayeeName(s.value || 'TheBedBox')
+        if (s.key === 'whatsapp_group_1_name') setWaGroup1Name(s.value || '')
+        if (s.key === 'whatsapp_group_1_link') setWaGroup1Link(s.value || '')
+        if (s.key === 'whatsapp_group_2_name') setWaGroup2Name(s.value || '')
+        if (s.key === 'whatsapp_group_2_link') setWaGroup2Link(s.value || '')
       })
     }
   }
@@ -274,6 +282,30 @@ export default function SettingsPage() {
         <div className="bb-grid-2" style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '16px' }}>
           <Field label="Network name (optional)" value={wifiNetwork} onChange={setWifiNetwork} />
           <Field label="Password" value={wifiPassword} onChange={setWifiPassword} />
+        </div>
+      </div>
+
+      {/* WhatsApp groups - one-tap join links shown to residents right after
+          they finish onboarding. Paste the invite link from WhatsApp itself:
+          open the group → group info → Invite via link → Copy link. */}
+      <div className="glass-card" style={{ padding: '24px', marginBottom: '20px' }}>
+        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '20px' }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}><MessageCircle size={16} color="var(--teal-500)" /><h3 style={{ fontFamily: 'Syne, sans-serif', fontSize: '15px', fontWeight: '600', color: 'var(--text-primary)', margin: 0 }}>WhatsApp Groups</h3></div>
+          <Btn section="whatsapp" onClick={() => save('whatsapp', () => Promise.all([
+            upsert('whatsapp_group_1_name', waGroup1Name), upsert('whatsapp_group_1_link', waGroup1Link),
+            upsert('whatsapp_group_2_name', waGroup2Name), upsert('whatsapp_group_2_link', waGroup2Link),
+          ]))} />
+        </div>
+        <p style={{ fontSize: '13px', color: 'var(--text-muted)', marginBottom: '16px' }}>
+          Shown as one-tap "Join Group" buttons the moment a resident finishes onboarding. In WhatsApp: open the group → group info → Invite via link → Copy link.
+        </p>
+        <div className="bb-grid-2" style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '16px', marginBottom: '16px' }}>
+          <Field label="Group 1 name" value={waGroup1Name} onChange={setWaGroup1Name} />
+          <Field label="Group 1 invite link" value={waGroup1Link} onChange={setWaGroup1Link} />
+        </div>
+        <div className="bb-grid-2" style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '16px' }}>
+          <Field label="Group 2 name" value={waGroup2Name} onChange={setWaGroup2Name} />
+          <Field label="Group 2 invite link" value={waGroup2Link} onChange={setWaGroup2Link} />
         </div>
       </div>
 

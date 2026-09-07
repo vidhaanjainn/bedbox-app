@@ -43,10 +43,22 @@ async function residentForToken(supabase: SupabaseClient, token: string): Promis
 export async function GET(_req: Request, ctx: { params: Promise<{ token: string }> }) {
   try {
     const { token } = await ctx.params
-    const check = await residentForToken(adminClient(), token)
+    const supabase = adminClient()
+    const check = await residentForToken(supabase, token)
     if ('error' in check) return NextResponse.json({ error: check.error }, { status: check.status })
     const { name, email, mobile } = check.resident
-    return NextResponse.json({ resident: { name, email, mobile } })
+
+    const { data: settingsRows } = await supabase
+      .from('settings')
+      .select('key, value')
+      .in('key', ['whatsapp_group_1_name', 'whatsapp_group_1_link', 'whatsapp_group_2_name', 'whatsapp_group_2_link'])
+    const settingsMap = Object.fromEntries((settingsRows || []).map(s => [s.key, s.value]))
+    const whatsappGroups = [
+      { name: settingsMap.whatsapp_group_1_name, link: settingsMap.whatsapp_group_1_link },
+      { name: settingsMap.whatsapp_group_2_name, link: settingsMap.whatsapp_group_2_link },
+    ].filter(g => g.name && g.link)
+
+    return NextResponse.json({ resident: { name, email, mobile }, whatsappGroups })
   } catch (err) {
     console.error('onboard GET error:', err)
     return NextResponse.json({ error: 'Something went wrong. Please try again.' }, { status: 500 })
@@ -96,10 +108,13 @@ export async function POST(req: Request, ctx: { params: Promise<{ token: string 
       if (!emergencyName || !emergencyPhone) {
         return NextResponse.json({ error: 'Emergency contact details are required.' }, { status: 400 })
       }
-      const aadhaarNumber = str(body.aadhaar_number, 12).replace(/\D/g, '')
-      if (aadhaarNumber.length !== 12) {
-        return NextResponse.json({ error: 'A valid 12-digit Aadhaar number is required.' }, { status: 400 })
-      }
+      // Deliberately not collecting the Aadhaar number itself here, only the
+      // front/back photos - the UIDAI Aadhaar Act restricts private entities
+      // from storing the number, and the images alone are sufficient proof
+      // of identity. (An admin can still type it in manually via the admin
+      // console if they need it on file for a specific police-verification
+      // submission - a one-off action with a trusted party, not something
+      // the automated public onboarding flow should be extracting at scale.)
       const signaturePath = docPath(body.signature_path)
       if (!signaturePath) {
         return NextResponse.json({ error: 'Please sign the agreement before submitting.' }, { status: 400 })
@@ -122,7 +137,6 @@ export async function POST(req: Request, ctx: { params: Promise<{ token: string 
           hometown: str(body.hometown),
           institution: str(body.institution),
           occupation: str(body.occupation, 50),
-          aadhaar_number: aadhaarNumber,
           aadhaar_front_url: docPath(body.aadhaar_front_path),
           aadhaar_back_url: docPath(body.aadhaar_back_path),
           signature_path: signaturePath,
