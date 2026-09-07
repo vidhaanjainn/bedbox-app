@@ -3,7 +3,7 @@
 import { useEffect, useState } from 'react'
 import { createClient } from '@/lib/supabase/client'
 import { isPushSupported, hasActiveSubscription, subscribeToPush, unsubscribeFromPush } from '@/lib/push-client'
-import { Building, Zap, CreditCard, User, Save, Eye, EyeOff, Users, UserPlus, Loader2, Wifi, MapPin, Plus, Trash2, Bell, MessageCircle } from 'lucide-react'
+import { Building, Zap, CreditCard, User, Save, Eye, EyeOff, Users, UserPlus, Loader2, Wifi, MapPin, Plus, Trash2, Bell, MessageCircle, Database, ExternalLink } from 'lucide-react'
 
 export default function SettingsPage() {
   const supabase = createClient()
@@ -21,6 +21,9 @@ export default function SettingsPage() {
   const [waGroup1Link, setWaGroup1Link] = useState('')
   const [waGroup2Name, setWaGroup2Name] = useState('')
   const [waGroup2Link, setWaGroup2Link] = useState('')
+  const [syncingSheets, setSyncingSheets] = useState(false)
+  const [sheetsMsg, setSheetsMsg] = useState('')
+  const [sheetsUrl, setSheetsUrl] = useState('')
   const [places, setPlaces] = useState<any[]>([])
   const [newPlace, setNewPlace] = useState({ category: 'attraction', name: '', distance_note: '' })
   const [adminEmail, setAdminEmail] = useState('')
@@ -171,6 +174,22 @@ export default function SettingsPage() {
 
   const upsert = async (key: string, value: string) => supabase.from('settings').upsert({ key, value }, { onConflict: 'key' })
 
+  const syncSheetsNow = async () => {
+    setSyncingSheets(true)
+    setSheetsMsg('')
+    try {
+      const res = await fetch('/api/admin/sync-sheets', { method: 'POST' })
+      const data = await res.json()
+      if (!res.ok) { setSheetsMsg(data.error || 'Sync failed.'); return }
+      setSheetsUrl(data.url || '')
+      setSheetsMsg('✓ Synced just now.')
+    } catch {
+      setSheetsMsg('Sync failed. Please try again.')
+    } finally {
+      setSyncingSheets(false)
+    }
+  }
+
   const seedTestResident = async () => {
     setSeedingTestResident(true)
     setTestResidentMsg('')
@@ -307,6 +326,33 @@ export default function SettingsPage() {
           <Field label="Group 2 name" value={waGroup2Name} onChange={setWaGroup2Name} />
           <Field label="Group 2 invite link" value={waGroup2Link} onChange={setWaGroup2Link} />
         </div>
+      </div>
+
+      {/* Data backup - independent copy of every resident, outside Supabase
+          entirely, so "is the app okay" is never the only place to check. */}
+      <div className="glass-card" style={{ padding: '24px', marginBottom: '20px' }}>
+        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '20px', flexWrap: 'wrap', gap: '10px' }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}><Database size={16} color="var(--teal-500)" /><h3 style={{ fontFamily: 'Syne, sans-serif', fontSize: '15px', fontWeight: '600', color: 'var(--text-primary)', margin: 0 }}>Data Backup</h3></div>
+          <button onClick={syncSheetsNow} disabled={syncingSheets} className="bb-btn-primary" style={{ fontSize: '13px' }}>
+            {syncingSheets ? <Loader2 size={14} style={{ animation: 'spin 1s linear infinite' }} /> : <Database size={14} />}
+            {syncingSheets ? 'Syncing...' : 'Sync to Google Sheets Now'}
+          </button>
+        </div>
+        <p style={{ fontSize: '13px', color: 'var(--text-muted)', marginBottom: '12px', lineHeight: '1.6' }}>
+          Every resident (name, room, rent, deposit, agreement signed-at/IP/version, emergency contact, and more) mirrors automatically to a Google Sheet whenever a resident is created, approved, or edited - a full, independent copy outside this app entirely. Use the button above to force a fresh sync anytime.
+        </p>
+        {sheetsMsg && (
+          <div style={{ fontSize: '13px', fontWeight: '600', marginBottom: '12px', color: sheetsMsg.startsWith('✓') ? '#34d399' : '#fbbf24' }}>
+            {sheetsMsg}{' '}
+            {sheetsUrl && <a href={sheetsUrl} target="_blank" rel="noopener noreferrer" style={{ color: 'var(--teal-500)', display: 'inline-flex', alignItems: 'center', gap: '4px' }}>Open Sheet <ExternalLink size={12} /></a>}
+          </div>
+        )}
+        <div style={{ fontSize: '12px', color: 'var(--text-muted)', padding: '12px 14px', background: 'var(--surface-2)', borderRadius: '8px', lineHeight: '1.7' }}>
+          <strong style={{ color: 'var(--text-secondary)' }}>One-time setup (if not done already):</strong> Google Cloud Console → create a service account → enable the Sheets API → share your Google Sheet with that service account's email as Editor → set <code>GOOGLE_SERVICE_ACCOUNT_EMAIL</code>, <code>GOOGLE_PRIVATE_KEY</code>, and <code>GOOGLE_SHEET_ID</code> in Vercel's environment variables. Until this is set up, the sync above will quietly do nothing rather than error.
+        </div>
+        <p style={{ fontSize: '12px', color: 'var(--text-muted)', marginTop: '12px' }}>
+          Want a copy right now with zero setup? Go to <strong>Residents</strong> and hit <strong>Export CSV</strong> - downloads instantly, drag it straight into Google Drive.
+        </p>
       </div>
 
       {/* Nearby places (resident portal) */}

@@ -3,7 +3,7 @@
 import { useEffect, useState } from 'react'
 import { createClient } from '@/lib/supabase/client'
 import { formatCurrency, formatDate, getNoticeDaysRemaining, getNoticeTargetDate } from '@/lib/utils'
-import { Users, Plus, Search, Eye, Mail, Phone, CheckCircle } from 'lucide-react'
+import { Users, Plus, Search, Eye, Mail, Phone, CheckCircle, Download } from 'lucide-react'
 import Link from 'next/link'
 import { useRouter } from 'next/navigation'
 
@@ -29,6 +29,45 @@ export default function ResidentsPage() {
     noticeData?.forEach(n => { noticeMap[n.resident_id] = n })
     setNotices(noticeMap)
     setLoading(false)
+  }
+
+  // One-click, zero-setup backup - every resident, every important field, as a
+  // CSV you can open in Excel/Sheets or drag straight into Google Drive.
+  // Deliberately excludes the raw Aadhaar number and internal storage paths -
+  // those aren't safe or useful to scatter across spreadsheets; "on file"
+  // flags cover the audit need without re-creating the exact risk we just
+  // removed from the database itself.
+  const exportCsv = () => {
+    const headers = [
+      'Name', 'Mobile', 'Email', 'Room', 'Monthly Rent', 'Security Deposit',
+      'Date of Joining', 'Stay Type', 'Status', 'Onboarding Status',
+      'Emergency Contact Name', 'Emergency Contact Phone', 'Hometown', 'Institution', 'Occupation',
+      'Agreement Signed At', 'Agreement IP', 'Agreement Version',
+      'Aadhaar On File', 'Signature On File',
+      'Onboarded By', 'Onboarded At', 'Notes', 'Record Created At',
+    ]
+    const escape = (v: unknown) => {
+      const s = v == null ? '' : String(v)
+      return /[",\n]/.test(s) ? `"${s.replace(/"/g, '""')}"` : s
+    }
+    const rows = residents.map(r => [
+      r.name, r.mobile, r.email, r.room_number, r.rent_amount, r.security_deposit,
+      r.date_of_joining, r.stay_type, r.status, r.onboarding_status,
+      r.emergency_contact_name, r.emergency_contact_phone || r.emergency_contact_number, r.hometown, r.institution, r.occupation,
+      r.agreement_signed_at, r.agreement_ip, r.agreement_version,
+      (r.aadhaar_front_url || r.aadhaar_back_url) ? 'Yes' : 'No', r.signature_path ? 'Yes' : 'No',
+      r.onboarded_by_admin?.name, r.onboarded_at, r.notes, r.created_at,
+    ])
+    const csv = [headers, ...rows].map(row => row.map(escape).join(',')).join('\n')
+    const blob = new Blob(['﻿' + csv], { type: 'text/csv;charset=utf-8;' })
+    const url = URL.createObjectURL(blob)
+    const a = document.createElement('a')
+    a.href = url
+    a.download = `thebedbox-residents-${new Date().toISOString().split('T')[0]}.csv`
+    document.body.appendChild(a)
+    a.click()
+    document.body.removeChild(a)
+    URL.revokeObjectURL(url)
   }
 
   // Auto-derived from notice_periods - no manual re-entry. Updates the moment a
@@ -67,7 +106,10 @@ export default function ResidentsPage() {
           <h1 style={{ fontFamily: 'Syne, sans-serif', fontSize: '26px', fontWeight: '700', color: 'var(--text-primary)', margin: '0 0 6px' }}>Residents</h1>
           <p style={{ color: 'var(--text-muted)', fontSize: '14px', margin: 0 }}>{counts.active} active · {counts.notice} on notice · {counts.pending} pending</p>
         </div>
-        <Link href="/admin/residents/new" className="bb-btn-primary"><Plus size={16} />Add Resident</Link>
+        <div style={{ display: 'flex', gap: '10px' }}>
+          <button onClick={exportCsv} className="bb-btn-secondary"><Download size={16} />Export CSV</button>
+          <Link href="/admin/residents/new" className="bb-btn-primary"><Plus size={16} />Add Resident</Link>
+        </div>
       </div>
 
       {/* Pending approvals banner */}

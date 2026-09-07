@@ -3,6 +3,7 @@ import { NextResponse } from 'next/server'
 import { createClient } from '@/lib/supabase/server'
 import { createClient as createAdminClient } from '@supabase/supabase-js'
 import { APP_URL } from '@/lib/config'
+import { syncResidentsSheet } from '@/lib/sheets'
 
 const resend = new Resend(process.env.RESEND_API_KEY)
 
@@ -75,6 +76,11 @@ export async function POST(req: Request) {
       // Non-fatal - activation already succeeded; admin can resend by other means.
     }
   }
+
+  // Awaited (not truly fire-and-forget) - a serverless function can be torn
+  // down the moment its response is sent, so an un-awaited promise here risks
+  // never actually completing. .catch keeps it non-fatal either way.
+  await syncResidentsSheet(admin).catch(() => null)
 
   return NextResponse.json({ success: true, onboarded_by: callerAdmin.name, onboarded_at: nowIso })
 }

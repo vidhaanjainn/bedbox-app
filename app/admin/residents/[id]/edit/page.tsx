@@ -131,6 +131,9 @@ export default function EditResidentPage() {
 
       if (updateError) throw updateError
 
+      // Non-fatal, fire-and-forget - the owner's Google Sheets backup, if set up.
+      fetch('/api/admin/sync-sheets', { method: 'POST' }).catch(() => {})
+
       setSuccess(true)
       setTimeout(() => router.push(`/admin/residents/${id}`), 1000)
     } catch (err: any) {

@@ -117,6 +117,9 @@ export default function NewResidentPage() {
         } catch { /* non-fatal - admin can still send the link manually from the detail page */ }
       }
 
+      // Non-fatal, fire-and-forget - the owner's Google Sheets backup, if set up.
+      fetch('/api/admin/sync-sheets', { method: 'POST' }).catch(() => {})
+
       // Redirect to detail page - invite link will be shown ready to copy
       router.push(`/admin/residents/${resident.id}?invited=true`)
     } catch (err: any) {

@@ -1,4 +1,5 @@
 import { google } from 'googleapis'
+import type { SupabaseClient } from '@supabase/supabase-js'
 
 // Shared Google Sheets helper (extracted from the booking-form route so any
 // feature can push a snapshot to a sheet with one call). Non-fatal by design -
@@ -53,4 +54,39 @@ export async function syncSheetSnapshot(opts: {
     console.error('syncSheetSnapshot failed:', err)
     return { error: true }
   }
+}
+
+// AUTO-04, "Residents" tab: a full, always-current mirror of every resident -
+// the owner's own independent backup outside Supabase entirely, so nothing
+// about "did the app lose my data" is a question that needs the app itself
+// to answer. One row per resident, full refresh each call (see
+// syncSheetSnapshot above) - simple and predictable rather than a partial
+// upsert that could drift. Non-fatal: skips quietly if Sheets isn't
+// configured, same as everything else that touches this file.
+export async function syncResidentsSheet(supabase: SupabaseClient) {
+  const { data: residents, error } = await supabase
+    .from('residents')
+    .select('*, onboarded_by_admin:admins!residents_onboarded_by_fkey(name)')
+    .order('created_at', { ascending: false })
+  if (error || !residents) return { error: true }
+
+  const header = [
+    'Resident ID', 'Name', 'Mobile', 'Email', 'Room', 'Monthly Rent', 'Security Deposit',
+    'Date of Joining', 'Stay Type', 'Status', 'Onboarding Status',
+    'Emergency Contact Name', 'Emergency Contact Phone', 'Hometown', 'Institution', 'Occupation',
+    'Agreement Signed At', 'Agreement IP', 'Agreement Version',
+    'Aadhaar On File', 'Signature On File',
+    'Onboarded By', 'Onboarded At', 'Notes', 'Record Created At', 'Last Synced At',
+  ]
+  const syncedAt = new Date().toISOString()
+  const rows = residents.map((r: any) => [
+    r.id, r.name, r.mobile || '', r.email || '', r.room_number || '', r.rent_amount || '', r.security_deposit || '',
+    r.date_of_joining || '', r.stay_type || '', r.status || '', r.onboarding_status || '',
+    r.emergency_contact_name || '', r.emergency_contact_phone || r.emergency_contact_number || '', r.hometown || '', r.institution || '', r.occupation || '',
+    r.agreement_signed_at || '', r.agreement_ip || '', r.agreement_version || '',
+    (r.aadhaar_front_url || r.aadhaar_back_url) ? 'Yes' : 'No', r.signature_path ? 'Yes' : 'No',
+    r.onboarded_by_admin?.name || '', r.onboarded_at || '', r.notes || '', r.created_at || '', syncedAt,
+  ])
+
+  return syncSheetSnapshot({ tabName: 'Residents', header, rows })
 }
