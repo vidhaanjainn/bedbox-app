@@ -4,9 +4,11 @@ import { useEffect, useState } from 'react'
 import { createClient } from '@/lib/supabase/client'
 import { formatCurrency } from '@/lib/utils'
 import { Users, Wallet, Plus, X, Loader2, CheckCircle, Receipt, Pencil } from 'lucide-react'
+import { useIsMobile } from '@/lib/useIsMobile'
 
 export default function StaffPage() {
   const supabase = createClient()
+  const isMobile = useIsMobile()
   const [tab, setTab] = useState<'staff' | 'expenses'>('staff')
   const [staff, setStaff] = useState<any[]>([])
   const [payouts, setPayouts] = useState<any[]>([])
@@ -158,8 +160,45 @@ export default function StaffPage() {
           <div style={{ display: 'flex', justifyContent: 'flex-end', marginBottom: '16px' }}>
             <button onClick={openAddStaff} className="bb-btn-secondary"><Plus size={14} /> Add Staff</button>
           </div>
+          {loading ? (
+            <div className="glass-card" style={{ padding: '60px', textAlign: 'center', color: 'var(--text-muted)' }}>Loading...</div>
+          ) : isMobile ? (
+            <div>
+              {staff.map(s => {
+                const payout = payoutFor(s.id)
+                return (
+                  <div key={s.id} className="bb-row-card">
+                    <div className="bb-row-card-top">
+                      <div>
+                        <div className="bb-row-card-title">{s.name} {!s.is_active && <span style={{ fontSize: '11px', color: 'var(--text-muted)', fontWeight: 400 }}>(inactive)</span>}</div>
+                        <div className="bb-row-card-sub" style={{ textTransform: 'capitalize' }}>{s.role || '-'}{s.phone ? ` · ${s.phone}` : ''}</div>
+                      </div>
+                      {payout ? (
+                        <span className="status-badge" style={{ background: 'rgba(52,211,153,0.1)', color: '#34d399', borderColor: 'rgba(52,211,153,0.3)' }}>✓ Paid</span>
+                      ) : (
+                        <span className="status-badge" style={{ background: 'rgba(239,68,68,0.1)', color: '#f87171', borderColor: 'rgba(239,68,68,0.3)' }}>Not paid</span>
+                      )}
+                    </div>
+                    <div className="bb-row-card-amount">
+                      <span className="bb-row-card-amount-value">{formatCurrency(payout ? payout.amount : s.monthly_salary)}</span>
+                      <span className="bb-row-card-amount-label">{payout ? `Paid (${payout.type})` : 'Monthly salary'}</span>
+                    </div>
+                    <div className="bb-row-card-actions">
+                      <button onClick={() => { setPayoutTarget(s); setPayoutForm({ amount: payout ? String(payout.amount) : String(s.monthly_salary), type: 'salary', payment_mode: 'cash' }) }}
+                        style={{ padding: '6px 12px', borderRadius: '6px', border: '1px solid rgba(0,212,200,0.3)', background: 'rgba(0,212,200,0.08)', color: 'var(--teal-500)', fontSize: '12px', fontWeight: '600', cursor: 'pointer' }}>
+                        {payout ? 'Edit Payout' : 'Pay'}
+                      </button>
+                      <button onClick={() => openEditStaff(s)} className="bb-icon-btn" style={{ width: 30, height: 30, minWidth: 30, minHeight: 30 }} aria-label="Edit staff details">
+                        <Pencil size={12} />
+                      </button>
+                    </div>
+                  </div>
+                )
+              })}
+              {staff.length === 0 && <div className="glass-card" style={{ padding: '60px', textAlign: 'center', color: 'var(--text-muted)', fontSize: '14px' }}>No staff added yet. Tap "Add Staff" to get started.</div>}
+            </div>
+          ) : (
           <div className="glass-card" style={{ overflow: 'hidden' }}>
-            {loading ? <div style={{ padding: '60px', textAlign: 'center', color: 'var(--text-muted)' }}>Loading...</div> : (
               <div style={{ overflowX: 'auto' }}>
                 <table className="bb-table">
                   <thead><tr><th>Name</th><th>Role</th><th>Phone</th><th>Monthly Salary</th><th>This Month</th><th>Actions</th></tr></thead>
@@ -197,16 +236,36 @@ export default function StaffPage() {
                 </table>
                 {staff.length === 0 && <div style={{ padding: '60px', textAlign: 'center', color: 'var(--text-muted)', fontSize: '14px' }}>No staff added yet. Click "Add Staff" to get started.</div>}
               </div>
-            )}
           </div>
+          )}
         </>
       ) : (
         <>
           <div style={{ display: 'flex', justifyContent: 'flex-end', marginBottom: '16px' }}>
             <button onClick={() => setShowExpenseModal(true)} className="bb-btn-secondary"><Plus size={14} /> Log Expense</button>
           </div>
+          {loading ? (
+            <div className="glass-card" style={{ padding: '60px', textAlign: 'center', color: 'var(--text-muted)' }}>Loading...</div>
+          ) : isMobile ? (
+            <div>
+              {expenses.map(e => (
+                <div key={e.id} className="bb-row-card">
+                  <div className="bb-row-card-top">
+                    <div>
+                      <div className="bb-row-card-title" style={{ textTransform: 'capitalize' }}>{e.category}</div>
+                      <div className="bb-row-card-sub">{e.vendor || 'No vendor noted'}{e.description ? ` · ${e.description}` : ''}</div>
+                    </div>
+                  </div>
+                  <div className="bb-row-card-amount">
+                    <span className="bb-row-card-amount-value">{formatCurrency(e.amount)}</span>
+                    <span className="bb-row-card-amount-label">{e.expense_date ? new Date(e.expense_date).toLocaleDateString('en-IN', { day: 'numeric', month: 'short' }) : '-'}</span>
+                  </div>
+                </div>
+              ))}
+              {expenses.length === 0 && <div className="glass-card" style={{ padding: '60px', textAlign: 'center', color: 'var(--text-muted)', fontSize: '14px' }}>No expenses logged for this month.</div>}
+            </div>
+          ) : (
           <div className="glass-card" style={{ overflow: 'hidden' }}>
-            {loading ? <div style={{ padding: '60px', textAlign: 'center', color: 'var(--text-muted)' }}>Loading...</div> : (
               <div style={{ overflowX: 'auto' }}>
                 <table className="bb-table">
                   <thead><tr><th>Category</th><th>Vendor</th><th>Description</th><th>Amount</th><th>Date</th></tr></thead>
@@ -224,8 +283,8 @@ export default function StaffPage() {
                 </table>
                 {expenses.length === 0 && <div style={{ padding: '60px', textAlign: 'center', color: 'var(--text-muted)', fontSize: '14px' }}>No expenses logged for this month.</div>}
               </div>
-            )}
           </div>
+          )}
         </>
       )}
 

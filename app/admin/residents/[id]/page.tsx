@@ -9,6 +9,7 @@ import { useParams, useRouter, useSearchParams } from 'next/navigation'
 import { generateAgreementPdf, generatePoliceVerificationPdf } from '@/lib/documents'
 import { renderAgreementClauses } from '@/lib/agreement-clauses'
 import { Modal } from '@/components/ui/Modal'
+import { useIsMobile } from '@/lib/useIsMobile'
 
 export default function ResidentDetailPage() {
   const { id } = useParams()
@@ -42,6 +43,7 @@ export default function ResidentDetailPage() {
   const [renewEndDate, setRenewEndDate] = useState('')
   const [renewing, setRenewing] = useState(false)
   const supabase = createClient()
+  const isMobile = useIsMobile()
 
   // Admin-only action - this page is never reachable by a resident, and lease_end_date
   // is never queried or displayed anywhere in app/portal/*, by design (owner request:
@@ -550,7 +552,32 @@ export default function ResidentDetailPage() {
             </div>
           )}
         </div>
-        {rentPayments.length === 0 ? <p style={{ color: 'var(--text-muted)', fontSize: '14px' }}>No rent records yet.</p> : (
+        {rentPayments.length === 0 ? <p style={{ color: 'var(--text-muted)', fontSize: '14px' }}>No rent records yet.</p> : isMobile ? (
+          <div>
+            {rentPayments.map(p => (
+              <div key={p.id} className="bb-row-card">
+                <div className="bb-row-card-top">
+                  <div className="bb-row-card-title">{new Date(p.year, p.month - 1).toLocaleDateString('en-IN', { month: 'short', year: 'numeric' })}</div>
+                  <span className="status-badge" style={{ background: p.status === 'paid' ? 'rgba(52,211,153,0.1)' : p.status === 'partial' ? 'rgba(251,191,36,0.1)' : 'rgba(239,68,68,0.1)', color: p.status === 'paid' ? '#34d399' : p.status === 'partial' ? '#fbbf24' : '#f87171', borderColor: p.status === 'paid' ? 'rgba(52,211,153,0.3)' : p.status === 'partial' ? 'rgba(251,191,36,0.3)' : 'rgba(239,68,68,0.3)' }}>{p.status}</span>
+                </div>
+                <div className="bb-row-card-amount">
+                  <span className="bb-row-card-amount-value">{formatCurrency(p.total_amount)}</span>
+                  <span className="bb-row-card-amount-label">Total ({formatCurrency(p.amount_paid)} paid)</span>
+                </div>
+                <details className="bb-row-card-details">
+                  <summary>More details</summary>
+                  <div className="bb-row-card-detail-row"><span>Rent</span><span>{formatCurrency(p.rent_amount)}</span></div>
+                  <div className="bb-row-card-detail-row">
+                    <span>Electricity</span>
+                    <span>{p.electricity_logged_at ? (p.electricity_amount > 0 ? formatCurrency(p.electricity_amount) : '-') : 'Not logged'}</span>
+                  </div>
+                  <div className="bb-row-card-detail-row"><span>Late Fee</span><span>{p.late_fee > 0 ? formatCurrency(p.late_fee) : '-'}</span></div>
+                  <div className="bb-row-card-detail-row"><span>Mode</span><span style={{ textTransform: 'capitalize' }}>{p.payment_mode?.replace('_', ' ') || '-'}</span></div>
+                </details>
+              </div>
+            ))}
+          </div>
+        ) : (
           <div style={{ overflowX: 'auto' }}>
           <table className="bb-table">
             <thead><tr><th>Month</th><th>Rent</th><th>Electricity</th><th>Late Fee</th><th>Total</th><th>Paid</th><th>Mode</th><th>Status</th></tr></thead>
@@ -582,7 +609,25 @@ export default function ResidentDetailPage() {
       {/* Electricity */}
       <div className="glass-card" style={{ padding: '24px', marginBottom: '24px' }}>
         <h3 style={{ fontFamily: 'Syne, sans-serif', fontSize: '14px', fontWeight: '600', color: 'var(--text-primary)', margin: '0 0 16px', textTransform: 'uppercase', letterSpacing: '0.06em' }}>Electricity Readings</h3>
-        {electricityReadings.length === 0 ? <p style={{ color: 'var(--text-muted)', fontSize: '14px' }}>No electricity readings yet.</p> : (
+        {electricityReadings.length === 0 ? <p style={{ color: 'var(--text-muted)', fontSize: '14px' }}>No electricity readings yet.</p> : isMobile ? (
+          <div>
+            {electricityReadings.map(r => (
+              <div key={r.id} className="bb-row-card">
+                <div className="bb-row-card-top">
+                  <div className="bb-row-card-title">{new Date(r.year, r.month - 1).toLocaleDateString('en-IN', { month: 'short', year: 'numeric' })}</div>
+                  <span style={{ fontSize: '11px', fontWeight: '600', padding: '3px 8px', borderRadius: '999px', background: r.added_to_rent ? 'rgba(52,211,153,0.1)' : 'rgba(100,116,139,0.1)', color: r.added_to_rent ? '#34d399' : '#94a3b8' }}>{r.added_to_rent ? 'Added to rent' : 'Pending'}</span>
+                </div>
+                <div className="bb-row-card-amount">
+                  <span className="bb-row-card-amount-value">{formatCurrency(r.bill_amount)}</span>
+                  <span className="bb-row-card-amount-label">{r.units_consumed} units</span>
+                </div>
+                <div className="bb-row-card-detail-row" style={{ borderBottom: 'none', paddingTop: 0 }}>
+                  <span>Meter reading</span><span>{r.previous_reading} → {r.current_reading}</span>
+                </div>
+              </div>
+            ))}
+          </div>
+        ) : (
           <div style={{ overflowX: 'auto' }}>
           <table className="bb-table">
             <thead><tr><th>Month</th><th>Previous</th><th>Current</th><th>Units</th><th>Bill</th><th>Added to Rent</th></tr></thead>

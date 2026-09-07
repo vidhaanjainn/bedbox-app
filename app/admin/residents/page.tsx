@@ -6,6 +6,7 @@ import { formatCurrency, formatDate, getNoticeDaysRemaining, getNoticeTargetDate
 import { Users, Plus, Search, Eye, Mail, Phone, CheckCircle, Download } from 'lucide-react'
 import Link from 'next/link'
 import { useRouter } from 'next/navigation'
+import { useIsMobile } from '@/lib/useIsMobile'
 
 export default function ResidentsPage() {
   const router = useRouter()
@@ -15,6 +16,7 @@ export default function ResidentsPage() {
   const [search, setSearch] = useState('')
   const [statusFilter, setStatusFilter] = useState('all')
   const supabase = createClient()
+  const isMobile = useIsMobile()
 
   useEffect(() => { fetchResidents() }, [])
 
@@ -99,6 +101,16 @@ export default function ResidentsPage() {
     submitted: pendingApprovals.length,
   }
 
+  const statusStyle = (status: string): any => {
+    const c: Record<string, any> = {
+      active: { background: 'rgba(52,211,153,0.1)', color: '#34d399', borderColor: 'rgba(52,211,153,0.3)' },
+      pending: { background: 'rgba(251,191,36,0.1)', color: '#fbbf24', borderColor: 'rgba(251,191,36,0.3)' },
+      notice: { background: 'rgba(249,115,22,0.1)', color: '#f97316', borderColor: 'rgba(249,115,22,0.3)' },
+      vacated: { background: 'rgba(100,116,139,0.1)', color: '#94a3b8', borderColor: 'rgba(100,116,139,0.3)' },
+    }
+    return c[status] || {}
+  }
+
   return (
     <div style={{ padding: '32px' }} className="animate-fade-in">
       <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '24px' }}>
@@ -141,15 +153,53 @@ export default function ResidentsPage() {
         </div>
       </div>
 
+      {loading ? (
+        <div className="glass-card" style={{ padding: '60px', textAlign: 'center', color: 'var(--text-muted)' }}>Loading...</div>
+      ) : filtered.length === 0 ? (
+        <div className="glass-card" style={{ padding: '60px', textAlign: 'center' }}>
+          <Users size={40} color="var(--text-muted)" style={{ marginBottom: '12px', opacity: 0.5 }} />
+          <p style={{ color: 'var(--text-muted)', fontSize: '14px' }}>{search ? 'No residents match your search' : 'No residents yet.'}</p>
+        </div>
+      ) : isMobile ? (
+        /* Every row already opens the resident's full profile, so the
+           mobile card only needs what you'd scan a list for - who, room,
+           the two status signals - with the rest (rent, join date, stay
+           type) one tap away on the page that already exists, not
+           duplicated here behind another disclosure. */
+        <div>
+          {filtered.map(r => (
+            <div key={r.id} className="bb-row-card" onClick={() => router.push(`/admin/residents/${r.id}`)} style={{ cursor: 'pointer' }}>
+              <div className="bb-row-card-top">
+                <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
+                  <div style={{ width: '36px', height: '36px', borderRadius: '10px', background: 'var(--surface-3)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '14px', fontWeight: '700', color: 'var(--teal-500)', flexShrink: 0 }}>{r.name.charAt(0).toUpperCase()}</div>
+                  <div>
+                    <div className="bb-row-card-title">{r.name}</div>
+                    <div className="bb-row-card-sub">Room {r.room_number || '-'} · {r.mobile}</div>
+                  </div>
+                </div>
+                <span className="status-badge" style={statusStyle(r.status)}>{r.status}</span>
+              </div>
+              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '10px' }}>
+                <div>
+                  <span style={{ fontSize: '11px', fontWeight: '600', padding: '3px 8px', borderRadius: '999px', background: r.onboarding_status === 'active' ? 'rgba(52,211,153,0.1)' : r.onboarding_status === 'submitted' ? 'rgba(52,211,153,0.15)' : 'rgba(100,116,139,0.1)', color: r.onboarding_status === 'active' ? '#34d399' : r.onboarding_status === 'submitted' ? '#34d399' : '#94a3b8' }}>
+                    {r.onboarding_status === 'active' ? '✓ Active' : r.onboarding_status === 'submitted' ? '⏳ Approve' : r.onboarding_status === 'pending' ? 'Sent' : 'Not sent'}
+                  </span>
+                  {r.status === 'notice' && daysLeftFor(r.id) && (
+                    <span style={{ marginLeft: '8px', fontSize: '11px', color: daysLeftFor(r.id)!.days <= 7 ? '#f87171' : '#f97316', fontWeight: '600' }}>
+                      ⏳ {daysLeftFor(r.id)!.days}d left
+                    </span>
+                  )}
+                </div>
+                <div className="bb-row-card-actions" style={{ margin: 0, padding: 0, border: 'none' }} onClick={e => e.stopPropagation()}>
+                  {r.email && <a href={`mailto:${r.email}`} style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', width: '30px', height: '30px', borderRadius: '8px', background: 'var(--surface-3)', border: '1px solid var(--border)', color: 'var(--text-muted)', textDecoration: 'none' }}><Mail size={13} /></a>}
+                  <a href={`tel:${r.mobile}`} style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', width: '30px', height: '30px', borderRadius: '8px', background: 'var(--surface-3)', border: '1px solid var(--border)', color: 'var(--text-muted)', textDecoration: 'none' }}><Phone size={13} /></a>
+                </div>
+              </div>
+            </div>
+          ))}
+        </div>
+      ) : (
       <div className="glass-card" style={{ overflow: 'hidden' }}>
-        {loading ? (
-          <div style={{ padding: '60px', textAlign: 'center', color: 'var(--text-muted)' }}>Loading...</div>
-        ) : filtered.length === 0 ? (
-          <div style={{ padding: '60px', textAlign: 'center' }}>
-            <Users size={40} color="var(--text-muted)" style={{ marginBottom: '12px', opacity: 0.5 }} />
-            <p style={{ color: 'var(--text-muted)', fontSize: '14px' }}>{search ? 'No residents match your search' : 'No residents yet.'}</p>
-          </div>
-        ) : (
           <div style={{ overflowX: 'auto' }}>
             <table className="bb-table">
               <thead><tr><th>Resident</th><th>Room</th><th>Joined</th><th>Rent</th><th>Type</th><th>Portal</th><th>Status</th><th>Actions</th></tr></thead>
@@ -176,7 +226,7 @@ export default function ResidentsPage() {
                       {r.onboarded_by_admin?.name && <div style={{ fontSize: '10px', color: 'var(--text-muted)', marginTop: '3px' }}>by {r.onboarded_by_admin.name.split(' ')[0]}</div>}
                     </td>
                     <td>
-                      <span className="status-badge" style={(() => { const c: Record<string, any> = { active: { background: 'rgba(52,211,153,0.1)', color: '#34d399', borderColor: 'rgba(52,211,153,0.3)' }, pending: { background: 'rgba(251,191,36,0.1)', color: '#fbbf24', borderColor: 'rgba(251,191,36,0.3)' }, notice: { background: 'rgba(249,115,22,0.1)', color: '#f97316', borderColor: 'rgba(249,115,22,0.3)' }, vacated: { background: 'rgba(100,116,139,0.1)', color: '#94a3b8', borderColor: 'rgba(100,116,139,0.3)' } }; return c[r.status] || {} })()}>{r.status}</span>
+                      <span className="status-badge" style={statusStyle(r.status)}>{r.status}</span>
                       {r.status === 'notice' && daysLeftFor(r.id) && (
                         <div title={`Available from ${new Date(daysLeftFor(r.id)!.date).toLocaleDateString('en-IN', { day: 'numeric', month: 'short', year: 'numeric' })}`}
                           style={{ display: 'flex', alignItems: 'center', gap: '4px', marginTop: '4px', fontSize: '11px', color: daysLeftFor(r.id)!.days <= 7 ? '#f87171' : '#f97316', fontWeight: '600' }}>
@@ -196,8 +246,8 @@ export default function ResidentsPage() {
               </tbody>
             </table>
           </div>
-        )}
       </div>
+      )}
     </div>
   )
 }

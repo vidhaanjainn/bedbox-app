@@ -203,6 +203,43 @@ h1, h2, h3, h4, h5, h6 { font-family: 'Syne', sans-serif; }
   background: var(--surface-3);
 }
 
+/* Mobile row cards - the phone-width alternative to a horizontally
+   scrolling table. Each ledger row becomes a card showing only the fields
+   someone actually scans for at a glance (who, the one number that
+   matters, status, the action button); everything else lives behind a
+   native <details> disclosure so nothing is lost, it's just not fighting
+   for space until asked for. No JS state needed - <details> handles its
+   own open/closed state and is keyboard/screen-reader accessible for free. */
+.bb-row-card {
+  padding: 14px;
+  border-radius: 12px;
+  background: var(--surface-2);
+  border: 1px solid var(--border);
+  margin-bottom: 10px;
+}
+.bb-row-card-top { display: flex; justify-content: space-between; align-items: flex-start; gap: 10px; margin-bottom: 10px; }
+.bb-row-card-title { font-size: 14px; font-weight: 700; color: var(--text-primary); }
+.bb-row-card-sub { font-size: 12px; color: var(--text-muted); margin-top: 2px; }
+.bb-row-card-amount { display: flex; align-items: baseline; gap: 8px; margin-bottom: 8px; }
+.bb-row-card-amount-value { font-size: 20px; font-weight: 700; font-family: 'Syne', sans-serif; color: var(--text-primary); }
+.bb-row-card-amount-label { font-size: 11px; color: var(--text-muted); text-transform: uppercase; letter-spacing: 0.06em; }
+.bb-row-card-details { margin: 8px 0 0; }
+.bb-row-card-details summary {
+  cursor: pointer; font-size: 12px; font-weight: 600; color: var(--teal-500);
+  list-style: none; display: flex; align-items: center; gap: 5px;
+}
+.bb-row-card-details summary::-webkit-details-marker { display: none; }
+.bb-row-card-details summary::after { content: '▾'; font-size: 9px; transition: transform 0.2s ease; }
+.bb-row-card-details[open] summary::after { transform: rotate(180deg); }
+.bb-row-card-detail-row {
+  display: flex; justify-content: space-between; gap: 12px;
+  padding: 7px 0; font-size: 13px; color: var(--text-secondary);
+  border-bottom: 1px solid rgba(255, 255, 255, 0.04);
+}
+.bb-row-card-detail-row:last-child { border-bottom: none; }
+.bb-row-card-detail-row span:first-child { color: var(--text-muted); }
+.bb-row-card-actions { display: flex; gap: 6px; flex-wrap: wrap; margin-top: 10px; padding-top: 10px; border-top: 1px solid rgba(255, 255, 255, 0.05); }
+
 .bb-table { width: 100%; border-collapse: collapse; }
 .bb-table th {
   text-align: left;

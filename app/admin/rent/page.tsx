@@ -4,6 +4,7 @@ import { useEffect, useState } from 'react'
 import { createClient } from '@/lib/supabase/client'
 import { getCurrentAdmin, CurrentAdmin } from '@/lib/current-admin'
 import { formatCurrency, formatDate } from '@/lib/utils'
+import { useIsMobile } from '@/lib/useIsMobile'
 import { CreditCard, Plus, Search, CheckCircle, Clock, AlertCircle, Loader2, X, Upload, MessageCircle, FileSpreadsheet } from 'lucide-react'
 
 function waReminderLink(mobile: string, name: string, room: string, outstanding: number) {
@@ -29,6 +30,7 @@ export default function RentPage() {
   const [currentAdmin, setCurrentAdmin] = useState<CurrentAdmin | null>(null)
   const [admins, setAdmins] = useState<{ id: string; name: string }[]>([])
   const supabase = createClient()
+  const isMobile = useIsMobile()
 
   useEffect(() => {
     getCurrentAdmin(supabase).then(admin => {
@@ -174,6 +176,82 @@ export default function RentPage() {
 
   const months = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec']
 
+  // Shared between the desktop table row and the mobile card so the status
+  // pill and action buttons don't have to be written (and kept in sync)
+  // twice.
+  const statusBadge = (p: any) => (
+    <>
+      <span className="status-badge" style={{
+        background: p.status === 'paid' ? 'rgba(52,211,153,0.1)' : p.status === 'partial' ? 'rgba(251,191,36,0.1)' : 'rgba(239,68,68,0.1)',
+        color: p.status === 'paid' ? '#34d399' : p.status === 'partial' ? '#fbbf24' : '#f87171',
+        borderColor: p.status === 'paid' ? 'rgba(52,211,153,0.3)' : p.status === 'partial' ? 'rgba(251,191,36,0.3)' : 'rgba(239,68,68,0.3)',
+      }}>
+        {p.status}
+      </span>
+      {p.resident_reported_at && p.status !== 'paid' && (
+        <div style={{ marginTop: 4, fontSize: 10, fontWeight: 700, color: '#38bdf8', display: 'flex', alignItems: 'center', gap: 3 }}>
+          <AlertCircle size={10} /> Reported {formatCurrency(p.resident_reported_amount)}
+        </div>
+      )}
+    </>
+  )
+
+  const rowActions = (p: any) => (
+    <>
+      {p.status !== 'paid' && p.resident?.mobile && (
+        <a
+          href={waReminderLink(p.resident.mobile, p.resident.name, p.resident.room_number, p.total_amount - p.amount_paid)}
+          target="_blank" rel="noopener noreferrer"
+          title="Send WhatsApp reminder"
+          style={{
+            display: 'flex', alignItems: 'center', gap: '4px',
+            padding: '4px 10px', borderRadius: '6px', border: '1px solid rgba(52,211,153,0.3)',
+            background: 'rgba(52,211,153,0.08)', color: '#34d399',
+            fontSize: '11px', fontWeight: '600', cursor: 'pointer', textDecoration: 'none'
+          }}
+        >
+          <MessageCircle size={12} /> WhatsApp
+        </a>
+      )}
+      {p.resident_payment_screenshot_path && (
+        <button
+          onClick={() => viewPaymentProof(p.resident_payment_screenshot_path)}
+          title="View resident's payment screenshot"
+          style={{ padding: '4px 10px', borderRadius: '6px', border: '1px solid rgba(56,189,248,0.3)', background: 'rgba(56,189,248,0.08)', color: '#38bdf8', fontSize: '11px', fontWeight: '600', cursor: 'pointer' }}
+        >
+          Proof
+        </button>
+      )}
+      {p.status !== 'paid' && (
+        <button
+          onClick={() => { setSelectedPayment(p); setShowLogModal(true); setLogForm({ amount: String(p.resident_reported_amount || (p.total_amount - p.amount_paid)), payment_mode: p.payment_mode || 'upi', notes: '', collected_by: currentAdmin?.id || '', electricity: p.electricity_logged_at ? String(p.electricity_amount) : '' }) }}
+          style={{
+            padding: '4px 10px', borderRadius: '6px', border: '1px solid rgba(0,212,200,0.3)',
+            background: 'rgba(0,212,200,0.08)', color: 'var(--teal-500)',
+            fontSize: '11px', fontWeight: '600', cursor: 'pointer'
+          }}
+        >
+          Log
+        </button>
+      )}
+      {p.status === 'paid' && !p.receipt_sent_at && (
+        <button
+          onClick={() => requestReceipt(p.id)}
+          style={{
+            padding: '4px 10px', borderRadius: '6px', border: '1px solid var(--border)',
+            background: 'transparent', color: 'var(--text-muted)',
+            fontSize: '11px', fontWeight: '600', cursor: 'pointer'
+          }}
+        >
+          Receipt
+        </button>
+      )}
+      {p.receipt_sent_at && (
+        <span style={{ fontSize: '11px', color: '#34d399' }}>✓ Sent</span>
+      )}
+    </>
+  )
+
   return (
     <div style={{ padding: '32px' }} className="animate-fade-in">
       <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', marginBottom: '32px', flexWrap: 'wrap', gap: '16px' }}>
@@ -229,11 +307,54 @@ export default function RentPage() {
         <input className="bb-input" style={{ paddingLeft: '38px' }} placeholder="Search resident or room..." value={search} onChange={e => setSearch(e.target.value)} />
       </div>
 
-      {/* Table */}
+      {/* Table (desktop) / cards (mobile) - phones get the essentials
+          (resident, total due, status, actions) up front with the rent/
+          electricity/late-fee/mode breakdown behind "More details" instead
+          of a table too wide to fit, so nothing scrolls sideways. */}
+      {loading ? (
+        <div className="glass-card" style={{ padding: '60px', textAlign: 'center', color: 'var(--text-muted)' }}>Loading...</div>
+      ) : isMobile ? (
+        <div>
+          {filtered.map(p => (
+            <div key={p.id} className="bb-row-card">
+              <div className="bb-row-card-top">
+                <div>
+                  <div className="bb-row-card-title">{p.resident?.name}</div>
+                  <div className="bb-row-card-sub">Room {p.resident?.room_number}</div>
+                </div>
+                {statusBadge(p)}
+              </div>
+              <div className="bb-row-card-amount">
+                <span className="bb-row-card-amount-value">{formatCurrency(p.total_amount)}</span>
+                <span className="bb-row-card-amount-label">Total Due</span>
+              </div>
+              <details className="bb-row-card-details">
+                <summary>More details</summary>
+                <div className="bb-row-card-detail-row"><span>Rent</span><span>{formatCurrency(p.rent_amount)}</span></div>
+                <div className="bb-row-card-detail-row">
+                  <span>Electricity</span>
+                  <span>{p.electricity_logged_at ? (p.electricity_amount > 0 ? formatCurrency(p.electricity_amount) : '-') : 'Not logged'}</span>
+                </div>
+                <div className="bb-row-card-detail-row"><span>Late Fee</span><span>{p.late_fee > 0 ? formatCurrency(p.late_fee) : '-'}</span></div>
+                <div className="bb-row-card-detail-row"><span>Paid</span><span>{formatCurrency(p.amount_paid)}</span></div>
+                <div className="bb-row-card-detail-row">
+                  <span>Mode</span>
+                  <span style={{ textTransform: 'capitalize' }}>{p.payment_mode?.replace('_', ' ') || '-'}{p.collected_admin?.name ? ` (by ${p.collected_admin.name.split(' ')[0]})` : ''}</span>
+                </div>
+              </details>
+              <div className="bb-row-card-actions">
+                {rowActions(p)}
+              </div>
+            </div>
+          ))}
+          {filtered.length === 0 && (
+            <div className="glass-card" style={{ padding: '60px', textAlign: 'center', color: 'var(--text-muted)', fontSize: '14px' }}>
+              No rent records for this month. Tap "Generate Monthly" to create them.
+            </div>
+          )}
+        </div>
+      ) : (
       <div className="glass-card" style={{ overflow: 'hidden' }}>
-        {loading ? (
-          <div style={{ padding: '60px', textAlign: 'center', color: 'var(--text-muted)' }}>Loading...</div>
-        ) : (
           <div style={{ overflowX: 'auto' }}>
             <table className="bb-table">
               <thead>
@@ -272,73 +393,10 @@ export default function RentPage() {
                       <div style={{ textTransform: 'capitalize' }}>{p.payment_mode?.replace('_', ' ') || '-'}</div>
                       {p.collected_admin?.name && <div style={{ color: 'var(--text-muted)', marginTop: '2px' }}>by {p.collected_admin.name.split(' ')[0]}</div>}
                     </td>
-                    <td>
-                      <span className="status-badge" style={{
-                        background: p.status === 'paid' ? 'rgba(52,211,153,0.1)' : p.status === 'partial' ? 'rgba(251,191,36,0.1)' : 'rgba(239,68,68,0.1)',
-                        color: p.status === 'paid' ? '#34d399' : p.status === 'partial' ? '#fbbf24' : '#f87171',
-                        borderColor: p.status === 'paid' ? 'rgba(52,211,153,0.3)' : p.status === 'partial' ? 'rgba(251,191,36,0.3)' : 'rgba(239,68,68,0.3)',
-                      }}>
-                        {p.status}
-                      </span>
-                      {p.resident_reported_at && p.status !== 'paid' && (
-                        <div style={{ marginTop: 4, fontSize: 10, fontWeight: 700, color: '#38bdf8', display: 'flex', alignItems: 'center', gap: 3 }}>
-                          <AlertCircle size={10} /> Reported {formatCurrency(p.resident_reported_amount)}
-                        </div>
-                      )}
-                    </td>
+                    <td>{statusBadge(p)}</td>
                     <td>
                       <div style={{ display: 'flex', gap: '6px' }}>
-                        {p.status !== 'paid' && p.resident?.mobile && (
-                          <a
-                            href={waReminderLink(p.resident.mobile, p.resident.name, p.resident.room_number, p.total_amount - p.amount_paid)}
-                            target="_blank" rel="noopener noreferrer"
-                            title="Send WhatsApp reminder"
-                            style={{
-                              display: 'flex', alignItems: 'center', gap: '4px',
-                              padding: '4px 10px', borderRadius: '6px', border: '1px solid rgba(52,211,153,0.3)',
-                              background: 'rgba(52,211,153,0.08)', color: '#34d399',
-                              fontSize: '11px', fontWeight: '600', cursor: 'pointer', textDecoration: 'none'
-                            }}
-                          >
-                            <MessageCircle size={12} /> WhatsApp
-                          </a>
-                        )}
-                        {p.resident_payment_screenshot_path && (
-                          <button
-                            onClick={() => viewPaymentProof(p.resident_payment_screenshot_path)}
-                            title="View resident's payment screenshot"
-                            style={{ padding: '4px 10px', borderRadius: '6px', border: '1px solid rgba(56,189,248,0.3)', background: 'rgba(56,189,248,0.08)', color: '#38bdf8', fontSize: '11px', fontWeight: '600', cursor: 'pointer' }}
-                          >
-                            Proof
-                          </button>
-                        )}
-                        {p.status !== 'paid' && (
-                          <button
-                            onClick={() => { setSelectedPayment(p); setShowLogModal(true); setLogForm({ amount: String(p.resident_reported_amount || (p.total_amount - p.amount_paid)), payment_mode: p.payment_mode || 'upi', notes: '', collected_by: currentAdmin?.id || '', electricity: p.electricity_logged_at ? String(p.electricity_amount) : '' }) }}
-                            style={{
-                              padding: '4px 10px', borderRadius: '6px', border: '1px solid rgba(0,212,200,0.3)',
-                              background: 'rgba(0,212,200,0.08)', color: 'var(--teal-500)',
-                              fontSize: '11px', fontWeight: '600', cursor: 'pointer'
-                            }}
-                          >
-                            Log
-                          </button>
-                        )}
-                        {p.status === 'paid' && !p.receipt_sent_at && (
-                          <button
-                            onClick={() => requestReceipt(p.id)}
-                            style={{
-                              padding: '4px 10px', borderRadius: '6px', border: '1px solid var(--border)',
-                              background: 'transparent', color: 'var(--text-muted)',
-                              fontSize: '11px', fontWeight: '600', cursor: 'pointer'
-                            }}
-                          >
-                            Receipt
-                          </button>
-                        )}
-                        {p.receipt_sent_at && (
-                          <span style={{ fontSize: '11px', color: '#34d399' }}>✓ Sent</span>
-                        )}
+                        {rowActions(p)}
                       </div>
                     </td>
                   </tr>
@@ -351,8 +409,8 @@ export default function RentPage() {
               </div>
             )}
           </div>
-        )}
       </div>
+      )}
 
       {/* Log Payment Modal */}
       {showLogModal && selectedPayment && (

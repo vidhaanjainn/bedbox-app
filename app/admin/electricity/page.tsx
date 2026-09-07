@@ -4,6 +4,7 @@ import { useEffect, useState } from 'react'
 import { createClient } from '@/lib/supabase/client'
 import { formatCurrency, formatDate } from '@/lib/utils'
 import { Zap, Plus, X, Loader2, CheckCircle, Camera, User, Shield } from 'lucide-react'
+import { useIsMobile } from '@/lib/useIsMobile'
 
 export default function ElectricityPage() {
   const [readings, setReadings] = useState<any[]>([])
@@ -15,6 +16,7 @@ export default function ElectricityPage() {
   const [yearFilter, setYearFilter] = useState(new Date().getFullYear())
   const [form, setForm] = useState({ resident_id: '', current_reading: '', month: new Date().getMonth() + 1, year: new Date().getFullYear() })
   const supabase = createClient()
+  const isMobile = useIsMobile()
 
   useEffect(() => { fetchAll() }, [monthFilter, yearFilter])
 
@@ -99,6 +101,26 @@ export default function ElectricityPage() {
   const alreadyLogged = readings.map(r => r.resident_id)
   const pendingResidents = residents.filter(r => !alreadyLogged.includes(r.id))
 
+  const sourceBadge = (r: any) => (
+    <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+      <span style={{
+        display: 'inline-flex', alignItems: 'center', gap: '4px',
+        fontSize: '11px', fontWeight: '600', padding: '3px 8px', borderRadius: '999px',
+        background: r.submitted_by === 'resident' ? 'rgba(56,189,248,0.1)' : 'rgba(100,116,139,0.1)',
+        color: r.submitted_by === 'resident' ? '#7dd3fc' : '#94a3b8',
+      }}>
+        {r.submitted_by === 'resident' ? <User size={10} /> : <Shield size={10} />}
+        {r.submitted_by === 'resident' ? 'Resident' : 'Admin'}
+      </span>
+      {r.reading_photo_path && (
+        <button onClick={() => viewPhoto(r.reading_photo_path)} title="View photo"
+          style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--teal-500)', padding: 2, display: 'flex' }}>
+          <Camera size={14} />
+        </button>
+      )}
+    </div>
+  )
+
   const viewPhoto = async (path: string) => {
     const res = await fetch('/api/admin/document-url', {
       method: 'POST', headers: { 'Content-Type': 'application/json' },
@@ -179,16 +201,47 @@ export default function ElectricityPage() {
         )}
       </div>
 
-      {/* Table */}
+      {/* Table (desktop) / cards (mobile) */}
+      {loading ? (
+        <div className="glass-card" style={{ padding: '60px', textAlign: 'center', color: 'var(--text-muted)' }}>Loading...</div>
+      ) : readings.length === 0 ? (
+        <div className="glass-card" style={{ padding: '60px', textAlign: 'center' }}>
+          <Zap size={40} color="var(--text-muted)" style={{ marginBottom: '12px', opacity: 0.4 }} />
+          <p style={{ color: 'var(--text-muted)', fontSize: '14px' }}>No readings for this month yet.</p>
+        </div>
+      ) : isMobile ? (
+        <div>
+          {readings.map(r => (
+            <div key={r.id} className="bb-row-card">
+              <div className="bb-row-card-top">
+                <div>
+                  <div className="bb-row-card-title">{r.resident?.name}</div>
+                  <div className="bb-row-card-sub">Room {r.resident?.room_number}</div>
+                </div>
+                <span style={{
+                  fontSize: '11px', fontWeight: '600', padding: '3px 8px', borderRadius: '999px',
+                  background: r.added_to_rent ? 'rgba(52,211,153,0.1)' : 'rgba(100,116,139,0.1)',
+                  color: r.added_to_rent ? '#34d399' : '#94a3b8',
+                }}>
+                  {r.added_to_rent ? '✓ Added to rent' : 'Pending'}
+                </span>
+              </div>
+              <div className="bb-row-card-amount">
+                <span className="bb-row-card-amount-value">{formatCurrency(r.bill_amount)}</span>
+                <span className="bb-row-card-amount-label">{r.units_consumed} units used</span>
+              </div>
+              <details className="bb-row-card-details">
+                <summary>More details</summary>
+                <div className="bb-row-card-detail-row"><span>Previous reading</span><span>{r.previous_reading}</span></div>
+                <div className="bb-row-card-detail-row"><span>Current reading</span><span>{r.current_reading}</span></div>
+                <div className="bb-row-card-detail-row"><span>Date</span><span>{formatDate(r.reading_date)}</span></div>
+                <div className="bb-row-card-detail-row"><span>Source</span><span>{sourceBadge(r)}</span></div>
+              </details>
+            </div>
+          ))}
+        </div>
+      ) : (
       <div className="glass-card" style={{ overflow: 'hidden' }}>
-        {loading ? (
-          <div style={{ padding: '60px', textAlign: 'center', color: 'var(--text-muted)' }}>Loading...</div>
-        ) : readings.length === 0 ? (
-          <div style={{ padding: '60px', textAlign: 'center' }}>
-            <Zap size={40} color="var(--text-muted)" style={{ marginBottom: '12px', opacity: 0.4 }} />
-            <p style={{ color: 'var(--text-muted)', fontSize: '14px' }}>No readings for this month yet.</p>
-          </div>
-        ) : (
           <div style={{ overflowX: 'auto' }}>
           <table className="bb-table">
             <thead>
@@ -221,25 +274,7 @@ export default function ElectricityPage() {
                     {formatCurrency(r.bill_amount)}
                   </td>
                   <td style={{ fontSize: '13px' }}>{formatDate(r.reading_date)}</td>
-                  <td>
-                    <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
-                      <span style={{
-                        display: 'inline-flex', alignItems: 'center', gap: '4px',
-                        fontSize: '11px', fontWeight: '600', padding: '3px 8px', borderRadius: '999px',
-                        background: r.submitted_by === 'resident' ? 'rgba(56,189,248,0.1)' : 'rgba(100,116,139,0.1)',
-                        color: r.submitted_by === 'resident' ? '#7dd3fc' : '#94a3b8',
-                      }}>
-                        {r.submitted_by === 'resident' ? <User size={10} /> : <Shield size={10} />}
-                        {r.submitted_by === 'resident' ? 'Resident' : 'Admin'}
-                      </span>
-                      {r.reading_photo_path && (
-                        <button onClick={() => viewPhoto(r.reading_photo_path)} title="View photo"
-                          style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--teal-500)', padding: 2, display: 'flex' }}>
-                          <Camera size={14} />
-                        </button>
-                      )}
-                    </div>
-                  </td>
+                  <td>{sourceBadge(r)}</td>
                   <td>
                     <span style={{
                       fontSize: '11px', fontWeight: '600', padding: '3px 8px', borderRadius: '999px',
@@ -254,8 +289,8 @@ export default function ElectricityPage() {
             </tbody>
           </table>
           </div>
-        )}
       </div>
+      )}
 
       {/* Add Reading Modal */}
       {showModal && (

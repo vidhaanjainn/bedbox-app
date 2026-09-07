@@ -4,6 +4,7 @@ import { useEffect, useState } from 'react'
 import { useRouter } from 'next/navigation'
 import { createClient } from '@/lib/supabase/client'
 import { formatCurrency, formatDate, getStatusColor, getNoticeDaysRemaining } from '@/lib/utils'
+import { useIsMobile } from '@/lib/useIsMobile'
 import Link from 'next/link'
 import {
   Bed, Users, TrendingUp, AlertCircle, Wrench,
@@ -31,6 +32,7 @@ export default function DashboardPage() {
   const [loading, setLoading] = useState(true)
   const supabase = createClient()
   const router = useRouter()
+  const isMobile = useIsMobile()
 
   const fetchDashboard = async () => {
     setLoading(true)
@@ -394,6 +396,32 @@ export default function DashboardPage() {
           {data!.unpaidRent.length === 0 ? (
             <div style={{ textAlign: 'center', padding: '32px', color: 'var(--text-muted)', fontSize: '14px' }}>
               All rents collected 🎉
+            </div>
+          ) : isMobile ? (
+            <div>
+              {data!.unpaidRent.slice(0, 8).map((payment: any) => (
+                <div key={payment.id} className="bb-row-card">
+                  <div className="bb-row-card-top">
+                    <div>
+                      <div className="bb-row-card-title">{payment.resident?.name}</div>
+                      <div className="bb-row-card-sub">
+                        Room {payment.resident?.room_number} · {new Date(payment.year, payment.month - 1).toLocaleDateString('en-IN', { month: 'short', year: 'numeric' })}
+                      </div>
+                    </div>
+                    <span className="status-badge" style={{
+                      background: payment.status === 'partial' ? 'rgba(251,191,36,0.1)' : 'rgba(239,68,68,0.1)',
+                      color: payment.status === 'partial' ? '#fbbf24' : '#f87171',
+                      borderColor: payment.status === 'partial' ? 'rgba(251,191,36,0.3)' : 'rgba(239,68,68,0.3)'
+                    }}>
+                      {payment.status}
+                    </span>
+                  </div>
+                  <div className="bb-row-card-amount">
+                    <span className="bb-row-card-amount-value">{formatCurrency(payment.total_amount - payment.amount_paid)}</span>
+                    <span className="bb-row-card-amount-label">Due{payment.late_fee > 0 ? ` (incl. ${formatCurrency(payment.late_fee)} late fee)` : ''}</span>
+                  </div>
+                </div>
+              ))}
             </div>
           ) : (
             <div style={{ overflowX: 'auto' }}>
