@@ -1,4 +1,5 @@
 import type { Metadata, Viewport } from 'next'
+import PwaInstallCapture from '@/components/ui/PwaInstallCapture'
 import './globals.css'
 
 // Resident portal is the default manifest/icon for every route that doesn't
@@ -26,6 +27,7 @@ export default function RootLayout({
   return (
     <html lang="en">
       <body>
+        <PwaInstallCapture />
         {children}
       </body>
     </html>

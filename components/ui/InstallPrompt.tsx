@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from 'react'
 import { Download, X, Share } from 'lucide-react'
+import { onInstallPromptCaptured, clearCapturedInstallPrompt } from '@/lib/pwaInstall'
 
 const DISMISS_KEY = 'bb_install_prompt_dismissed'
 
@@ -37,13 +38,12 @@ export default function InstallPrompt({ dark = true }: { dark?: boolean }) {
       return
     }
 
-    const handler = (e: Event) => {
-      e.preventDefault()
+    // Reads whatever was already captured (even before this component
+    // mounted) and keeps listening in case it fires later on this page.
+    return onInstallPromptCaptured((e) => {
       setDeferredPrompt(e)
       setVisible(true)
-    }
-    window.addEventListener('beforeinstallprompt', handler)
-    return () => window.removeEventListener('beforeinstallprompt', handler)
+    })
   }, [])
 
   const install = async () => {
@@ -51,6 +51,7 @@ export default function InstallPrompt({ dark = true }: { dark?: boolean }) {
     setInstalling(true)
     deferredPrompt.prompt()
     try { await deferredPrompt.userChoice } catch {}
+    clearCapturedInstallPrompt()
     setInstalling(false)
     setVisible(false)
   }
