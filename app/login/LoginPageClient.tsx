@@ -6,6 +6,7 @@ import { useRouter } from 'next/navigation'
 import { Mail, Lock, Eye, EyeOff, Loader2, ArrowRight } from 'lucide-react'
 import Image from 'next/image'
 import Link from 'next/link'
+import InstallPrompt from '@/components/ui/InstallPrompt'
 
 export default function LoginPageClient() {
   const [email, setEmail] = useState('')
@@ -79,6 +80,8 @@ export default function LoginPageClient() {
             Admin Console
           </h1>
         </div>
+
+        <InstallPrompt />
 
         {/* Card */}
         <div style={{
