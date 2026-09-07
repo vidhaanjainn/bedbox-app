@@ -1,7 +1,7 @@
 import { jsPDF } from 'jspdf'
 
 // Admin-only document generation (agreement copy + police tenant-verification form).
-// Both produce a PDF Blob the caller uploads to the private-docs bucket — never
+// Both produce a PDF Blob the caller uploads to the private-docs bucket - never
 // exposed to residents, matching the admin-only storage policy on that bucket.
 
 export type PropertyInfo = {
@@ -29,7 +29,7 @@ export type ResidentForDoc = {
 }
 
 const money = (n?: number | null) => `₹${Math.round(Number(n) || 0).toLocaleString('en-IN')}`
-const date = (d?: string | null) => d ? new Date(d).toLocaleDateString('en-IN', { day: '2-digit', month: 'short', year: 'numeric' }) : '—'
+const date = (d?: string | null) => d ? new Date(d).toLocaleDateString('en-IN', { day: '2-digit', month: 'short', year: 'numeric' }) : '-'
 
 function header(doc: jsPDF, property: PropertyInfo, title: string) {
   doc.setFontSize(16)
@@ -54,26 +54,26 @@ function row(doc: jsPDF, y: number, label: string, value: string) {
   doc.text(label, 20, y)
   doc.setTextColor(20)
   doc.setFont('helvetica', 'bold')
-  doc.text(value || '—', 75, y)
+  doc.text(value || '-', 75, y)
   return y + 7
 }
 
-// Copy of the signed tenancy agreement — clause text + signature metadata.
+// Copy of the signed tenancy agreement - clause text + signature metadata.
 // Not the legal instrument itself (that's the timestamp+IP+checkbox captured at
 // signing time), just a durable, readable record of what was agreed and when.
 export function generateAgreementPdf(resident: ResidentForDoc, property: PropertyInfo, clauses: string[]): Blob {
   const doc = new jsPDF()
-  header(doc, property, 'Tenancy Agreement — Signed Copy')
+  header(doc, property, 'Tenancy Agreement - Signed Copy')
 
   let y = 54
   y = row(doc, y, 'Resident', resident.name)
   y = row(doc, y, 'Mobile', resident.mobile)
-  y = row(doc, y, 'Room', resident.room_number || '—')
+  y = row(doc, y, 'Room', resident.room_number || '-')
   y = row(doc, y, 'Monthly Rent', money(resident.rent_amount))
   y = row(doc, y, 'Security Deposit', money(resident.security_deposit))
   y = row(doc, y, 'Date Signed', date(resident.agreement_signed_at))
-  y = row(doc, y, 'Signed From IP', resident.agreement_ip || '—')
-  y = row(doc, y, 'Agreement Version', resident.agreement_version || '—')
+  y = row(doc, y, 'Signed From IP', resident.agreement_ip || '-')
+  y = row(doc, y, 'Agreement Version', resident.agreement_version || '-')
   y += 4
 
   doc.setDrawColor(220)
@@ -105,7 +105,7 @@ export function generateAgreementPdf(resident: ResidentForDoc, property: Propert
 }
 
 // Standard tenant-verification fields Indian police stations typically require
-// for PG/rental tenant registration. This produces a submission-ready document —
+// for PG/rental tenant registration. This produces a submission-ready document -
 // it does not submit anywhere automatically. There is no public API for
 // municipal/state police tenant-verification portals to integrate against;
 // the owner should confirm the current submission process with their local
@@ -127,13 +127,13 @@ export function generatePoliceVerificationPdf(resident: ResidentForDoc, property
   doc.text('Tenant Details', 20, y); y += 8
   y = row(doc, y, 'Full Name', resident.name)
   y = row(doc, y, 'Mobile Number', resident.mobile)
-  y = row(doc, y, 'Email', resident.email || '—')
-  y = row(doc, y, 'Permanent Address / Hometown', resident.hometown || '—')
+  y = row(doc, y, 'Email', resident.email || '-')
+  y = row(doc, y, 'Permanent Address / Hometown', resident.hometown || '-')
   y = row(doc, y, 'Aadhaar Number', resident.aadhaar_number || '⚠️ NOT ON FILE')
-  y = row(doc, y, 'Room / Occupancy', resident.room_number || '—')
+  y = row(doc, y, 'Room / Occupancy', resident.room_number || '-')
   y = row(doc, y, 'Date of Occupancy', date(resident.date_of_joining))
   y = row(doc, y, 'Purpose of Stay', 'Residential (student/working professional accommodation)')
-  y = row(doc, y, 'Emergency Contact', [resident.emergency_contact_name, resident.emergency_contact_phone].filter(Boolean).join(' — ') || '—')
+  y = row(doc, y, 'Emergency Contact', [resident.emergency_contact_name, resident.emergency_contact_phone].filter(Boolean).join(' - ') || '-')
   y += 10
 
   doc.setFontSize(9)

@@ -52,7 +52,7 @@ export default function EditResidentPage() {
         email: resident.email || '',
         emergency_contact_name: resident.emergency_contact_name || '',
         // Two legacy columns exist for this (onboarding + import both write to
-        // emergency_contact_phone) — prefer it, fall back to the older column
+        // emergency_contact_phone) - prefer it, fall back to the older column
         // so nothing entered there is ever hidden.
         emergency_contact_phone: resident.emergency_contact_phone || resident.emergency_contact_number || '',
         aadhaar_number: resident.aadhaar_number || '',
@@ -94,7 +94,7 @@ export default function EditResidentPage() {
     setError('')
 
     try {
-      // If bed changed — free old bed, occupy new one
+      // If bed changed - free old bed, occupy new one
       const oldBedId = currentBed?.id
       const newBedId = form.bed_id || null
 
@@ -247,7 +247,7 @@ export default function EditResidentPage() {
               <option value="">No bed assigned</option>
               {beds.map(b => (
                 <option key={b.id} value={b.id} disabled={b.status === 'occupied' && b.id !== form.bed_id}>
-                  Room {b.room?.room_number} ({b.room?.type}) · Bed {b.bed_number} — ₹{b.rate_monthly?.toLocaleString('en-IN')}/mo
+                  Room {b.room?.room_number} ({b.room?.type}) · Bed {b.bed_number} - ₹{b.rate_monthly?.toLocaleString('en-IN')}/mo
                   {b.status === 'occupied' && b.id !== form.bed_id ? ' [Occupied]' : ''}
                   {b.status === 'available' ? ' ✓ Available' : ''}
                 </option>

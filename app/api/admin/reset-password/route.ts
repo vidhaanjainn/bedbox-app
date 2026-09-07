@@ -8,7 +8,7 @@ import { sendEmail, emailShell } from '@/lib/notify'
 // route exists), so an invited admin who clicks "Set up your account" has
 // nowhere to actually land and set a password. Rather than depend on that
 // broken flow, this directly sets a temp password on the target admin's
-// existing auth user and emails it to them — same result, works today.
+// existing auth user and emails it to them - same result, works today.
 // Caller must be an active admin; cannot be used to touch non-admin users.
 export async function POST(req: Request) {
   const supabase = await createClient()

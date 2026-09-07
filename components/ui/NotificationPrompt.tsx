@@ -6,7 +6,7 @@ import { isPushSupported, getNotificationPermission, subscribeToPush } from '@/l
 
 const DISMISS_KEY = 'bb_notif_prompt_dismissed'
 
-// Dismissible banner offering to enable push notifications — shown once per
+// Dismissible banner offering to enable push notifications - shown once per
 // browser until enabled or dismissed. Safe no-op on unsupported browsers,
 // already-decided permission, or a previous dismissal.
 export default function NotificationPrompt({ dark = true }: { dark?: boolean }) {

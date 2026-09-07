@@ -37,7 +37,7 @@ export function getDaysRemaining(endDate: string): number {
 type NoticeLike = { last_day_of_stay?: string | null; last_day_per_agreement?: string | null } | null | undefined
 
 // Single source of truth for "how many days until this resident is actually
-// gone" — every page used to compute this ad hoc, and half of them read
+// gone" - every page used to compute this ad hoc, and half of them read
 // last_day_per_agreement (the formal 60-day legal notice deadline, always
 // auto-set to notice_date+60) instead of last_day_of_stay (the actual/
 // expected vacate date, which is what admins care about for room turnover

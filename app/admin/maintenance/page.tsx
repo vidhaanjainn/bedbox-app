@@ -16,14 +16,14 @@ const CATEGORY_HINDI: Record<string, string> = {
 }
 
 // Bilingual, copy-paste-ready message for plumbers/electricians who aren't
-// saved contacts in the app — wa.me with no number opens WhatsApp's own
+// saved contacts in the app - wa.me with no number opens WhatsApp's own
 // contact picker instead of requiring a stored phone number.
 function contractorMessage(task: any): string {
   const room = task.resident?.room_number || 'N/A'
   const issue = task.description || task.title
   const hindiCat = CATEGORY_HINDI[task.category] || 'अन्य'
   return [
-    `TheBedBox — Room ${room}`,
+    `TheBedBox - Room ${room}`,
     `Issue: ${issue}`,
     '',
     `कमरा नंबर ${room} में ${hindiCat} से जुड़ी समस्या है:`,
@@ -48,7 +48,7 @@ export default function MaintenancePage() {
       await navigator.clipboard.writeText(contractorMessage(task))
       setCopiedId(task.id)
       setTimeout(() => setCopiedId(''), 2000)
-    } catch { /* clipboard unavailable — WhatsApp button still works */ }
+    } catch { /* clipboard unavailable - WhatsApp button still works */ }
   }
   const [form, setForm] = useState({
     title: '', description: '', category: 'plumbing', priority: 'medium',
@@ -72,7 +72,7 @@ export default function MaintenancePage() {
     setTasks(data || [])
 
     // Fetched separately, unfiltered, so the "X open · Y in progress ·
-    // Z resolved" summary always reflects the true totals — not just
+    // Z resolved" summary always reflects the true totals - not just
     // whichever status tab happens to be selected right now.
     const { data: all } = await supabase.from('maintenance_requests').select('status')
     setAllTasks(all || [])
@@ -279,7 +279,7 @@ export default function MaintenancePage() {
               </select> },
               { label: 'Related Resident', el: <select className="bb-input" value={form.resident_id} onChange={e => setForm(f => ({ ...f, resident_id: e.target.value }))}>
                 <option value="">None (admin task)</option>
-                {residents.map(r => <option key={r.id} value={r.id}>{r.name} — Room {r.room_number}</option>)}
+                {residents.map(r => <option key={r.id} value={r.id}>{r.name} - Room {r.room_number}</option>)}
               </select> },
               { label: 'Assigned To', el: <input className="bb-input" placeholder="Staff member name" value={form.assigned_to} onChange={e => setForm(f => ({ ...f, assigned_to: e.target.value }))} /> },
               { label: 'Description', el: <textarea className="bb-input" style={{ height: '80px', resize: 'vertical' }} placeholder="Details about the issue..." value={form.description} onChange={e => setForm(f => ({ ...f, description: e.target.value }))} /> },

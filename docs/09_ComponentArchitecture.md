@@ -1,4 +1,4 @@
-# 09 — Component Architecture
+# 09 - Component Architecture
 
 ## Today
 No shared component layer: each page is a self-contained client component with inline UI
@@ -12,12 +12,12 @@ components/
              Skeleton, ConfirmDialog, Toast (Radix-wrapped, token-styled)
   layout/    PageHeader (title+actions), AdminShell, PortalShell (bottom nav)
   domain/    ResidentCard, RentRow, PaymentModeIcon, MoneyText (₹, tabular-nums)
-lib/tokens (Tailwind theme in globals.css @theme — teal palette, spacing, radius)
+lib/tokens (Tailwind theme in globals.css @theme - teal palette, spacing, radius)
 ```
 
 ## Rules
 - New UI goes through `components/ui`; refactor old pages opportunistically per UX task
 - One StatusBadge maps every status enum → color+label (single file to update)
 - Pages stay client components for now; extract data hooks (`lib/hooks/useResidents.ts`) only
-  when a query is needed in 2+ places — no premature abstraction
+  when a query is needed in 2+ places - no premature abstraction
 - Forms: chunked sections, validate on blur, disable submit while pending, toast on result

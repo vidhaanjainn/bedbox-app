@@ -1,8 +1,8 @@
-// Single source of truth for the tenancy agreement clauses — used by the onboarding
+// Single source of truth for the tenancy agreement clauses - used by the onboarding
 // wizard (app/onboard/[token]/page.tsx) and the admin agreement-PDF generator
 // (lib/documents.ts) so both always show the exact same terms.
 //
-// Bump AGREEMENT_VERSION whenever the clauses below change — it's stored on the
+// Bump AGREEMENT_VERSION whenever the clauses below change - it's stored on the
 // resident's record at signing time, so a past resident's proof-of-consent always
 // reflects the exact terms they actually agreed to, even after this text is edited later.
 export const AGREEMENT_VERSION = 'v1-2026-09'

@@ -32,7 +32,7 @@ export default function RoomsPage() {
     setLoading(false)
   }
 
-  // Auto-derived the moment a notice_periods row exists for this resident — no
+  // Auto-derived the moment a notice_periods row exists for this resident - no
   // manual "mark available" step needed anywhere.
   const availableFrom = (residentId?: string) => residentId ? notices[residentId] : undefined
 
@@ -234,7 +234,7 @@ export default function RoomsPage() {
             {[
               { label: 'Bed Number/Label *', el: <input className="bb-input" placeholder="e.g. A, B, 1, 2" value={bedForm.bed_number} onChange={e => setBedForm(f => ({ ...f, bed_number: e.target.value }))} /> },
               { label: 'Monthly Rate (₹)', el: <input className="bb-input" type="number" placeholder="5000" value={bedForm.rate_monthly} onChange={e => setBedForm(f => ({ ...f, rate_monthly: e.target.value }))} /> },
-              { label: 'Daily Rate (₹) — for short stays', el: <input className="bb-input" type="number" placeholder="500" value={bedForm.rate_daily} onChange={e => setBedForm(f => ({ ...f, rate_daily: e.target.value }))} /> },
+              { label: 'Daily Rate (₹) - for short stays', el: <input className="bb-input" type="number" placeholder="500" value={bedForm.rate_daily} onChange={e => setBedForm(f => ({ ...f, rate_daily: e.target.value }))} /> },
             ].map(({ label, el }) => (
               <div key={label} style={{ marginBottom: '14px' }}>
                 <label style={{ display: 'block', fontSize: '12px', fontWeight: '600', letterSpacing: '0.06em', textTransform: 'uppercase', color: 'var(--text-muted)', marginBottom: '8px' }}>{label}</label>

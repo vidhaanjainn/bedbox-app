@@ -1,4 +1,4 @@
-# 20 — AI Execution Guide
+# 20 - AI Execution Guide
 
 **Any AI model resuming work: read this + PROJECT_STATUS.md first. Then pick the Next
 Recommended Task from PROJECT_STATUS.md and execute it fully.**
@@ -19,7 +19,7 @@ Recommended Task from PROJECT_STATUS.md and execute it fully.**
 - App Router, mostly client components with direct Supabase queries; new privileged logic goes
   in `app/api/*` route handlers using the service-role key with strict input validation
 - Styling: Tailwind 4 utility classes; teal brand (#00d4c8 family); reusable pieces go in
-  `components/ui/` (create it — UX-02)
+  `components/ui/` (create it - UX-02)
 - Types: `lib/types.ts` must mirror the LIVE Supabase schema (regenerate, don't hand-edit lies)
 - Schema changes: write a migration SQL file under `supabase/` (create dir), also apply via
   Supabase MCP/dashboard; every new table gets RLS (admin-all + resident-own patterns)
@@ -34,7 +34,7 @@ Recommended Task from PROJECT_STATUS.md and execute it fully.**
 | Var | Purpose |
 |---|---|
 | NEXT_PUBLIC_SUPABASE_URL / NEXT_PUBLIC_SUPABASE_ANON_KEY | client Supabase |
-| SUPABASE_SERVICE_ROLE_KEY | server routes (RLS bypass — validate inputs!) |
+| SUPABASE_SERVICE_ROLE_KEY | server routes (RLS bypass - validate inputs!) |
 | RESEND_API_KEY | email |
 | GOOGLE_SERVICE_ACCOUNT_EMAIL / GOOGLE_PRIVATE_KEY / GOOGLE_SHEET_ID | Sheets sync |
 | CRON_SECRET | (to add in AUTO-01) protect cron routes |
@@ -42,6 +42,6 @@ Recommended Task from PROJECT_STATUS.md and execute it fully.**
 ## Guardrails
 - Never weaken RLS to "make it work"; fix at the API layer instead
 - Never expose Aadhaar/document URLs publicly; signed URLs only
-- Don't refactor broadly while doing a feature task — log the idea in 17_FutureIdeas.md instead
+- Don't refactor broadly while doing a feature task - log the idea in 17_FutureIdeas.md instead
 - If blocked (missing env, needs owner action), record it under "Blocked By" in PROJECT_STATUS.md
   and pick the next unblocked task

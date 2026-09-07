@@ -7,7 +7,7 @@ import { Bell, Plus, X, Loader2, AlertTriangle, CheckCircle, RefreshCw, FileSpre
 import { Modal, FormField } from '@/components/ui/Modal'
 import { formatCurrency } from '@/lib/utils'
 
-// Parses the sheet's dd/mm/yyyy text (when present — often blank) into an ISO date.
+// Parses the sheet's dd/mm/yyyy text (when present - often blank) into an ISO date.
 function parseSheetDate(raw?: string | null): string {
   if (!raw) return ''
   const m = raw.trim().match(/^(\d{1,2})\/(\d{1,2})\/(\d{4})/)
@@ -68,7 +68,7 @@ export default function NoticesPage() {
       setSyncMsg(`✓ Checked ${data.totalRows} rows, ${data.imported} new`)
       fetchAll()
     } catch {
-      setSyncMsg('Sync failed — check your connection.')
+      setSyncMsg('Sync failed - check your connection.')
     } finally {
       setSyncing(false)
       setTimeout(() => setSyncMsg(''), 5000)
@@ -96,7 +96,7 @@ export default function NoticesPage() {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ residentId: draft.resident_id, lastDayOfStay: draft.last_day_of_stay, lastDayPerAgreement: agreementEnd, noticeDate }),
       })
-    } catch { /* non-fatal — notice is already recorded */ }
+    } catch { /* non-fatal - notice is already recorded */ }
     fetchAll()
   }
 
@@ -121,7 +121,7 @@ export default function NoticesPage() {
     await supabase.from('residents').update({ status: 'notice' }).eq('id', form.resident_id)
     try {
       // last_day_per_agreement is auto-computed server-side by a DB trigger
-      // (notice_date + 60 days) — mirrored here so the confirmation email
+      // (notice_date + 60 days) - mirrored here so the confirmation email
       // has it without a round trip to re-fetch the just-inserted row.
       const agreementEnd = new Date(new Date(form.notice_date).getTime() + 60 * 24 * 60 * 60 * 1000).toISOString().split('T')[0]
       await fetch('/api/notify/notice-filed', {
@@ -129,7 +129,7 @@ export default function NoticesPage() {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ residentId: form.resident_id, lastDayOfStay: form.last_day_of_stay || null, lastDayPerAgreement: agreementEnd, noticeDate: form.notice_date }),
       })
-    } catch { /* non-fatal — notice is already recorded */ }
+    } catch { /* non-fatal - notice is already recorded */ }
 
     setShowModal(false)
     setForm({ resident_id: '', notice_date: new Date().toISOString().split('T')[0], reason: '', last_day_of_stay: '' })
@@ -207,7 +207,7 @@ export default function NoticesPage() {
         </div>
       </div>
 
-      {/* Google Form review queue — deliberately requires confirmation, not auto-applied.
+      {/* Google Form review queue - deliberately requires confirmation, not auto-applied.
           The form has repeat/old submissions from residents who are still currently active. */}
       {submissions.length > 0 && (
         <div className="glass-card" style={{ padding: '20px', marginBottom: '24px', borderColor: 'rgba(249,115,22,0.25)' }}>
@@ -218,7 +218,7 @@ export default function NoticesPage() {
             </h3>
           </div>
           <p style={{ fontSize: '12px', color: 'var(--text-muted)', margin: '0 0 16px' }}>
-            From the "Notice to Vacate" Google Form. Confirm the matching resident and last day before this becomes an official notice — some of these may be old or already resolved.
+            From the "Notice to Vacate" Google Form. Confirm the matching resident and last day before this becomes an official notice - some of these may be old or already resolved.
           </p>
           <div style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
             {submissions.map(s => {
@@ -226,12 +226,12 @@ export default function NoticesPage() {
               return (
                 <div key={s.id} className="bb-notice-review-row" style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr auto auto', gap: '10px', alignItems: 'center', padding: '12px', background: 'var(--surface-2)', borderRadius: '10px' }}>
                   <div>
-                    <div style={{ fontSize: '13px', fontWeight: '600', color: 'var(--text-primary)' }}>{s.name || '—'} <span style={{ fontWeight: '400', color: 'var(--text-muted)' }}>(Room {s.room_number || '?'})</span></div>
+                    <div style={{ fontSize: '13px', fontWeight: '600', color: 'var(--text-primary)' }}>{s.name || '-'} <span style={{ fontWeight: '400', color: 'var(--text-muted)' }}>(Room {s.room_number || '?'})</span></div>
                     <div style={{ fontSize: '11px', color: 'var(--text-muted)' }}>{s.submitted_at} · {s.reason?.slice(0, 60) || 'No reason given'}</div>
                   </div>
                   <select className="bb-input" value={draft.resident_id} onChange={e => setReviewDrafts(d => ({ ...d, [s.id]: { ...draft, resident_id: e.target.value } }))}>
                     <option value="">Match to resident...</option>
-                    {residents.map(r => <option key={r.id} value={r.id}>{r.name} — Room {r.room_number}</option>)}
+                    {residents.map(r => <option key={r.id} value={r.id}>{r.name} - Room {r.room_number}</option>)}
                   </select>
                   <input className="bb-input" type="date" value={draft.last_day_of_stay} onChange={e => setReviewDrafts(d => ({ ...d, [s.id]: { ...draft, last_day_of_stay: e.target.value } }))} />
                   <button onClick={() => applySubmission(s)} style={{ padding: '8px 14px', borderRadius: '8px', border: '1px solid rgba(52,211,153,0.3)', background: 'rgba(52,211,153,0.08)', color: '#34d399', fontSize: '12px', fontWeight: '600', cursor: 'pointer', whiteSpace: 'nowrap' }}>Apply</button>
@@ -372,7 +372,7 @@ export default function NoticesPage() {
             {[
               { label: 'Resident *', el: <select className="bb-input" value={form.resident_id} onChange={e => setForm(f => ({ ...f, resident_id: e.target.value }))}>
                 <option value="">Select resident</option>
-                {residents.map(r => <option key={r.id} value={r.id}>{r.name} — Room {r.room_number}</option>)}
+                {residents.map(r => <option key={r.id} value={r.id}>{r.name} - Room {r.room_number}</option>)}
               </select> },
               { label: 'Notice Date *', el: <input className="bb-input" type="date" value={form.notice_date} onChange={e => setForm(f => ({ ...f, notice_date: e.target.value }))} /> },
               { label: 'Actual Last Day (optional)', el: <input className="bb-input" type="date" value={form.last_day_of_stay} onChange={e => setForm(f => ({ ...f, last_day_of_stay: e.target.value }))} /> },
@@ -406,7 +406,7 @@ export default function NoticesPage() {
 
       {/* Move-out checklist + deposit settlement */}
       {settlementTarget && (
-        <Modal title={`Move Out — ${settlementTarget.resident?.name}`} onClose={() => setSettlementTarget(null)} maxWidth="520px">
+        <Modal title={`Move Out - ${settlementTarget.resident?.name}`} onClose={() => setSettlementTarget(null)} maxWidth="520px">
           <div style={{ fontSize: '13px', color: 'var(--text-muted)', marginBottom: '18px' }}>
             Room {settlementTarget.resident?.room_number} · Security deposit {formatCurrency(depositAmount)}
           </div>
@@ -454,7 +454,7 @@ export default function NoticesPage() {
           {!allChecked && <div style={{ fontSize: 12, color: '#fbbf24', marginBottom: 12 }}>Complete all checklist items before finalizing.</div>}
           <button onClick={completeMoveOut} disabled={!allChecked || settling} className="bb-btn-primary" style={{ width: '100%', justifyContent: 'center' }}>
             {settling ? <Loader2 size={14} style={{ animation: 'spin 1s linear infinite' }} /> : <ClipboardCheck size={14} />}
-            Complete Move-Out — Refund {formatCurrency(refundAmount)}
+            Complete Move-Out - Refund {formatCurrency(refundAmount)}
           </button>
         </Modal>
       )}

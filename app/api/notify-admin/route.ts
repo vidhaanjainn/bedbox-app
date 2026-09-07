@@ -7,7 +7,7 @@ export async function POST(req: NextRequest) {
 
   await sendPushToAdmins({
     title: 'New onboarding submitted',
-    body: `${residentName} completed onboarding — needs approval`,
+    body: `${residentName} completed onboarding - needs approval`,
     url: '/admin/residents',
   })
 

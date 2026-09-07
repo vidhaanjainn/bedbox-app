@@ -94,12 +94,12 @@ export default function NewResidentPage() {
 
       if (residentError) throw residentError
 
-      // Mark bed as reserved (not occupied — resident hasn't moved in yet)
+      // Mark bed as reserved (not occupied - resident hasn't moved in yet)
       if (form.bed_id) {
         await supabase.from('beds').update({ status: 'reserved' }).eq('id', form.bed_id)
       }
 
-      // Auto-generate invite token and email it straight to the resident —
+      // Auto-generate invite token and email it straight to the resident -
       // no manual copy/paste needed unless they have no email on file.
       const { data: token, error: tokenError } = await supabase.rpc('generate_onboard_token', {
         p_resident_id: resident.id
@@ -113,10 +113,10 @@ export default function NewResidentPage() {
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({ residentId: resident.id, link: `${window.location.origin}/onboard/${token}` }),
           })
-        } catch { /* non-fatal — admin can still send the link manually from the detail page */ }
+        } catch { /* non-fatal - admin can still send the link manually from the detail page */ }
       }
 
-      // Redirect to detail page — invite link will be shown ready to copy
+      // Redirect to detail page - invite link will be shown ready to copy
       router.push(`/admin/residents/${resident.id}?invited=true`)
     } catch (err: any) {
       setError(err.message || 'Something went wrong')
@@ -186,7 +186,7 @@ export default function NewResidentPage() {
       })
 
       // Stamp who onboarded them and send the same "you're in, here's how to
-      // log in" email the self-service path sends on approval — walk-ins get
+      // log in" email the self-service path sends on approval - walk-ins get
       // identical treatment instead of silently having no login instructions.
       try {
         await fetch('/api/approve-resident', {
@@ -194,7 +194,7 @@ export default function NewResidentPage() {
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({ residentId: resident.id }),
         })
-      } catch { /* non-fatal — resident is already active either way */ }
+      } catch { /* non-fatal - resident is already active either way */ }
 
       router.push(`/admin/residents/${resident.id}`)
     } catch (err: any) {
@@ -297,7 +297,7 @@ export default function NewResidentPage() {
 
           {/* Optional */}
           <h3 style={{ fontFamily: 'Syne, sans-serif', fontSize: '13px', fontWeight: '700', color: 'var(--text-muted)', margin: '0 0 16px', textTransform: 'uppercase', letterSpacing: '0.08em' }}>
-            Optional — fill now or update later
+            Optional - fill now or update later
           </h3>
           <div className="bb-grid-2" style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '16px' }}>
             <div style={{ gridColumn: '1/-1' }}>
@@ -306,7 +306,7 @@ export default function NewResidentPage() {
                 <option value="">Select bed (optional)</option>
                 {beds.map(bed => (
                   <option key={bed.id} value={bed.id}>
-                    Room {bed.room?.room_number} — Bed {bed.bed_number} ({bed.room?.type}) · ₹{bed.rate_monthly}/mo
+                    Room {bed.room?.room_number} - Bed {bed.bed_number} ({bed.room?.type}) · ₹{bed.rate_monthly}/mo
                   </option>
                 ))}
               </select>
@@ -452,7 +452,7 @@ export default function NewResidentPage() {
                     <select className="bb-input" value={form.bed_id} onChange={e => handleBedSelect(e.target.value)}>
                       <option value="">Select available bed</option>
                       {beds.map(bed => (
-                        <option key={bed.id} value={bed.id}>Room {bed.room?.room_number} — Bed {bed.bed_number} ({bed.room?.type}) · ₹{bed.rate_monthly}/mo</option>
+                        <option key={bed.id} value={bed.id}>Room {bed.room?.room_number} - Bed {bed.bed_number} ({bed.room?.type}) · ₹{bed.rate_monthly}/mo</option>
                       ))}
                     </select>
                   </div>
@@ -535,7 +535,7 @@ export default function NewResidentPage() {
                 </div>
                 <p style={{ color: 'var(--text-muted)', fontSize: '13px', marginBottom: '20px' }}>Review and confirm the rental agreement.</p>
                 <div style={{ height: '320px', overflowY: 'auto', padding: '20px', background: 'var(--surface-2)', borderRadius: '12px', border: '1px solid var(--border)', marginBottom: '20px', fontSize: '13px', color: 'var(--text-secondary)', lineHeight: '1.7' }}>
-                  <p><strong style={{ color: 'var(--text-primary)' }}>RENTAL AGREEMENT — THE BEDBOX</strong></p>
+                  <p><strong style={{ color: 'var(--text-primary)' }}>RENTAL AGREEMENT - THE BEDBOX</strong></p>
                   <p>8, Mahabali Nagar, Kolar Road, Bhopal (M.P.)</p>
                   <p><strong>Resident:</strong> {form.name || '[Name]'} | Room {form.room_number || '[Room]'} | ₹{form.rent_amount || '[Rent]'}/month</p>
                   <hr style={{ border: 'none', borderTop: '1px solid var(--border)', margin: '12px 0' }} />

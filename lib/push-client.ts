@@ -17,7 +17,7 @@ export function getNotificationPermission(): NotificationPermission | 'unsupport
 }
 
 // Notification.permission is a one-way ratchet (stays 'granted' even after
-// unsubscribing) — check the actual push subscription to know current state.
+// unsubscribing) - check the actual push subscription to know current state.
 export async function hasActiveSubscription(): Promise<boolean> {
   if (!isPushSupported()) return false
   try {
@@ -30,8 +30,8 @@ export async function hasActiveSubscription(): Promise<boolean> {
 }
 
 export async function subscribeToPush(): Promise<{ ok: boolean; error?: string }> {
-  // Everything here — including requestPermission, which can itself throw/
-  // reject on some browsers (e.g. Safari outside a direct user gesture) —
+  // Everything here - including requestPermission, which can itself throw/
+  // reject on some browsers (e.g. Safari outside a direct user gesture) -
   // MUST resolve to a definite result. A previous version left
   // requestPermission() outside this try/catch: an uncaught rejection there
   // propagated straight through this async function, and callers awaiting

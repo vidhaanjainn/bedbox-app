@@ -7,7 +7,7 @@ import { NextResponse, type NextRequest } from 'next/server'
 // client's own document.cookie writes. That matters a lot for the PWA on
 // iOS: Safari's Intelligent Tracking Prevention aggressively caps the
 // lifetime of cookies set via script (document.cookie), which is all a
-// pure client component can do — cookies set by an actual server response
+// pure client component can do - cookies set by an actual server response
 // aren't subject to that cap. Without this, a home-screen PWA that gets
 // fully suspended/reopened by the OS was effectively getting logged out
 // because its auth cookie had been silently expired by ITP, not because the
@@ -32,7 +32,7 @@ export async function proxy(request: NextRequest) {
     }
   )
 
-  // Do not add logic between createServerClient and getUser() — this call
+  // Do not add logic between createServerClient and getUser() - this call
   // is what actually triggers the refresh-and-recookie side effect above.
   await supabase.auth.getUser()
 
@@ -41,7 +41,7 @@ export async function proxy(request: NextRequest) {
 
 export const config = {
   matcher: [
-    // Skip static assets, images, and the service worker/manifest — no
+    // Skip static assets, images, and the service worker/manifest - no
     // auth-cookie refresh needed for those, and it avoids extra latency on
     // every single asset request.
     '/((?!_next/static|_next/image|favicon.ico|sw.js|manifest.*\\.json|icons/|.*\\.(?:svg|png|jpg|jpeg|gif|webp)$).*)',

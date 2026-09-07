@@ -1,9 +1,9 @@
-# 04 — UI/UX Review & Redesign Direction
+# 04 - UI/UX Review & Redesign Direction
 
 ## Verdict
 Functional MVP UI, built page-by-page without a shared system. To reach "Stripe-level polish"
 we need tokens + shared components first (UX-01/02), then per-screen passes. Do NOT restyle
-screens ad hoc before the token layer exists — that's how inconsistency happened.
+screens ad hoc before the token layer exists - that's how inconsistency happened.
 
 ## Brand direction (D-003)
 - **Primary: teal** `#00d4c8` (already used in emails) with a light, airy app theme:
@@ -27,9 +27,9 @@ screens ad hoc before the token layer exists — that's how inconsistency happen
    items deserve a dedicated "Today" list, not scattered stat cards.
 2. **States**: most tables lack empty/loading/error states → add EmptyState + Skeleton everywhere
    (UX-05). Every destructive action needs ConfirmDialog with consequence copy.
-3. **Mobile**: admin is desk-usable but portal must be thumb-first — bottom tab bar (Home,
+3. **Mobile**: admin is desk-usable but portal must be thumb-first - bottom tab bar (Home,
    Payments, Help, Profile), 44px+ targets, sticky primary CTA (UX-04).
-4. **Forms**: residents/new is a 570-line monolith — chunk into sections with progress, inline
+4. **Forms**: residents/new is a 570-line monolith - chunk into sections with progress, inline
    validation on blur, Indian formats (10-digit mobile auto-format, ₹ prefixed amounts).
 5. **Feedback**: use the Radix toast consistently for every mutation (success + failure copy).
 6. **Trust & delight**: onboarding success screen ("You're in! Room 204 🎉" + portal button);

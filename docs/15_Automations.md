@@ -1,4 +1,4 @@
-# 15 — Automations
+# 15 - Automations
 
 Runtime: **Vercel Cron** → `/api/cron/daily` (07:30 IST) and `/api/cron/monthly` (1st, 06:00 IST),
 `CRON_SECRET`-protected (AUTO-01). Every job idempotent (safe to re-run) and dry-runnable.

@@ -2,7 +2,7 @@ import { Resend } from 'resend'
 
 // Central notification layer (D-004). Every send goes through here so channels
 // (email today, WhatsApp/push later) can be added without touching call sites.
-// All sends are treated as non-fatal side effects by callers — never throw for
+// All sends are treated as non-fatal side effects by callers - never throw for
 // a missing/misconfigured provider, just skip and log.
 
 const resend = process.env.RESEND_API_KEY ? new Resend(process.env.RESEND_API_KEY) : null
@@ -13,11 +13,11 @@ const FROM_EMAIL = process.env.RESEND_FROM_EMAIL || 'TheBedBox <onboarding@resen
 
 export async function sendEmail(opts: { to: string; subject: string; html: string }) {
   if (!resend) {
-    console.warn('sendEmail skipped — RESEND_API_KEY not configured:', opts.subject)
+    console.warn('sendEmail skipped - RESEND_API_KEY not configured:', opts.subject)
     return { skipped: true }
   }
   if (!opts.to) {
-    console.warn('sendEmail skipped — no recipient:', opts.subject)
+    console.warn('sendEmail skipped - no recipient:', opts.subject)
     return { skipped: true }
   }
   try {
@@ -37,12 +37,12 @@ export async function sendEmail(opts: { to: string; subject: string; html: strin
 // "service" conversations and India-region marketing/utility conversations have
 // a free monthly allowance). Requires WHATSAPP_ACCESS_TOKEN + WHATSAPP_PHONE_NUMBER_ID,
 // which only exist once the owner completes Meta's own Business/WhatsApp Platform
-// setup — see docs/13_Notifications.md. No-ops safely until then.
+// setup - see docs/13_Notifications.md. No-ops safely until then.
 export async function sendWhatsApp(opts: { to: string; templateName: string; params?: string[] }) {
   const token = process.env.WHATSAPP_ACCESS_TOKEN
   const phoneNumberId = process.env.WHATSAPP_PHONE_NUMBER_ID
   if (!token || !phoneNumberId) {
-    console.warn('sendWhatsApp skipped — WhatsApp Cloud API not configured yet:', opts.templateName)
+    console.warn('sendWhatsApp skipped - WhatsApp Cloud API not configured yet:', opts.templateName)
     return { skipped: true }
   }
   try {

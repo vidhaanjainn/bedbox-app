@@ -3,7 +3,7 @@ import { createClient } from '@supabase/supabase-js'
 import { google } from 'googleapis'
 import { sendPushToAdmins } from '@/lib/push'
 
-// Your Google Sheet ID — update via GOOGLE_SHEET_ID env var if you ever change sheets
+// Your Google Sheet ID - update via GOOGLE_SHEET_ID env var if you ever change sheets
 const SHEET_ID = process.env.GOOGLE_SHEET_ID || '1Nz1daHvT4w5RyrYxkLlrEYrWtjjBvYJetwGdMo85FAs'
 
 // Column order that matches your existing sheet structure:
@@ -27,7 +27,7 @@ async function appendToSheet(data: Record<string, string>) {
   const key   = process.env.GOOGLE_PRIVATE_KEY
 
   if (!email || !key) {
-    console.warn('Google Sheets not configured — skipping sheet append. Add GOOGLE_SERVICE_ACCOUNT_EMAIL and GOOGLE_PRIVATE_KEY to env vars.')
+    console.warn('Google Sheets not configured - skipping sheet append. Add GOOGLE_SERVICE_ACCOUNT_EMAIL and GOOGLE_PRIVATE_KEY to env vars.')
     return { skipped: true }
   }
 
@@ -80,7 +80,7 @@ async function saveToSupabase(data: Record<string, string>) {
 async function notifyAdmin(data: Record<string, string>) {
   await sendPushToAdmins({
     title: 'New room inquiry',
-    body: `${data.name} — ${data.mobile}${data.roomType ? ` · ${data.roomType}` : ''}`,
+    body: `${data.name} - ${data.mobile}${data.roomType ? ` · ${data.roomType}` : ''}`,
     url: '/admin/bookings',
   })
 
@@ -97,7 +97,7 @@ async function notifyAdmin(data: Record<string, string>) {
       body: JSON.stringify({
         from: process.env.RESEND_FROM_EMAIL || 'TheBedBox <onboarding@resend.dev>',
         to: process.env.ADMIN_NOTIFY_EMAIL || 'thebedbox.in@gmail.com',
-        subject: `📥 New Room Inquiry — ${data.name}`,
+        subject: `📥 New Room Inquiry - ${data.name}`,
         html: `
           <div style="font-family:sans-serif;max-width:520px;margin:0 auto;background:#070d1a;color:#e8eaf0;padding:32px;border-radius:16px">
             <h2 style="color:#00d4c8;margin:0 0 24px;font-size:20px">New Booking Inquiry</h2>
@@ -105,14 +105,14 @@ async function notifyAdmin(data: Record<string, string>) {
               ${[
                 ['Name',        data.name],
                 ['Mobile',      data.mobile],
-                ['Alt Mobile',  data.altMobile || '—'],
-                ['Email',       data.email     || '—'],
-                ['Room Type',   data.roomType  || '—'],
-                ['Institution', data.institution || '—'],
-                ['Course',      data.course    || '—'],
-                ['Duration',    data.duration  || '—'],
-                ['Hometown',    data.hometown  || '—'],
-                ['Message',     data.message   || '—'],
+                ['Alt Mobile',  data.altMobile || '-'],
+                ['Email',       data.email     || '-'],
+                ['Room Type',   data.roomType  || '-'],
+                ['Institution', data.institution || '-'],
+                ['Course',      data.course    || '-'],
+                ['Duration',    data.duration  || '-'],
+                ['Hometown',    data.hometown  || '-'],
+                ['Message',     data.message   || '-'],
               ].map(([label, value]) => `
                 <tr>
                   <td style="padding:8px 0;color:rgba(255,255,255,0.45);width:120px;vertical-align:top">${label}</td>
@@ -159,14 +159,14 @@ export async function POST(request: Request) {
       message:     (body.message || '').trim(),
     }
 
-    // Run all three in parallel — sheet and email failures are non-fatal
+    // Run all three in parallel - sheet and email failures are non-fatal
     const [supabaseResult, sheetResult] = await Promise.allSettled([
       saveToSupabase(data),
       appendToSheet(data),
       notifyAdmin(data),        // fire-and-forget, result ignored
     ])
 
-    // Supabase is the source of truth — fail if it fails
+    // Supabase is the source of truth - fail if it fails
     if (supabaseResult.status === 'rejected') {
       console.error('Supabase insert failed:', supabaseResult.reason)
       return NextResponse.json(

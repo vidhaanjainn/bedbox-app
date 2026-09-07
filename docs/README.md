@@ -1,4 +1,4 @@
-# Bedbox Docs — Index
+# Bedbox Docs - Index
 
 **Start here every session: [PROJECT_STATUS.md](PROJECT_STATUS.md) → [20_AIExecutionGuide.md](20_AIExecutionGuide.md).**
 Resume prompt for any AI model: *"Read docs/PROJECT_STATUS.md and docs/20_AIExecutionGuide.md,
@@ -36,4 +36,4 @@ then continue from the Next Recommended Task."*
 | 28_EmailAutomation.md | Resend plan, templates, blockers |
 | 30_LegalCompliance.md | Aadhaar/DPDP, agreements, receipts |
 
-Numbering gaps (24, 26, 29) are intentional — merged into 23, 25, 13 to avoid thin duplicate files.
+Numbering gaps (24, 26, 29) are intentional - merged into 23, 25, 13 to avoid thin duplicate files.

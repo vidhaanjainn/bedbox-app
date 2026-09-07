@@ -55,13 +55,13 @@ export default function NoticePage() {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ residentId: resident.id, lastDayOfStay: vacateDate, noticeDate: today }),
       })
-    } catch { /* non-fatal — notice is already recorded */ }
+    } catch { /* non-fatal - notice is already recorded */ }
     setDone(true); setSubmitting(false)
   }
 
   if (loading) return <div style={{ padding: 28 }}><div style={{ height: 120, borderRadius: 12, background: 'rgba(255,255,255,0.04)' }} /></div>
 
-  // Already has an active notice — auto-fetched, no re-entry needed
+  // Already has an active notice - auto-fetched, no re-entry needed
   if (activeNotice) {
     const daysLeft = Math.max(0, Math.floor((new Date(activeNotice.last_day_of_stay).getTime() - Date.now()) / 86400000))
     const endDate = new Date(activeNotice.last_day_of_stay).toLocaleDateString('en-IN', { day: 'numeric', month: 'long', year: 'numeric' })

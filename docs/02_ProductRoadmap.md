@@ -1,9 +1,9 @@
-# 02 — Product Roadmap
+# 02 - Product Roadmap
 
 Principle: tiny, independently deployable milestones. The app must stay working after every task.
 Task IDs reference 03_MasterBacklog.md.
 
-## Phase 0 — Foundation Hardening (do first, ~1 week of sessions)
+## Phase 0 - Foundation Hardening (do first, ~1 week of sessions)
 Goal: safe to hand to real residents. No new features until this is done.
 - SEC-01 Onboarding via server routes; drop unsafe RLS policies (P0)
 - SEC-02 Signed upload URLs for KYC docs; kill anon bucket writes (P0)
@@ -12,7 +12,7 @@ Goal: safe to hand to real residents. No new features until this is done.
 - SEC-03 `admins` table + settings-driven admin email
 - OPS-01 Repo hygiene: README rewrite, .gitignore (.DS_Store, tsbuildinfo, .next), commit SQL migrations properly
 
-## Phase 1 — Automation Engine (the "it just does the work" phase)
+## Phase 1 - Automation Engine (the "it just does the work" phase)
 - AUTO-01 Vercel Cron + `/api/cron/*` scaffold with shared secret
 - AUTO-02 Rent reminder emails (upcoming 3 days before due, overdue nudges) via Resend
   ⚠ blocked by domain verification in Resend
@@ -22,7 +22,7 @@ Goal: safe to hand to real residents. No new features until this is done.
 - AUTO-06 Notice-period and contract-expiry reminders (admin + resident)
 - AUTO-07 Monthly digest to admin: occupancy, collected vs pending, expenses
 
-## Phase 2 — Resident Delight (portal becomes genuinely useful)
+## Phase 2 - Resident Delight (portal becomes genuinely useful)
 - RES-01 Home hub: WiFi password card, house rules, property contacts (settings-driven)
 - RES-02 Nearby & essentials directory (restaurants/grocery/pharmacy/hospital/transport) + vendors
 - RES-03 Announcements (admin posts → portal feed)
@@ -31,13 +31,13 @@ Goal: safe to hand to real residents. No new features until this is done.
 - RES-06 Move-out workflow (notice → checklist → deposit settlement)
 - UX-01→UX-06 design-system pass (see 04_UIUXReview.md)
 
-## Phase 3 — Landlord Ops (staff, money, insight)
+## Phase 3 - Landlord Ops (staff, money, insight)
 - STAFF-01 Staff table + salaries, payouts (pending/done/advance), payout reminders
 - EXP-01 Expense tracking (maintenance/vendor/monthly categories) + monthly totals
 - FIN-01 Cash-flow view: income vs expenses vs pending, collection efficiency
 - RPT-01 Report exports (CSV/PDF), analytics upgrades (churn, avg stay, vacancy days)
 
-## Phase 4 — SaaS Foundation (only after 0–3 are solid)
+## Phase 4 - SaaS Foundation (only after 0–3 are solid)
 - SAAS-01 `properties` table + property_id on all tables + RLS by membership
 - SAAS-02 Multi-admin/roles, onboarding for new landlords, per-property settings
 - SAAS-03 Payment gateway (Razorpay) for rent collection + subscription billing

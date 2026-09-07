@@ -41,12 +41,12 @@ export default function ResidentDetailPage() {
   const [renewing, setRenewing] = useState(false)
   const supabase = createClient()
 
-  // Admin-only action — this page is never reachable by a resident, and lease_end_date
+  // Admin-only action - this page is never reachable by a resident, and lease_end_date
   // is never queried or displayed anywhere in app/portal/*, by design (owner request:
   // residents should get no early warning that a renewal is coming).
   const openRenewModal = () => {
     const currentRent = Number(resident?.rent_amount) || 0
-    setRenewRent(String(Math.round(currentRent * 1.075))) // suggested +7.5%, per the agreement's 5-10% clause — editable
+    setRenewRent(String(Math.round(currentRent * 1.075))) // suggested +7.5%, per the agreement's 5-10% clause - editable
     const base = resident?.lease_end_date ? new Date(resident.lease_end_date) : new Date()
     base.setMonth(base.getMonth() + 11)
     setRenewEndDate(base.toISOString().split('T')[0])
@@ -166,12 +166,12 @@ export default function ResidentDetailPage() {
           body: JSON.stringify({ residentId: id, link: url }),
         })
         const json = await res.json()
-        setInviteEmailStatus(res.ok ? `✓ Emailed to ${json.email}` : 'Could not email automatically — copy the link below and send manually.')
+        setInviteEmailStatus(res.ok ? `✓ Emailed to ${json.email}` : 'Could not email automatically - copy the link below and send manually.')
       } catch {
-        setInviteEmailStatus('Could not email automatically — copy the link below and send manually.')
+        setInviteEmailStatus('Could not email automatically - copy the link below and send manually.')
       }
     } else {
-      setInviteEmailStatus('No email on file — copy the link below and send manually.')
+      setInviteEmailStatus('No email on file - copy the link below and send manually.')
     }
     setInviteLoading(false)
   }
@@ -246,11 +246,11 @@ export default function ResidentDetailPage() {
 
       {justInvited && (
         <div style={{ display: 'flex', alignItems: 'center', gap: '10px', padding: '12px 16px', borderRadius: '10px', marginBottom: '20px', background: 'rgba(52,211,153,0.08)', border: '1px solid rgba(52,211,153,0.25)', fontSize: '13px', color: '#34d399', fontWeight: '600' }}>
-          <CheckCircle size={15} /> Resident created — the onboarding link was emailed automatically if they have an email on file.
+          <CheckCircle size={15} /> Resident created - the onboarding link was emailed automatically if they have an email on file.
         </div>
       )}
 
-      {/* PORTAL INVITE BANNER — top, always visible */}
+      {/* PORTAL INVITE BANNER - top, always visible */}
       {resident.onboarding_status !== 'active' ? (
         <div style={{ padding: '20px 24px', borderRadius: '14px', marginBottom: '24px', background: resident.onboarding_status === 'submitted' ? 'rgba(52,211,153,0.06)' : 'rgba(0,212,200,0.04)', border: `1px solid ${resident.onboarding_status === 'submitted' ? 'rgba(52,211,153,0.25)' : 'rgba(0,212,200,0.15)'}` }}>
           {resident.onboarding_status === 'submitted' ? (
@@ -258,9 +258,9 @@ export default function ResidentDetailPage() {
               <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
                 <CheckCircle size={20} color="#34d399" />
                 <div>
-                  <div style={{ fontSize: '14px', fontWeight: '700', color: '#34d399' }}>Onboarding submitted — needs your approval</div>
+                  <div style={{ fontSize: '14px', fontWeight: '700', color: '#34d399' }}>Onboarding submitted - needs your approval</div>
                   <div style={{ fontSize: '12px', color: 'var(--text-muted)', marginTop: '2px' }}>
-                    Agreement signed{resident.agreement_signed_at ? ` on ${formatDate(resident.agreement_signed_at)}` : ''} · IP: {resident.agreement_ip || '—'}
+                    Agreement signed{resident.agreement_signed_at ? ` on ${formatDate(resident.agreement_signed_at)}` : ''} · IP: {resident.agreement_ip || '-'}
                   </div>
                 </div>
               </div>
@@ -380,12 +380,12 @@ export default function ResidentDetailPage() {
           <h3 style={{ fontFamily: 'Syne, sans-serif', fontSize: '14px', fontWeight: '600', color: 'var(--text-primary)', margin: '0 0 16px', textTransform: 'uppercase', letterSpacing: '0.06em' }}>Contact</h3>
           <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
             <InfoRow icon={<Phone size={14} />} label="Mobile" value={resident.mobile} />
-            <InfoRow icon={<Mail size={14} />} label="Email" value={resident.email || '—'} />
-            <InfoRow icon={<MapPin size={14} />} label="Hometown" value={resident.hometown || '—'} />
-            <InfoRow icon={<Building size={14} />} label="Institution" value={resident.institution || '—'} />
+            <InfoRow icon={<Mail size={14} />} label="Email" value={resident.email || '-'} />
+            <InfoRow icon={<MapPin size={14} />} label="Hometown" value={resident.hometown || '-'} />
+            <InfoRow icon={<Building size={14} />} label="Institution" value={resident.institution || '-'} />
             <div style={{ paddingTop: '8px', borderTop: '1px solid var(--border)' }}>
               <div style={{ fontSize: '11px', color: 'var(--text-muted)', marginBottom: '6px', textTransform: 'uppercase', letterSpacing: '0.06em' }}>Emergency Contact</div>
-              <div style={{ fontSize: '14px', color: 'var(--text-primary)' }}>{resident.emergency_contact_name || '—'}</div>
+              <div style={{ fontSize: '14px', color: 'var(--text-primary)' }}>{resident.emergency_contact_name || '-'}</div>
               <div style={{ fontSize: '13px', color: 'var(--text-muted)' }}>{resident.emergency_contact_phone || resident.emergency_contact_number || ''}</div>
             </div>
           </div>
@@ -400,9 +400,9 @@ export default function ResidentDetailPage() {
             )}
           </div>
           <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
-            <InfoRow icon={<Building size={14} />} label="Room" value={`${resident.room_number || '—'} (${resident.bed?.room?.type || ''})`} />
+            <InfoRow icon={<Building size={14} />} label="Room" value={`${resident.room_number || '-'} (${resident.bed?.room?.type || ''})`} />
             <InfoRow icon={<Calendar size={14} />} label="Joined" value={formatDate(resident.date_of_joining)} />
-            <InfoRow icon={<Calendar size={14} />} label="Duration" value={resident.expected_duration || '—'} />
+            <InfoRow icon={<Calendar size={14} />} label="Duration" value={resident.expected_duration || '-'} />
             <InfoRow icon={<CreditCard size={14} />} label="Monthly Rent" value={formatCurrency(resident.rent_amount)} highlight />
             <InfoRow icon={<Shield size={14} />} label="Security Deposit" value={formatCurrency(resident.security_deposit)} />
             <InfoRow icon={<Zap size={14} />} label="Initial Electricity" value={`${resident.initial_electricity_reading} units`} />
@@ -441,7 +441,7 @@ export default function ResidentDetailPage() {
           )}
         </div>
         <div style={{ fontSize: '11px', color: 'var(--text-muted)', marginTop: '10px' }}>
-          Both documents are stored privately (admin-only) and never exposed to the resident. The police form is submission-ready — confirm the current tenant-verification process with your local police station, as no automated submission channel exists to integrate against.
+          Both documents are stored privately (admin-only) and never exposed to the resident. The police form is submission-ready - confirm the current tenant-verification process with your local police station, as no automated submission channel exists to integrate against.
         </div>
       </div>
 
@@ -466,16 +466,16 @@ export default function ResidentDetailPage() {
                   <td>{new Date(p.year, p.month - 1).toLocaleDateString('en-IN', { month: 'short', year: 'numeric' })}</td>
                   <td>{formatCurrency(p.rent_amount)}</td>
                   <td>
-                    {p.electricity_logged_at ? (p.electricity_amount > 0 ? formatCurrency(p.electricity_amount) : '—') : (
+                    {p.electricity_logged_at ? (p.electricity_amount > 0 ? formatCurrency(p.electricity_amount) : '-') : (
                       <span title="Electricity reading not logged yet for this month" style={{ display: 'inline-flex', alignItems: 'center', gap: 4, fontSize: 11, fontWeight: 600, color: '#f97316' }}>
                         <AlertTriangle size={11} /> Not logged
                       </span>
                     )}
                   </td>
-                  <td style={{ color: p.late_fee > 0 ? '#fbbf24' : 'inherit' }}>{p.late_fee > 0 ? formatCurrency(p.late_fee) : '—'}</td>
+                  <td style={{ color: p.late_fee > 0 ? '#fbbf24' : 'inherit' }}>{p.late_fee > 0 ? formatCurrency(p.late_fee) : '-'}</td>
                   <td style={{ fontWeight: '600', color: 'var(--text-primary)' }}>{formatCurrency(p.total_amount)}</td>
                   <td style={{ color: '#34d399' }}>{formatCurrency(p.amount_paid)}</td>
-                  <td style={{ textTransform: 'capitalize' }}>{p.payment_mode?.replace('_', ' ') || '—'}</td>
+                  <td style={{ textTransform: 'capitalize' }}>{p.payment_mode?.replace('_', ' ') || '-'}</td>
                   <td><span className="status-badge" style={{ background: p.status === 'paid' ? 'rgba(52,211,153,0.1)' : p.status === 'partial' ? 'rgba(251,191,36,0.1)' : 'rgba(239,68,68,0.1)', color: p.status === 'paid' ? '#34d399' : p.status === 'partial' ? '#fbbf24' : '#f87171', borderColor: p.status === 'paid' ? 'rgba(52,211,153,0.3)' : p.status === 'partial' ? 'rgba(251,191,36,0.3)' : 'rgba(239,68,68,0.3)' }}>{p.status}</span></td>
                 </tr>
               ))}
@@ -576,7 +576,7 @@ export default function ResidentDetailPage() {
                 <option value="family_emergency">Family emergency</option>
                 <option value="rent_issue">Rent / financial issue</option>
                 <option value="maintenance_issue">Maintenance / facility issue</option>
-                <option value="behaviour_evicted">Evicted — behaviour/policy violation</option>
+                <option value="behaviour_evicted">Evicted - behaviour/policy violation</option>
                 <option value="other">Other</option>
               </select>
             </div>
@@ -605,7 +605,7 @@ export default function ResidentDetailPage() {
                 <option value="returned_full">Returned in full</option>
                 <option value="partial_deduction">Partial deduction (damage / dues)</option>
                 <option value="fully_deducted">Fully deducted (dues / violation)</option>
-                <option value="pending">Pending — not yet settled</option>
+                <option value="pending">Pending - not yet settled</option>
               </select>
             </div>
 
@@ -673,7 +673,7 @@ export default function ResidentDetailPage() {
         </div>
       )}
 
-      {/* Lease renewal — admin-initiated only. Never surfaced to the resident;
+      {/* Lease renewal - admin-initiated only. Never surfaced to the resident;
           lease_end_date is not queried anywhere under app/portal/*. */}
       {showRenewModal && (
         <Modal title="Renew Lease" onClose={() => setShowRenewModal(false)} maxWidth="420px">
@@ -683,7 +683,7 @@ export default function ResidentDetailPage() {
           <div style={{ marginBottom: 16 }}>
             <label style={{ display: 'block', fontSize: 12, fontWeight: 600, letterSpacing: '0.06em', textTransform: 'uppercase', color: 'var(--text-muted)', marginBottom: 8 }}>New Monthly Rent (₹)</label>
             <input className="bb-input" type="number" value={renewRent} onChange={e => setRenewRent(e.target.value)} />
-            <div style={{ fontSize: 11, color: 'var(--text-muted)', marginTop: 6 }}>Suggested +7.5% per the standard agreement clause — adjust as needed.</div>
+            <div style={{ fontSize: 11, color: 'var(--text-muted)', marginTop: 6 }}>Suggested +7.5% per the standard agreement clause - adjust as needed.</div>
           </div>
           <div style={{ marginBottom: 22 }}>
             <label style={{ display: 'block', fontSize: 12, fontWeight: 600, letterSpacing: '0.06em', textTransform: 'uppercase', color: 'var(--text-muted)', marginBottom: 8 }}>New Term Ends</label>

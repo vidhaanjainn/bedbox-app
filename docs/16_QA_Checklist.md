@@ -1,4 +1,4 @@
-# 16 — QA Checklist
+# 16 - QA Checklist
 
 Run the relevant section after every task; run ALL before any "release" (sharing link with new people).
 

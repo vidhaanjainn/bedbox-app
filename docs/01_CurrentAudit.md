@@ -1,4 +1,4 @@
-# 01 — Current Audit (as of 2026-07-12)
+# 01 - Current Audit (as of 2026-07-12)
 
 ## Stack
 - **Next.js 16.2.1** (App Router, client-heavy pages), React 19, TypeScript, Tailwind CSS 4, Radix UI primitives, lucide-react, Recharts, date-fns, jsPDF
@@ -19,7 +19,7 @@ app/
   login/            ← admin + resident login
   api/              ← booking-form, approve-resident, archive-resident,
                       ensure-portal-user, notify-admin
-lib/ supabase clients, types.ts (OUT OF DATE — see drift below), utils.ts
+lib/ supabase clients, types.ts (OUT OF DATE - see drift below), utils.ts
 ```
 No components/ dir in use, no tests, README is the default create-next-app template.
 
@@ -37,7 +37,7 @@ Extra root files: SEED_RESIDENTS.sql, SETTINGS_MIGRATION.sql (uncommitted).
 - **Resident onboarding**: token link → /onboard/[token] wizard → Aadhaar front/back upload to
   `resident-docs`, emergency contact, agreement acceptance w/ timestamp+IP → admin approves
   (/api/approve-resident) → portal user provisioned (/api/ensure-portal-user)
-- **Admin manual onboarding**: residents/new (uploads to `private-docs` — parallel path)
+- **Admin manual onboarding**: residents/new (uploads to `private-docs` - parallel path)
 - **Rent**: monthly rent_payments with electricity merge, late fee, partial payments, payment
   screenshots, receipt requests; receipts sidebar + jsPDF
 - **Electricity**: per-resident readings, generated units, rate from settings
@@ -53,7 +53,7 @@ Extra root files: SEED_RESIDENTS.sql, SETTINGS_MIGRATION.sql (uncommitted).
 2. **Resident app is thin**: no WiFi password, house rules, nearby places, vendor directory,
    announcements, payment history UI polish, document downloads
 3. **No staff/expense module**: staff salaries, payouts pending/done, maintenance spend per month
-4. **Security holes** in onboarding RLS + open storage uploads (12_Security.md) — P0
+4. **Security holes** in onboarding RLS + open storage uploads (12_Security.md) - P0
 5. **Schema drift & duplicate columns** (types.ts fantasy schema; two onboarding paths)
 6. **Single-tenant hardcoding**: admin email in SQL + API routes; no properties table in live
    schema → blocks multi-property and SaaS
@@ -68,5 +68,5 @@ Extra root files: SEED_RESIDENTS.sql, SETTINGS_MIGRATION.sql (uncommitted).
 - Consolidate duplicate resident columns + single onboarding path/bucket
 - Extract admin email / property identity into `settings` or a `properties` table
 - Hardcoded Google Sheet ID fallback in booking-form route
-- Client-side pages doing direct Supabase queries — fine for now, but note RLS is the ONLY
+- Client-side pages doing direct Supabase queries - fine for now, but note RLS is the ONLY
   security boundary, which is why the RLS bugs are P0

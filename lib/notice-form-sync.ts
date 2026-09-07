@@ -1,7 +1,7 @@
 import { createClient } from '@supabase/supabase-js'
 
 // Syncs the owner's external "Notice to Vacate" Google Form (response sheet is
-// public via the CSV export URL — no service account needed) into a review queue.
+// public via the CSV export URL - no service account needed) into a review queue.
 // Deliberately NOT auto-applied to residents: the sheet contains repeat/old
 // submissions from residents who are still currently active (people who gave
 // notice and then stayed), so blindly trusting it would wrongly flag paying
@@ -12,7 +12,7 @@ const GID = '1748432272'
 const CSV_URL = `https://docs.google.com/spreadsheets/d/${SHEET_ID}/export?format=csv&gid=${GID}`
 
 // Minimal RFC4180-ish CSV parser: handles quoted fields with embedded commas,
-// newlines, and doubled-quote escapes — enough for a real Google Forms export.
+// newlines, and doubled-quote escapes - enough for a real Google Forms export.
 function parseCsv(text: string): string[][] {
   const rows: string[][] = []
   let row: string[] = []
@@ -53,7 +53,7 @@ function parseTimestamp(raw?: string): Date | null {
   return isNaN(dt.getTime()) ? null : dt
 }
 
-// This form has years of history (back to 2022), almost all already resolved —
+// This form has years of history (back to 2022), almost all already resolved -
 // only surface genuinely recent submissions for admin review; older rows are
 // still imported (so nothing is lost / it's searchable) but pre-marked
 // 'dismissed' so they don't clutter the active queue.
@@ -96,7 +96,7 @@ export async function syncNoticeFormSubmissions() {
       dedupe_key: dedupeKey,
       review_status: isRecent ? 'pending' : 'dismissed',
     })
-    // Unique violation on dedupe_key just means we already have this row — expected, not an error.
+    // Unique violation on dedupe_key just means we already have this row - expected, not an error.
     if (!error) { imported++; if (!isRecent) archived++ }
   }
 

@@ -5,7 +5,7 @@ import { createClient as createAdminClient } from '@supabase/supabase-js'
 // Resident-gated: issues a signed upload URL for a payment screenshot. Keyed
 // by resident + month/year rather than an existing rent_payments row, so a
 // resident can attach proof even before an admin has generated that month's
-// bill — the report-payment route creates the row on demand if needed.
+// bill - the report-payment route creates the row on demand if needed.
 export async function POST(req: Request) {
   const supabase = await createClient()
   const { data: { user } } = await supabase.auth.getUser()

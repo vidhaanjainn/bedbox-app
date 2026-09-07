@@ -1,7 +1,7 @@
 import { google } from 'googleapis'
 
 // Shared Google Sheets helper (extracted from the booking-form route so any
-// feature can push a snapshot to a sheet with one call). Non-fatal by design —
+// feature can push a snapshot to a sheet with one call). Non-fatal by design -
 // Supabase is always the source of truth; Sheets is a one-way mirror (D-005).
 
 function sheetsClient() {
@@ -18,7 +18,7 @@ function sheetsClient() {
 }
 
 // Overwrites a tab's contents with a fresh snapshot (header + rows). Simple and
-// predictable for a "click to sync" button — no partial-update bookkeeping needed.
+// predictable for a "click to sync" button - no partial-update bookkeeping needed.
 export async function syncSheetSnapshot(opts: {
   spreadsheetId?: string
   tabName: string
@@ -40,7 +40,7 @@ export async function syncSheetSnapshot(opts: {
       })
     } catch {}
 
-    // Clear then write fresh — avoids stale rows lingering after residents move out etc.
+    // Clear then write fresh - avoids stale rows lingering after residents move out etc.
     await sheets.spreadsheets.values.clear({ spreadsheetId, range: `${opts.tabName}!A:Z` })
     await sheets.spreadsheets.values.update({
       spreadsheetId,

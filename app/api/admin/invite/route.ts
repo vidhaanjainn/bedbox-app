@@ -2,7 +2,7 @@ import { NextResponse } from 'next/server'
 import { createClient } from '@/lib/supabase/server'
 import { createClient as createAdminClient } from '@supabase/supabase-js'
 
-// Invite a new admin. Only callable by an existing active admin (checked server-side —
+// Invite a new admin. Only callable by an existing active admin (checked server-side -
 // this is the ONLY way to add a row to `admins` now that its open RLS policies are closed).
 export async function POST(req: Request) {
   const supabase = await createClient()
@@ -30,7 +30,7 @@ export async function POST(req: Request) {
   const { data: existing } = await admin.from('admins').select('id').eq('email', email).maybeSingle()
   if (existing) return NextResponse.json({ error: 'This email is already an admin.' }, { status: 400 })
 
-  // Invite via Supabase Auth — sends a real email with a set-password link.
+  // Invite via Supabase Auth - sends a real email with a set-password link.
   let userId: string | undefined
   const { data: inviteData, error: inviteError } = await admin.auth.admin.inviteUserByEmail(email)
   if (inviteError) {
@@ -90,7 +90,7 @@ export async function GET() {
   return NextResponse.json({ admins: admins || [] })
 }
 
-// PATCH /api/admin/invite — { id, is_active } to deactivate/reactivate an admin
+// PATCH /api/admin/invite - { id, is_active } to deactivate/reactivate an admin
 export async function PATCH(req: Request) {
   const supabase = await createClient()
   const { data: { user } } = await supabase.auth.getUser()

@@ -7,7 +7,7 @@ const resend = new Resend(process.env.RESEND_API_KEY)
 
 // Admin-gated: activates a resident (onboarding_status -> 'active'), stamps who
 // approved them (for the multi-admin attribution trail), and sends the resident
-// their "you're approved, here's how to log in" email — this used to be dead
+// their "you're approved, here's how to log in" email - this used to be dead
 // code that nothing ever called, so residents never actually got this email.
 export async function POST(req: Request) {
   const supabase = await createClient()
@@ -71,7 +71,7 @@ export async function POST(req: Request) {
       })
     } catch (err) {
       console.error('approve-resident email failed:', err)
-      // Non-fatal — activation already succeeded; admin can resend by other means.
+      // Non-fatal - activation already succeeded; admin can resend by other means.
     }
   }
 

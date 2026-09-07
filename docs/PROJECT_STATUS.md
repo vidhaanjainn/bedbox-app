@@ -10,7 +10,7 @@ What's missing: automations (reminders/sync), resident lifestyle content (WiFi/n
 staff & expense tracking, security hardening, UI/UX polish pass, multi-property/SaaS foundation.
 
 ## Current Phase
-**Phase 0 — Foundation Hardening** (see 02_ProductRoadmap.md)
+**Phase 0 - Foundation Hardening** (see 02_ProductRoadmap.md)
 
 ## Last Completed Task
 **Root cause found + fixed for the "prod DB unreachable" incident, AND a live critical
@@ -18,16 +18,16 @@ vulnerability found + closed.** See full story in 18_ImplementationLog.md (2026-
 Short version: the app's env vars pointed at a dead/deleted Supabase project
 (`nbhmjqkhpdpdxkkzfgca`) while the REAL, actively-used database has been
 `rskbrdzbbfyyhaxucmgg.supabase.co` all along (owner recognized it on sight). That live database
-had drifted far from the committed `SUPABASE_SETUP.sql` — including RLS policies, edited directly
+had drifted far from the committed `SUPABASE_SETUP.sql` - including RLS policies, edited directly
 in the Supabase dashboard at some point, that let **anyone with the public anon key read every
 resident's data with zero login, and any logged-in user read/edit/delete any resident**. That
 hole is now closed (migration applied + verified live: anon SELECT/UPDATE on `residents` both
 return nothing). `.env.local` corrected to point at the real project.
 
 **Bonus finding:** production's `is_admin()` already checks a real `admins` table (not a
-hardcoded email) and a `properties` table already exists with 1 row — i.e. SEC-03 and part of
+hardcoded email) and a `properties` table already exists with 1 row - i.e. SEC-03 and part of
 SAAS-01 are effectively already done in the live DB. The repo's `SUPABASE_SETUP.sql` and
-`lib/types.ts` are both behind reality, not ahead of it as originally audited — re-verify schema
+`lib/types.ts` are both behind reality, not ahead of it as originally audited - re-verify schema
 docs against the live DB (DATA-01) before trusting either file.
 
 ## Next Recommended Task
@@ -38,45 +38,45 @@ client bundle now bakes in the correct Supabase URL, `/api/onboard/[token]`, `/a
 ✅ **AUTO-01/02/03 built AND verified live 2026-09-03:** `lib/notify.ts` (central email +
 WhatsApp-ready sender), `app/api/cron/daily/route.ts` (auto-creates this month's rent row per
 active resident + sends tiered rent reminder emails: T-3, due day, then every 3 days overdue, max
-4), wired into `vercel.json` (daily cron, Hobby-plan compatible). Hit the live endpoint directly —
+4), wired into `vercel.json` (daily cron, Hobby-plan compatible). Hit the live endpoint directly -
 it correctly created September rows for both real residents (₹8,000 / ₹8,500, status pending) and
 correctly held back reminders (neither resident is within the T-3 window yet). Idempotency
 confirmed: a second call created 0 duplicate rows.
 
 ⚠️ **The cron endpoint is currently PUBLIC/unauthenticated** (`CRON_SECRET` not yet set in
-Vercel) — low risk since it's idempotent and reminder-capped, but add the secret soon (see
+Vercel) - low risk since it's idempotent and reminder-capped, but add the secret soon (see
 Blocked By) to close it off properly.
 
 ✅ **A second, WIDER security sweep (2026-09-03):** while building multi-admin, found the exact
-same "edited outside git" RLS drift on 6 more tables — worst was `admins` itself, which let ANY
+same "edited outside git" RLS drift on 6 more tables - worst was `admins` itself, which let ANY
 logged-in resident self-promote to super_admin. Fixed across `admins`, `beds`, `rooms`,
 `electricity_readings`, `maintenance_requests`, `rent_payments` (owner-approved migrations,
-verified via live `pg_policies` query — zero unsafe policies remain anywhere). Full story:
+verified via live `pg_policies` query - zero unsafe policies remain anywhere). Full story:
 12_Security.md §6.
 
-✅ **Multi-admin built:** Settings page now has a Team section — invite by email (real Supabase
+✅ **Multi-admin built:** Settings page now has a Team section - invite by email (real Supabase
 Auth invite, they set their own password), assign staff/super_admin, deactivate without deleting.
 Backed by `app/api/admin/invite`. Login/admin layout already had zero hardcoded email gating, so
 this was a pure additive feature, not a bypass of anything.
 
-✅ **WhatsApp workaround (Meta Business Verification is stuck on the owner's end — see chat):**
+✅ **WhatsApp workaround (Meta Business Verification is stuck on the owner's end - see chat):**
 Rent Tracker page now has a one-tap "WhatsApp" button per pending/partial resident using a
-`wa.me` deep-link with a prefilled reminder message — zero API, zero approval wait, works today.
+`wa.me` deep-link with a prefilled reminder message - zero API, zero approval wait, works today.
 
 ✅ **One-click Sheets export:** Rent Tracker has a "Sync to Sheets" button pushing the current
 month's dues (name/mobile/room/total/paid/outstanding/status) to a dated Google Sheets tab.
 Needs `GOOGLE_SERVICE_ACCOUNT_EMAIL`/`GOOGLE_PRIVATE_KEY`/`GOOGLE_SHEET_ID` in Vercel to actually
-send (fails soft with a clear message until then — same non-fatal pattern as everywhere else).
+send (fails soft with a clear message until then - same non-fatal pattern as everywhere else).
 
 ✅ **Agreement versioning added:** onboarding now stamps `agreement_version` alongside
 `agreement_signed_at`/`agreement_ip`, so historical consent stays valid proof even after the
-clause text is edited later. Digital onboarding → agreement sign-up is functionally solid — see
+clause text is edited later. Digital onboarding → agreement sign-up is functionally solid - see
 30_LegalCompliance.md for the full legal read.
 
 ✅ **Real resident data imported (2026-09-04):** 13 real residents now live in production
 (rooms 101,102,104×2,105,201,204,206,207,208,301,304,307), replacing test data. Every
-missing/ambiguous field flagged in each resident's notes with ⚠️/🚨 — see the residents list for
-follow-ups. Room 205 has NO resident (source sheet had a rent figure but no name — needs owner
+missing/ambiguous field flagged in each resident's notes with ⚠️/🚨 - see the residents list for
+follow-ups. Room 205 has NO resident (source sheet had a rent figure but no name - needs owner
 input). Room 304's occupant name is still unknown ("⚠️ Name Pending").
 
 ✅ **WiFi + Nearby Places live**, **Staff & Expense tracking live** (`/admin/staff`), **Aadhaar
@@ -84,22 +84,22 @@ number + admin-only agreement/police-verification PDFs live** (resident detail p
 
 ✅ **Notice-to-vacate auto-tracking built and verified live:** submitting notice (portal, now
 fixed) or logging one as admin instantly shows a days-left badge on the Residents list and an
-"Available from {date}" note on the Rooms page — zero manual re-entry. Along the way, found and
-fixed 2 more completely-broken pages (portal home, portal notice — both queried nonexistent
+"Available from {date}" note on the Rooms page - zero manual re-entry. Along the way, found and
+fixed 2 more completely-broken pages (portal home, portal notice - both queried nonexistent
 columns/tables) and 6 more dead RLS policies (functional bug: residents could never see their own
 rent/electricity/maintenance data). Full detail: 18_ImplementationLog.md (2026-09-04 entry).
 
 ✅ **Google Form notice sync built (2026-09-04):** the owner's response sheet is public, so no
 Google service account was needed at all. Runs automatically in the daily cron + has a manual
 "Sync Google Form" button on the admin Notices page. **Deliberately a review queue, not
-auto-apply** — the sheet has 4+ years of history and several currently-active residents
+auto-apply** - the sheet has 4+ years of history and several currently-active residents
 (Pradyuman Garg, Shivam Tiwari, Shourya Raikwar, Taukeer) have old notice submissions on file from
 before/during their current stay. Only submissions from the last 6 months surface for review;
 older ones are archived (kept, not deleted) as historical reference. **5 submissions are waiting
 for owner review right now** on the Notices page: Rishi Varma & Pradumn Garg (room 204), Prakhar
-Gupta (103), Manshu Jaiswar (206), Taukeer khan (105) — confirm or dismiss each one.
+Gupta (103), Manshu Jaiswar (206), Taukeer khan (105) - confirm or dismiss each one.
 
-✅ **Room 205 resident added** — someone lives there (name still unknown, same "⚠️ Name Pending"
+✅ **Room 205 resident added** - someone lives there (name still unknown, same "⚠️ Name Pending"
 treatment as Room 304), vacating ~2026-09-20 like Zubin.
 
 ## Open question for owner
@@ -110,14 +110,14 @@ treatment as Room 304), vacating ~2026-09-20 like Zubin.
 Next up: DATA-01 schema re-audit → richer Phase 3 reporting (cash-flow view combining rent +
 expenses) → resident announcements feed.
 
-## Blocked By (OWNER ACTIONS NEEDED) — round 2
+## Blocked By (OWNER ACTIONS NEEDED) - round 2
 - **Add to Vercel (Production) env vars:**
   - `CRON_SECRET` = `c0ea58ff11090174d90a4a7bb9347e415a1ee9302bdaa0a3` (generated 2026-09-03; this
-    protects the cron endpoint from being triggered by randoms — Vercel automatically sends it
+    protects the cron endpoint from being triggered by randoms - Vercel automatically sends it
     as `Authorization: Bearer <value>` when it fires the cron)
-  - `REMINDERS_DRY_RUN` = `1` **to start** (logs what it would send instead of sending — flip to
+  - `REMINDERS_DRY_RUN` = `1` **to start** (logs what it would send instead of sending - flip to
     unset/`0` once you've watched a dry run in the logs and I've confirmed it looks right)
-  - `ADMIN_NOTIFY_EMAIL` = your preferred inbox for booking/onboarding alerts (optional — defaults
+  - `ADMIN_NOTIFY_EMAIL` = your preferred inbox for booking/onboarding alerts (optional - defaults
     to `thebedbox.in@gmail.com` if unset)
 - **Resend domain verification (for reminders/receipts to send from your own domain instead of
   the sandbox):** a domain `thebedbox.in` was added to your Resend account
@@ -125,18 +125,18 @@ expenses) → resident announcements feed.
   DNS is managed (your domain registrar, or Vercel → Domains if it's there):
   | Type | Name | Value | Priority |
   |---|---|---|---|
-  | TXT | `resend._domainkey` | `p=MIGfMA0GCSqGSIb3DQEBAQUAA4GNADCBiQKBgQDYU2QqwOUjAY9gT5V7Hm7Vu1aUvIhDEFoJa8N7QIrfPiHB9YuTS5AiJMFH5MXX+JuIAxvvzRvqFKcbcBryNw/MIsc/MEHBjLMACHbCUDHnFitwUTG+R9ZRWk01PjPWeNor27F91KRVG/up3JOuQJrN8gnDw9hrGTPOMUTBNfWEtQIDAQAB` | — |
+  | TXT | `resend._domainkey` | `p=MIGfMA0GCSqGSIb3DQEBAQUAA4GNADCBiQKBgQDYU2QqwOUjAY9gT5V7Hm7Vu1aUvIhDEFoJa8N7QIrfPiHB9YuTS5AiJMFH5MXX+JuIAxvvzRvqFKcbcBryNw/MIsc/MEHBjLMACHbCUDHnFitwUTG+R9ZRWk01PjPWeNor27F91KRVG/up3JOuQJrN8gnDw9hrGTPOMUTBNfWEtQIDAQAB` | - |
   | MX | `send` | `feedback-smtp.ap-northeast-1.amazonses.com` | 10 |
-  | TXT | `send` | `v=spf1 include:amazonses.com ~all` | — |
+  | TXT | `send` | `v=spf1 include:amazonses.com ~all` | - |
   DNS can take up to 24-48h to propagate (usually much faster). Once verified in Resend, add
-  `RESEND_FROM_EMAIL` = `TheBedBox <hello@thebedbox.in>` to Vercel env — until then everything
+  `RESEND_FROM_EMAIL` = `TheBedBox <hello@thebedbox.in>` to Vercel env - until then everything
   keeps working via the sandbox sender (non-fatal fallback already coded in).
-- **WhatsApp (free via Meta's own WhatsApp Cloud API — no third-party fees):** this needs YOU to
-  create a Meta Business account + WhatsApp Business Platform app and verify a phone number —
+- **WhatsApp (free via Meta's own WhatsApp Cloud API - no third-party fees):** this needs YOU to
+  create a Meta Business account + WhatsApp Business Platform app and verify a phone number -
   this is identity/business verification Meta requires directly from the account owner and cannot
   be done by an AI session. Full walkthrough in 13_Notifications.md. Once you have
   `WHATSAPP_ACCESS_TOKEN` + `WHATSAPP_PHONE_NUMBER_ID`, the code in `lib/notify.ts` is already
-  written to use them — just add the env vars and it activates.
+  written to use them - just add the env vars and it activates.
 
 ## Blocked By (OWNER ACTIONS NEEDED)
 - **🔴 Vercel production env vars point at the dead project.** Go to the Vercel dashboard →
@@ -144,31 +144,31 @@ expenses) → resident announcements feed.
   - `NEXT_PUBLIC_SUPABASE_URL` = `https://rskbrdzbbfyyhaxucmgg.supabase.co`
   - `NEXT_PUBLIC_SUPABASE_ANON_KEY` = `eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InJza2JyZHpiYmZ5eWhheHVjbWdnIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzQ5Mzg1MzQsImV4cCI6MjA5MDUxNDUzNH0.0LTNA10XUuNltDsDc0c4q0xyVW5QFLI5WXY5RjxWXGs`
   - `SUPABASE_SERVICE_ROLE_KEY` = get from Supabase dashboard → rskbrdzbbfyyhaxucmgg → Project
-    Settings → API → "service_role" secret (never share this one in chat — paste it directly
+    Settings → API → "service_role" secret (never share this one in chat - paste it directly
     into Vercel). This value could not be fetched or verified by the AI session; the current one
     in Vercel is almost certainly the old project's and must be replaced.
   Apply to Production **and** Preview/Development, then redeploy (or ask AI to trigger it).
   `.env.local` has already been corrected locally (URL + anon key); its service-role line is
-  blank with instructions — fill it in from the same dashboard page.
+  blank with instructions - fill it in from the same dashboard page.
 - Resend: sending from `onboarding@resend.dev` (sandbox). Verify domain (e.g. thebedbox.in) to
   unlock resident-facing emails (AUTO-02/05).
 - Google Sheets sync needs `GOOGLE_SERVICE_ACCOUNT_EMAIL`, `GOOGLE_PRIVATE_KEY`,
   `GOOGLE_SHEET_ID` in Vercel env.
 
 ## High Priority Bugs / Risks
-1. (P0 — FIXED 2026-07-12) Live RLS hole: anon could read every resident, any logged-in user
+1. (P0 - FIXED 2026-07-12) Live RLS hole: anon could read every resident, any logged-in user
    could read/edit/delete every resident. Migration applied + verified closed on
    `rskbrdzbbfyyhaxucmgg`. See 18_ImplementationLog.md for full detail.
-2. (P0 — blocked on owner) Vercel prod env vars point at a dead Supabase project — app is
+2. (P0 - blocked on owner) Vercel prod env vars point at a dead Supabase project - app is
    non-functional in production until fixed (see Blocked By)
 3. (P1) Schema drift: `lib/types.ts` AND `SUPABASE_SETUP.sql` are both out of sync with the live
-   DB in different ways — live DB has `admins`/`properties`/`notifications` tables (real,
+   DB in different ways - live DB has `admins`/`properties`/`notifications` tables (real,
    populated) that aren't in the committed SQL, and `is_admin()` differs from what's committed.
    Original audit assumed the fantasy schema. DATA-01 must re-pull live schema truth, not assume
-   either file — 22_KnownIssues.md
+   either file - 22_KnownIssues.md
 4. (P1) Duplicate columns in `residents` (emergency_contact_phone/_number, aadhaar_*_url/_path,
-   tc_agreed_at/agreement_signed_at) — two onboarding paths write to different columns
-5. (P2) Admin email hardcoded in SQL `is_admin()` and in API routes — blocks multi-admin/SaaS
+   tc_agreed_at/agreement_signed_at) - two onboarding paths write to different columns
+5. (P2) Admin email hardcoded in SQL `is_admin()` and in API routes - blocks multi-admin/SaaS
 
 ## Recent Decisions (full log: 19_DecisionLog.md)
 - D-001: Repo itself is the source of truth; all AI work driven by docs/ + backlog

@@ -13,7 +13,7 @@ export async function POST(request: Request) {
     const serviceRoleKey = process.env.SUPABASE_SERVICE_ROLE_KEY
     if (!serviceRoleKey) {
       // Fallback: if service role key not configured, just confirm the resident
-      // exists and is active — OTP send happens client-side regardless.
+      // exists and is active - OTP send happens client-side regardless.
       const supabase = createClient(
         process.env.NEXT_PUBLIC_SUPABASE_URL!,
         process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
@@ -33,7 +33,7 @@ export async function POST(request: Request) {
       return NextResponse.json({ email: resident.email })
     }
 
-    // Use service role key — bypasses RLS, can create auth users
+    // Use service role key - bypasses RLS, can create auth users
     const supabaseAdmin = createClient(
       process.env.NEXT_PUBLIC_SUPABASE_URL!,
       serviceRoleKey,
@@ -55,11 +55,11 @@ export async function POST(request: Request) {
       return NextResponse.json({ error: 'Your account is not yet active. Contact TheBedBox.' }, { status: 403 })
     }
 
-    // If portal_user_id is null, the resident has no auth.users entry — create one
+    // If portal_user_id is null, the resident has no auth.users entry - create one
     if (!resident.portal_user_id) {
       const { data: authData, error: createError } = await supabaseAdmin.auth.admin.createUser({
         email: resident.email!,
-        email_confirm: true, // skip email confirmation — we'll OTP them
+        email_confirm: true, // skip email confirmation - we'll OTP them
       })
 
       if (createError) {
@@ -77,7 +77,7 @@ export async function POST(request: Request) {
           }
         } else {
           console.error('Error creating auth user:', createError)
-          // Non-fatal — OTP send may still work if user exists
+          // Non-fatal - OTP send may still work if user exists
         }
       } else if (authData?.user) {
         // Link the new auth user to the resident record

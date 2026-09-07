@@ -1,7 +1,7 @@
 import { NextResponse } from 'next/server'
 import { createClient } from '@/lib/supabase/server'
 
-// Any signed-in user (admin or resident — both are Supabase Auth users) can
+// Any signed-in user (admin or resident - both are Supabase Auth users) can
 // register their own browser for push. RLS on push_subscriptions restricts
 // each row to its own user_id regardless, this just resolves who "own" is.
 export async function POST(req: Request) {

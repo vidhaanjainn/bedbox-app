@@ -31,7 +31,7 @@ export default function ResidentsPage() {
     setLoading(false)
   }
 
-  // Auto-derived from notice_periods — no manual re-entry. Updates the moment a
+  // Auto-derived from notice_periods - no manual re-entry. Updates the moment a
   // resident submits notice (portal) or an admin logs one (Notice Periods page).
   const daysLeftFor = (residentId: string) => {
     const n = notices[residentId]
@@ -123,10 +123,10 @@ export default function ResidentsPage() {
                         </div>
                       </div>
                     </td>
-                    <td><div style={{ fontSize: '14px', color: 'var(--text-primary)', fontWeight: '500' }}>{r.room_number || '—'}</div><div style={{ fontSize: '11px', color: 'var(--text-muted)', textTransform: 'capitalize' }}>{r.bed?.room?.type || ''}</div></td>
+                    <td><div style={{ fontSize: '14px', color: 'var(--text-primary)', fontWeight: '500' }}>{r.room_number || '-'}</div><div style={{ fontSize: '11px', color: 'var(--text-muted)', textTransform: 'capitalize' }}>{r.bed?.room?.type || ''}</div></td>
                     <td style={{ fontSize: '13px' }}>{formatDate(r.date_of_joining)}</td>
                     <td style={{ fontWeight: '600', color: 'var(--text-primary)' }}>{formatCurrency(r.rent_amount)}<div style={{ fontSize: '11px', color: 'var(--text-muted)', fontWeight: '400' }}>/month</div></td>
-                    <td><span style={{ fontSize: '11px', fontWeight: '600', padding: '3px 8px', borderRadius: '999px', textTransform: 'capitalize', background: r.occupation === 'student' ? 'rgba(99,102,241,0.1)' : 'rgba(16,185,129,0.1)', color: r.occupation === 'student' ? '#818cf8' : '#34d399' }}>{r.occupation || '—'}</span></td>
+                    <td><span style={{ fontSize: '11px', fontWeight: '600', padding: '3px 8px', borderRadius: '999px', textTransform: 'capitalize', background: r.occupation === 'student' ? 'rgba(99,102,241,0.1)' : 'rgba(16,185,129,0.1)', color: r.occupation === 'student' ? '#818cf8' : '#34d399' }}>{r.occupation || '-'}</span></td>
                     <td>
                       <span style={{ fontSize: '11px', fontWeight: '600', padding: '3px 8px', borderRadius: '999px', background: r.onboarding_status === 'active' ? 'rgba(52,211,153,0.1)' : r.onboarding_status === 'submitted' ? 'rgba(52,211,153,0.15)' : 'rgba(100,116,139,0.1)', color: r.onboarding_status === 'active' ? '#34d399' : r.onboarding_status === 'submitted' ? '#34d399' : '#94a3b8' }}>
                         {r.onboarding_status === 'active' ? '✓ Active' : r.onboarding_status === 'submitted' ? '⏳ Approve' : r.onboarding_status === 'pending' ? 'Sent' : 'Not sent'}

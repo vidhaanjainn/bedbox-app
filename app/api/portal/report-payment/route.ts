@@ -8,7 +8,7 @@ import { sendPushToAdmins } from '@/lib/push'
 // for a given month. Creates that month's rent_payments row first if it
 // doesn't exist yet (residents shouldn't be blocked from paying just
 // because an admin hasn't run "Generate Monthly" for them). This never
-// marks the invoice paid — amount_paid/status stay admin-controlled — it
+// marks the invoice paid - amount_paid/status stay admin-controlled - it
 // just flags the row for admin review with everything needed to verify it
 // via the existing Log Payment flow.
 export async function POST(req: Request) {
@@ -63,20 +63,20 @@ export async function POST(req: Request) {
 
   await Promise.all([
     sendPushToAdmins({
-      title: 'Payment reported — please verify',
+      title: 'Payment reported - please verify',
       body: `${resident.name} (${roomLabel}) says they paid ${moneyINR(amount)} for ${monthLabel}`,
       url: '/admin/rent',
     }),
     sendEmail({
       to: process.env.ADMIN_NOTIFY_EMAIL || 'thebedbox.in@gmail.com',
-      subject: `💳 ${resident.name} reported a payment — please verify`,
+      subject: `💳 ${resident.name} reported a payment - please verify`,
       html: emailShell('Payment reported by resident', `
         <p style="color:#475569;font-size:14px;line-height:1.6;margin:0 0 16px">
-          <strong style="color:#0f172a">${resident.name}</strong> (${roomLabel}) says they paid for <strong>${monthLabel}</strong>. This has NOT been marked paid yet — please verify against the screenshot and confirm in Rent Tracker.
+          <strong style="color:#0f172a">${resident.name}</strong> (${roomLabel}) says they paid for <strong>${monthLabel}</strong>. This has NOT been marked paid yet - please verify against the screenshot and confirm in Rent Tracker.
         </p>
         <div style="background:#fff;border:1px solid #e2e8f0;border-radius:12px;padding:16px">
           <div style="display:flex;justify-content:space-between;padding:4px 0"><span style="color:#64748b;font-size:13px">Amount claimed</span><span style="font-weight:700;color:#0f172a">${moneyINR(amount)}</span></div>
-          <div style="display:flex;justify-content:space-between;padding:4px 0"><span style="color:#64748b;font-size:13px">Mode</span><span style="font-weight:600;color:#0f172a;text-transform:capitalize">${(paymentMode || '—').replace('_', ' ')}</span></div>
+          <div style="display:flex;justify-content:space-between;padding:4px 0"><span style="color:#64748b;font-size:13px">Mode</span><span style="font-weight:600;color:#0f172a;text-transform:capitalize">${(paymentMode || '-').replace('_', ' ')}</span></div>
         </div>
       `),
     }),

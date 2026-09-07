@@ -1,4 +1,4 @@
-# 07 — Database Schema
+# 07 - Database Schema
 
 **Authoritative DDL: `SUPABASE_SETUP.sql` (repo root; move to `supabase/` in OPS-01).**
 Read that file for columns; this doc records intent and planned changes.

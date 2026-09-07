@@ -249,7 +249,7 @@ export default function ElectricityPage() {
                 <option value="">Select resident</option>
                 {residents.map(r => (
                   <option key={r.id} value={r.id} disabled={alreadyLogged.includes(r.id)}>
-                    {r.name} — Room {r.room_number} {alreadyLogged.includes(r.id) ? '(logged)' : ''}
+                    {r.name} - Room {r.room_number} {alreadyLogged.includes(r.id) ? '(logged)' : ''}
                   </option>
                 ))}
               </select>

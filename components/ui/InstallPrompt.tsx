@@ -6,7 +6,7 @@ import { Download, X } from 'lucide-react'
 const DISMISS_KEY = 'bb_install_prompt_dismissed'
 
 // Android Chrome (and other Chromium browsers) fire `beforeinstallprompt`
-// when a site meets PWA installability criteria — this captures that event
+// when a site meets PWA installability criteria - this captures that event
 // and shows our own banner instead of relying on Chrome's subtle default
 // omnibox icon. iOS Safari has no equivalent API (Apple requires the
 // manual Share -> Add to Home Screen flow), so this is a no-op there.

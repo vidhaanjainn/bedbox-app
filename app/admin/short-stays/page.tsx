@@ -35,7 +35,7 @@ export default function ShortStaysPage() {
     setStays(data || [])
 
     // Fetched separately, unfiltered, so the header stats ("N active",
-    // "Checking Out Soon") always reflect true totals — not just whichever
+    // "Checking Out Soon") always reflect true totals - not just whichever
     // status tab happens to be selected right now.
     const { data: all } = await supabase.from('short_stays').select('id, status, checkout_date, checkin_date, amount_paid')
     setAllStays(all || [])
@@ -221,7 +221,7 @@ export default function ShortStaysPage() {
                     </div>
                     <div style={{ marginTop: '10px', display: 'flex', gap: '16px' }}>
                       <span style={{ fontSize: '13px', color: stay.payment_status === 'paid' ? '#34d399' : '#fbbf24', fontWeight: '600' }}>
-                        {stay.payment_status === 'paid' ? '✓ Paid' : stay.payment_status === 'partial' ? '⚡ Partial'  : '⏳ Pending'} — {formatCurrency(stay.amount_paid)} / {formatCurrency(stay.total_amount)}
+                        {stay.payment_status === 'paid' ? '✓ Paid' : stay.payment_status === 'partial' ? '⚡ Partial'  : '⏳ Pending'} - {formatCurrency(stay.amount_paid)} / {formatCurrency(stay.total_amount)}
                       </span>
                     </div>
                   </div>
@@ -260,7 +260,7 @@ export default function ShortStaysPage() {
                 <label style={labelStyle}>Bed</label>
                 <select style={inputStyle} value={form.bed_id} onChange={e => setForm(f => ({ ...f, bed_id: e.target.value }))}>
                   <option value="">Select bed</option>
-                  {beds.map(b => <option key={b.id} value={b.id}>Room {b.room?.room_number} · Bed {b.bed_number} — ₹{b.rate_daily}/night</option>)}
+                  {beds.map(b => <option key={b.id} value={b.id}>Room {b.room?.room_number} · Bed {b.bed_number} - ₹{b.rate_daily}/night</option>)}
                 </select>
               </div>
               <div className="bb-grid-2" style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '16px' }}>

@@ -109,7 +109,7 @@ export default function ReportsPage() {
     try {
       const prompt = `You are a smart business advisor for TheBedBox, a co-living PG accommodation in Bhopal, India. Analyse this monthly data and give actionable insights.
 
-MONTHLY DATA — ${MONTHS[reportData.month - 1]} ${reportData.year}:
+MONTHLY DATA - ${MONTHS[reportData.month - 1]} ${reportData.year}:
 - Occupancy: ${reportData.occupiedBeds}/${reportData.totalBeds} beds (${reportData.occupancyRate}%)
 - Active Residents: ${reportData.activeResidents}
 - On Notice Period: ${reportData.onNotice}
@@ -139,10 +139,10 @@ Provide a structured report in this exact format:
 [4 specific, actionable steps Vidhaan should take]
 
 ## 🔮 Occupancy Outlook
-[Based on Bhopal's seasonal patterns — college admission cycles (MANIT, RGPV, AIIMS Bhopal, NLU), job market, MPPSC exam cycles — give a 1-2 month demand forecast and what Vidhaan should do to fill beds if occupancy is low]
+[Based on Bhopal's seasonal patterns - college admission cycles (MANIT, RGPV, AIIMS Bhopal, NLU), job market, MPPSC exam cycles - give a 1-2 month demand forecast and what Vidhaan should do to fill beds if occupancy is low]
 
 ## 💰 Revenue Optimisation
-[1-2 specific suggestions to increase revenue — pricing, short stays, retention offers]
+[1-2 specific suggestions to increase revenue - pricing, short stays, retention offers]
 
 Be direct, specific to Bhopal PG market, and use ₹ for all currency. Keep it concise and actionable.`
 
@@ -266,7 +266,7 @@ Be direct, specific to Bhopal PG market, and use ₹ for all currency. Keep it c
               {[
                 { label: 'Open Issues', value: reportData.openMaintenance, color: '#f87171' },
                 { label: 'Resolved', value: reportData.resolvedMaintenance, color: '#34d399' },
-                { label: 'Resolution Rate', value: reportData.openMaintenance + reportData.resolvedMaintenance > 0 ? `${Math.round((reportData.resolvedMaintenance / (reportData.openMaintenance + reportData.resolvedMaintenance)) * 100)}%` : '—', color: 'var(--teal-500)' },
+                { label: 'Resolution Rate', value: reportData.openMaintenance + reportData.resolvedMaintenance > 0 ? `${Math.round((reportData.resolvedMaintenance / (reportData.openMaintenance + reportData.resolvedMaintenance)) * 100)}%` : '-', color: 'var(--teal-500)' },
               ].map((item, i) => (
                 <div key={i} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '10px 0', borderBottom: i < 2 ? '1px solid var(--border)' : 'none' }}>
                   <span style={{ fontSize: '13px', color: 'var(--text-muted)' }}>{item.label}</span>
@@ -283,7 +283,7 @@ Be direct, specific to Bhopal PG market, and use ₹ for all currency. Keep it c
                 <Brain size={18} color="var(--teal-500)" />
                 <span style={{ fontFamily: 'Syne, sans-serif', fontSize: '15px', fontWeight: '700', color: 'var(--text-primary)' }}>AI Business Report</span>
               </div>
-              <p style={{ fontSize: '13px', color: 'var(--text-muted)', margin: 0 }}>Get Gemini AI analysis — occupancy forecast, action items, Bhopal market insights</p>
+              <p style={{ fontSize: '13px', color: 'var(--text-muted)', margin: 0 }}>Get Gemini AI analysis - occupancy forecast, action items, Bhopal market insights</p>
             </div>
             <button onClick={generateAIReport} className="bb-btn-primary" style={{ gap: '8px', whiteSpace: 'nowrap' }}>
               <Sparkles size={16} /> Generate AI Report
@@ -296,7 +296,7 @@ Be direct, specific to Bhopal PG market, and use ₹ for all currency. Keep it c
           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '24px', flexWrap: 'wrap', gap: '12px' }}>
             <div>
               <h2 style={{ fontFamily: 'Syne, sans-serif', fontSize: '18px', fontWeight: '700', color: 'var(--text-primary)', margin: '0 0 4px' }}>
-                AI Report — {MONTHS[selectedMonth - 1]} {selectedYear}
+                AI Report - {MONTHS[selectedMonth - 1]} {selectedYear}
               </h2>
               <p style={{ fontSize: '13px', color: 'var(--text-muted)', margin: 0 }}>Powered by Gemini AI · Bhopal market context included</p>
             </div>

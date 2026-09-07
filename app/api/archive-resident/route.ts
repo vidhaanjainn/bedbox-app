@@ -57,10 +57,10 @@ export async function POST(request: Request) {
       .eq('resident_id', residentId)
       .eq('status', 'active')
 
-    // 4. Google Sheets — push leaver row
+    // 4. Google Sheets - push leaver row
     // TO ENABLE: run `npm install googleapis` then uncomment the block below.
     // Setup: Google Cloud Console → enable Sheets API → create service account
-    //        → download JSON key → share your "TheBedBox — Leavers Log" sheet with
+    //        → download JSON key → share your "TheBedBox - Leavers Log" sheet with
     //          the service account email → add these env vars to Vercel:
     //   GOOGLE_SERVICE_ACCOUNT_EMAIL=...
     //   GOOGLE_PRIVATE_KEY=...   (paste the entire private key including \n characters)

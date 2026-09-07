@@ -169,8 +169,8 @@ export default function StaffPage() {
                       return (
                         <tr key={s.id}>
                           <td style={{ color: 'var(--text-primary)', fontWeight: '600' }}>{s.name} {!s.is_active && <span style={{ fontSize: '11px', color: 'var(--text-muted)' }}>(inactive)</span>}</td>
-                          <td style={{ textTransform: 'capitalize' }}>{s.role || '—'}</td>
-                          <td>{s.phone || '—'}</td>
+                          <td style={{ textTransform: 'capitalize' }}>{s.role || '-'}</td>
+                          <td>{s.phone || '-'}</td>
                           <td>{formatCurrency(s.monthly_salary)}</td>
                           <td>
                             {payout ? (
@@ -214,10 +214,10 @@ export default function StaffPage() {
                     {expenses.map(e => (
                       <tr key={e.id}>
                         <td style={{ textTransform: 'capitalize', fontWeight: '600', color: 'var(--text-primary)' }}>{e.category}</td>
-                        <td>{e.vendor || '—'}</td>
-                        <td>{e.description || '—'}</td>
+                        <td>{e.vendor || '-'}</td>
+                        <td>{e.description || '-'}</td>
                         <td style={{ fontWeight: '700' }}>{formatCurrency(e.amount)}</td>
-                        <td>{e.expense_date ? new Date(e.expense_date).toLocaleDateString('en-IN', { day: 'numeric', month: 'short' }) : '—'}</td>
+                        <td>{e.expense_date ? new Date(e.expense_date).toLocaleDateString('en-IN', { day: 'numeric', month: 'short' }) : '-'}</td>
                       </tr>
                     ))}
                   </tbody>

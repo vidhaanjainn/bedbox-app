@@ -28,7 +28,7 @@ export default function MaintenancePage() {
       resident_id: res.id,
       category: cat,
       description: desc,
-      title: `${catLabel} issue${res.room_number ? ` — Room ${res.room_number}` : ''}`,
+      title: `${catLabel} issue${res.room_number ? ` - Room ${res.room_number}` : ''}`,
       submitted_by: 'resident',
     })
     if (e) { setError('Something went wrong. Try again.'); setSubmitting(false); return }
@@ -38,7 +38,7 @@ export default function MaintenancePage() {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ residentId: res.id, category: cat, description: desc }),
       })
-    } catch { /* non-fatal — request is already recorded */ }
+    } catch { /* non-fatal - request is already recorded */ }
     setDone(true); setSubmitting(false)
   }
 
@@ -66,7 +66,7 @@ export default function MaintenancePage() {
         </button>)}
       </div>
       <div style={{fontSize:12,color:'rgba(255,255,255,0.4)',fontWeight:600,letterSpacing:'0.08em',textTransform:'uppercase',marginBottom:10}}>Description</div>
-      <textarea value={desc} onChange={e=>setDesc(e.target.value)} placeholder="Describe the issue — what, where, since when..." rows={5}
+      <textarea value={desc} onChange={e=>setDesc(e.target.value)} placeholder="Describe the issue - what, where, since when..." rows={5}
         style={{width:'100%',padding:'14px',borderRadius:12,fontSize:14,lineHeight:1.6,background:'rgba(255,255,255,0.05)',border:'1px solid rgba(255,255,255,0.1)',color:'#fff',outline:'none',resize:'vertical',boxSizing:'border-box',fontFamily:"'DM Sans',sans-serif",marginBottom:24}}
         onFocus={e=>e.target.style.borderColor='#00d4c8'} onBlur={e=>e.target.style.borderColor='rgba(255,255,255,0.1)'}/>
       {error&&<div style={{fontSize:13,color:'#ff6b6b',marginBottom:16,padding:'10px 12px',background:'rgba(255,107,107,0.08)',borderRadius:8}}>{error}</div>}

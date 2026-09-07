@@ -1,4 +1,4 @@
-# 05 — User Journeys
+# 05 - User Journeys
 
 ## J1: Inquiry → Resident (the money journey)
 1. Prospect finds /book link (Instagram bio, Google Maps) → submits inquiry
@@ -13,7 +13,7 @@
 6. Move-out: notice via portal ✅ → checklist/deposit settlement ✖ missing (RES-06) → archive ✅
 
 ## J2: Resident daily life (portal)
-Login (email OTP) → home: rent status, quick actions ✅ thin — target: WiFi card, announcements,
+Login (email OTP) → home: rent status, quick actions ✅ thin - target: WiFi card, announcements,
 nearby directory, documents (RES-01..05). Complaint → maintenance ticket ✅. Receipt request ✅.
 
 ## J3: Landlord daily/monthly ops

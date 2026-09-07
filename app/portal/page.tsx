@@ -5,6 +5,7 @@ import { useRouter } from 'next/navigation'
 import { createClient } from '@/lib/supabase/client'
 import { ArrowRight, Phone } from 'lucide-react'
 import Link from 'next/link'
+import { BedBoxLogo } from '@/components/brand/BedBoxLogo'
 
 export default function PortalLoginPage() {
   const router = useRouter()
@@ -19,7 +20,7 @@ export default function PortalLoginPage() {
   const [resendTimer, setResendTimer] = useState(0)
 
   // Password sign-in exists only for accounts an admin explicitly sets a
-  // password on (see Settings -> Review Tools) — real residents only ever
+  // password on (see Settings -> Review Tools) - real residents only ever
   // have OTP, so this is a no-op dead end for everyone else.
   const handlePasswordLogin = async () => {
     setError(''); setLoading(true)
@@ -71,9 +72,8 @@ export default function PortalLoginPage() {
       <link href="https://fonts.googleapis.com/css2?family=Syne:wght@600;700;800&family=DM+Sans:wght@400;500;600&display=swap" rel="stylesheet"/>
 
       <div style={{padding:'32px 24px 0',maxWidth:420,margin:'0 auto',width:'100%',boxSizing:'border-box'}}>
-        <div style={{display:'flex',alignItems:'center',gap:11,marginBottom:56}}>
-          <div style={{width:38,height:38,borderRadius:11,background:'linear-gradient(135deg,#00d4c8,#0099ff)',display:'flex',alignItems:'center',justifyContent:'center',fontFamily:"'Syne',sans-serif",fontWeight:800,fontSize:17,color:'#070d1a',boxShadow:'0 6px 20px -6px rgba(0,212,200,0.5)'}}>B</div>
-          <span style={{fontFamily:"'Syne',sans-serif",fontWeight:700,fontSize:16,color:'#f4f7fb',letterSpacing:'-0.01em'}}>TheBedBox</span>
+        <div style={{display:'flex',alignItems:'center',marginBottom:56}}>
+          <BedBoxLogo height={30} surface="dark" />
         </div>
       </div>
 
@@ -88,7 +88,7 @@ export default function PortalLoginPage() {
         }}>
           {step==='email'&&<div>
             <h1 style={{fontFamily:"'Syne',sans-serif",fontWeight:700,fontSize:26,margin:'0 0 8px',letterSpacing:'-0.01em'}}>Welcome back</h1>
-            <p style={{color:'rgba(255,255,255,0.4)',fontSize:14,margin:'0 0 32px',lineHeight:1.5}}>Enter your registered email — we'll send a 6-digit code to sign you in</p>
+            <p style={{color:'rgba(255,255,255,0.4)',fontSize:14,margin:'0 0 32px',lineHeight:1.5}}>Enter your registered email - we'll send a 6-digit code to sign you in</p>
             <label style={{display:'block',fontSize:11,fontWeight:600,letterSpacing:'0.06em',textTransform:'uppercase',color:'rgba(255,255,255,0.35)',marginBottom:9}}>Email address</label>
             <input type="email" value={email} onChange={e=>setEmail(e.target.value)} placeholder="you@example.com" onKeyDown={e=>e.key==='Enter'&&handleSendOTP()}
               style={{width:'100%',padding:'14px',fontSize:15,background:'rgba(0,0,0,0.3)',border:'1px solid rgba(255,255,255,0.08)',borderRadius:12,color:'#fff',outline:'none',fontFamily:"'DM Sans',sans-serif",boxSizing:'border-box',marginBottom:8}}
@@ -126,9 +126,9 @@ export default function PortalLoginPage() {
             <h1 style={{fontFamily:"'Syne',sans-serif",fontWeight:700,fontSize:26,margin:'0 0 8px',letterSpacing:'-0.01em'}}>Check your email</h1>
             <p style={{color:'rgba(255,255,255,0.4)',fontSize:14,margin:'0 0 4px'}}>Code sent to</p>
             <p style={{color:'#00d4c8',fontSize:14,fontWeight:600,margin:'0 0 8px'}}>{masked}</p>
-            <p style={{color:'rgba(255,255,255,0.3)',fontSize:12,margin:'0 0 28px',lineHeight:1.5}}>Not in your inbox within a minute? Check spam/junk — it comes from Supabase, not TheBedBox.</p>
+            <p style={{color:'rgba(255,255,255,0.3)',fontSize:12,margin:'0 0 28px',lineHeight:1.5}}>Not in your inbox within a minute? Check spam/junk - it comes from Supabase, not TheBedBox.</p>
             <label style={{display:'block',fontSize:11,fontWeight:600,letterSpacing:'0.06em',textTransform:'uppercase',color:'rgba(255,255,255,0.35)',marginBottom:9}}>Enter 6-digit OTP</label>
-            <input type="number" value={otp} onChange={e=>setOtp(e.target.value.slice(0,6))} placeholder="— — — — — —" onKeyDown={e=>e.key==='Enter'&&handleVerifyOTP()}
+            <input type="number" value={otp} onChange={e=>setOtp(e.target.value.slice(0,6))} placeholder="- - - - - -" onKeyDown={e=>e.key==='Enter'&&handleVerifyOTP()}
               style={{width:'100%',padding:'16px',fontSize:24,letterSpacing:'0.3em',textAlign:'center',background:'rgba(0,0,0,0.3)',border:'1px solid rgba(255,255,255,0.08)',borderRadius:12,color:'#fff',outline:'none',marginBottom:8,boxSizing:'border-box',fontFamily:"'DM Sans',sans-serif"}}
               onFocus={e=>{e.target.style.borderColor='#00d4c8';e.target.style.boxShadow='0 0 0 3px rgba(0,212,200,0.12)'}} onBlur={e=>{e.target.style.borderColor='rgba(255,255,255,0.08)';e.target.style.boxShadow='none'}}/>
             {error&&<div style={{fontSize:13,color:'#ff6b6b',marginBottom:16,padding:'10px 12px',background:'rgba(255,107,107,0.08)',borderRadius:10}}>{error}</div>}

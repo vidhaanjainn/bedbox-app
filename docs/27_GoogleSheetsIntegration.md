@@ -1,4 +1,4 @@
-# 27 — Google Sheets Integration
+# 27 - Google Sheets Integration
 
 ## Current
 Only `/api/booking-form` appends inquiries to Sheet `1Nz1…FAs` (hardcoded fallback,
@@ -11,7 +11,7 @@ SubmittedAt) via service-account JWT. Skips silently if `GOOGLE_SERVICE_ACCOUNT_
 - New "Residents" tab, one row per resident keyed by resident UUID (col A), upserted on
   create/approve/edit/archive: Name, Phone, Email, Room, Property, Rent, Deposit, Move-in,
   Move-out, Status, Payment status (current month), Notice?, Docs complete?, Updated at
-- Later tabs: Payments (monthly), Expenses — read-only mirrors for the owner's comfort
+- Later tabs: Payments (monthly), Expenses - read-only mirrors for the owner's comfort
 - Never read decisions back from Sheets; it's a view, not an input
 
 ## Setup (owner, once)

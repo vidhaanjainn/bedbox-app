@@ -4,8 +4,8 @@ import { useEffect, useState } from 'react'
 import { createClient } from '@/lib/supabase/client'
 import { useRouter } from 'next/navigation'
 import { Mail, Lock, Eye, EyeOff, Loader2, ArrowRight } from 'lucide-react'
-import Image from 'next/image'
 import Link from 'next/link'
+import { BedBoxLogo } from '@/components/brand/BedBoxLogo'
 
 export default function LoginPageClient() {
   const [email, setEmail] = useState('')
@@ -18,7 +18,7 @@ export default function LoginPageClient() {
   const supabase = createClient()
 
   // Already signed in (e.g. opening the installed Admin icon with a persisted
-  // session) — skip the form entirely instead of asking to log in again.
+  // session) - skip the form entirely instead of asking to log in again.
   useEffect(() => {
     supabase.auth.getSession().then(({ data }) => {
       if (data.session) { router.replace('/admin/dashboard') } else { setCheckingSession(false) }
@@ -58,7 +58,7 @@ export default function LoginPageClient() {
 
   return (
     <div style={shell}>
-      {/* Faint structural grid — reads as a console, not a consumer app */}
+      {/* Faint structural grid - reads as a console, not a consumer app */}
       <div style={{
         position: 'absolute', inset: 0, pointerEvents: 'none',
         backgroundImage: 'linear-gradient(rgba(0,212,200,0.035) 1px, transparent 1px), linear-gradient(90deg, rgba(0,212,200,0.035) 1px, transparent 1px)',
@@ -69,11 +69,8 @@ export default function LoginPageClient() {
       <div className="animate-fade-in" style={{ width: '100%', maxWidth: '380px', position: 'relative' }}>
         {/* Mark */}
         <div style={{ textAlign: 'center', marginBottom: '36px' }}>
-          <div style={{ display: 'inline-flex', width: '56px', height: '56px', borderRadius: '16px', overflow: 'hidden', marginBottom: '20px', boxShadow: '0 8px 30px -8px rgba(0,212,200,0.35)' }}>
-            <Image src="/icons/icon-admin-192.png" alt="" width={56} height={56} priority />
-          </div>
-          <div style={{ fontSize: '10px', fontWeight: 700, letterSpacing: '0.22em', color: 'var(--teal-500)', textTransform: 'uppercase', marginBottom: '8px' }}>
-            TheBedBox
+          <div style={{ display: 'inline-flex', marginBottom: '20px' }}>
+            <BedBoxLogo height={40} surface="dark" />
           </div>
           <h1 style={{ fontFamily: "'Syne', sans-serif", fontSize: '22px', fontWeight: 700, color: '#f4f7fb', margin: 0, letterSpacing: '-0.01em' }}>
             Admin Console

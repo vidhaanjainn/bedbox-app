@@ -1,11 +1,11 @@
-# 19 — Decision Log
+# 19 - Decision Log
 
 Format: ID · Date · Decision · Why · Alternatives · Implications. Add an entry for every
-architectural choice; never delete entries — supersede them.
+architectural choice; never delete entries - supersede them.
 
 ## D-001 · 2026-07-12 · Repo-as-source-of-truth operating system
 Docs folder + PROJECT_STATUS.md drive all AI-assisted work; every session reads status first,
-updates it last. Alt: external tool (Notion/Linear) — rejected: context must travel with the code.
+updates it last. Alt: external tool (Notion/Linear) - rejected: context must travel with the code.
 Implication: docs discipline is part of Definition of Done.
 
 ## D-002 · 2026-07-12 · Harden RLS + server routes for privileged flows (keep client-heavy pages)

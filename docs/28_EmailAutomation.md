@@ -1,8 +1,8 @@
-# 28 — Email Automation
+# 28 - Email Automation
 
 ## Current
 Resend REST API, only for admin inquiry alerts; sender `onboarding@resend.dev` (sandbox),
-recipient hardcoded. Free tier: 3,000 emails/mo — plenty.
+recipient hardcoded. Free tier: 3,000 emails/mo - plenty.
 
 ## Blockers (owner action)
 1. Verify a domain in Resend (thebedbox.in) → sender becomes `TheBedBox <hello@thebedbox.in>`

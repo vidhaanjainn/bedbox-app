@@ -269,7 +269,7 @@ export default function BookingsPage() {
                   <select style={inputStyle} value={form.bed_id} onChange={e => setForm(f => ({ ...f, bed_id: e.target.value }))}>
                     <option value="">Not decided</option>
                     {beds.map(b => (
-                      <option key={b.id} value={b.id}>Room {b.room?.room_number} · Bed {b.bed_number} — {formatCurrency(b.rate_monthly)}/mo</option>
+                      <option key={b.id} value={b.id}>Room {b.room?.room_number} · Bed {b.bed_number} - {formatCurrency(b.rate_monthly)}/mo</option>
                     ))}
                   </select>
                 </div>

@@ -333,7 +333,7 @@ CREATE POLICY "resident_read_own" ON residents
 
 -- NOTE (SEC-01): self-onboarding does NOT use anon RLS policies. The wizard talks to
 -- /api/onboard/[token], which validates the token server-side with the service-role key.
--- Do not add anon SELECT/UPDATE policies on residents — RLS cannot compare a
+-- Do not add anon SELECT/UPDATE policies on residents - RLS cannot compare a
 -- client-supplied token to the row, so any such policy exposes every pending resident.
 
 -- ── rent_payments ──

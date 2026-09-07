@@ -4,11 +4,11 @@ import { createClient as createAdminClient } from '@supabase/supabase-js'
 import { sendEmail, emailShell, formatDateLong } from '@/lib/notify'
 import { sendPushToAdmins } from '@/lib/push'
 
-// Called whenever a notice to vacate becomes active — from the resident's
+// Called whenever a notice to vacate becomes active - from the resident's
 // own self-file (app/portal/notice), an admin applying a Google Form
 // submission, or an admin manually adding one (app/admin/notices). Verifies
 // the caller is EITHER that resident themselves OR an active admin before
-// sending anything — a resident can only trigger this for their own notice,
+// sending anything - a resident can only trigger this for their own notice,
 // an admin can trigger it for anyone's.
 export async function POST(req: Request) {
   const supabase = await createClient()
@@ -50,7 +50,7 @@ export async function POST(req: Request) {
   const tasks: Promise<any>[] = [
     sendPushToAdmins({
       title: 'Notice to vacate filed',
-      body: `${resident.name} (${roomLabel}) — leaving ${lastDayLabel}`,
+      body: `${resident.name} (${roomLabel}) - leaving ${lastDayLabel}`,
       url: '/admin/notices',
     }),
   ]
@@ -74,7 +74,7 @@ export async function POST(req: Request) {
   if (resident.email) {
     tasks.push(sendEmail({
       to: resident.email,
-      subject: 'Your notice to vacate — TheBedBox',
+      subject: 'Your notice to vacate - TheBedBox',
       html: emailShell('Notice to Vacate Confirmed', `
         <p style="color:#475569;font-size:14px;line-height:1.6;margin:0 0 20px">
           Dear ${resident.name.split(' ')[0]}, this confirms we have received your notice to vacate
@@ -88,7 +88,7 @@ export async function POST(req: Request) {
         <div style="font-size:13px;color:#334155;line-height:1.9;margin-bottom:20px">
           <div>• Rent and applicable electricity charges continue to apply through your last day of stay.</div>
           <div>• Please return all keys and access cards to management on or before your last day.</div>
-          <div>• Kindly leave the room, furniture, and fixtures in their original condition — our team will inspect before processing your security deposit.</div>
+          <div>• Kindly leave the room, furniture, and fixtures in their original condition - our team will inspect before processing your security deposit.</div>
           <div>• If you wish to reconsider or extend your stay, please let us know within 30 days of this notice.</div>
         </div>
         <p style="color:#94a3b8;font-size:12px;margin:0">Questions? Call TheBedBox at <a href="tel:+917999546362" style="color:#00a89d">+91 79995 46362</a>.</p>

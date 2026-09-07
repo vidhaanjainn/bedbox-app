@@ -1,4 +1,4 @@
-# 23 — SaaS Roadmap & 24 — Multi-Property Vision (merged)
+# 23 - SaaS Roadmap & 24 - Multi-Property Vision (merged)
 
 **Gate: do not start until Phases 0–3 are complete and TheBedBox runs hands-off for a month.**
 That month of hands-off operation IS the pitch.

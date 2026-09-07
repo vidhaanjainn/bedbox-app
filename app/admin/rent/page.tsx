@@ -48,7 +48,7 @@ export default function RentPage() {
       .eq('year', yearFilter)
       .order('status')
     // The review/test resident account never appears in the real Rent
-    // Tracker ledger or its totals — manage it from the resident's own
+    // Tracker ledger or its totals - manage it from the resident's own
     // detail page instead.
     setPayments((data || []).filter((p: any) => !p.resident?.is_test_account))
     setLoading(false)
@@ -94,7 +94,7 @@ export default function RentPage() {
       screenshotPath = path
     }
 
-    // Electricity is optional here — if the admin doesn't have the reading
+    // Electricity is optional here - if the admin doesn't have the reading
     // yet, we leave electricity_logged_at untouched so the caution badge
     // keeps showing on this record until someone does log it (here or on
     // the Electricity page), instead of silently treating "not entered" the
@@ -140,7 +140,7 @@ export default function RentPage() {
       if (!res.ok) { setSyncMsg(data.error || 'Sync failed.'); return }
       setSyncMsg(`✓ Synced ${data.count} rows to Sheets`)
     } catch {
-      setSyncMsg('Sync failed — check your connection.')
+      setSyncMsg('Sync failed - check your connection.')
     } finally {
       setSyncing(false)
       setTimeout(() => setSyncMsg(''), 5000)
@@ -257,19 +257,19 @@ export default function RentPage() {
                     <td>Room {p.resident?.room_number}</td>
                     <td>{formatCurrency(p.rent_amount)}</td>
                     <td>
-                      {p.electricity_logged_at ? (p.electricity_amount > 0 ? formatCurrency(p.electricity_amount) : '—') : (
+                      {p.electricity_logged_at ? (p.electricity_amount > 0 ? formatCurrency(p.electricity_amount) : '-') : (
                         <span title="Electricity reading not logged yet for this month" style={{ display: 'inline-flex', alignItems: 'center', gap: 4, fontSize: 11, fontWeight: 600, color: '#f97316' }}>
                           <AlertCircle size={12} /> Not logged
                         </span>
                       )}
                     </td>
                     <td style={{ color: p.late_fee > 0 ? '#fbbf24' : 'inherit' }}>
-                      {p.late_fee > 0 ? formatCurrency(p.late_fee) : '—'}
+                      {p.late_fee > 0 ? formatCurrency(p.late_fee) : '-'}
                     </td>
                     <td style={{ fontWeight: '700', color: 'var(--text-primary)' }}>{formatCurrency(p.total_amount)}</td>
                     <td style={{ color: '#34d399', fontWeight: '600' }}>{formatCurrency(p.amount_paid)}</td>
                     <td style={{ fontSize: '12px' }}>
-                      <div style={{ textTransform: 'capitalize' }}>{p.payment_mode?.replace('_', ' ') || '—'}</div>
+                      <div style={{ textTransform: 'capitalize' }}>{p.payment_mode?.replace('_', ' ') || '-'}</div>
                       {p.collected_admin?.name && <div style={{ color: 'var(--text-muted)', marginTop: '2px' }}>by {p.collected_admin.name.split(' ')[0]}</div>}
                     </td>
                     <td>
@@ -399,13 +399,13 @@ export default function RentPage() {
 
             <div style={{ marginBottom: '16px' }}>
               <label style={{ display: 'block', fontSize: '12px', fontWeight: '600', letterSpacing: '0.06em', textTransform: 'uppercase', color: 'var(--text-muted)', marginBottom: '8px' }}>
-                Electricity this month (₹) <span style={{ textTransform: 'none', fontWeight: 400 }}>— optional</span>
+                Electricity this month (₹) <span style={{ textTransform: 'none', fontWeight: 400 }}>- optional</span>
               </label>
               <input className="bb-input" type="number" placeholder={selectedPayment?.electricity_logged_at ? 'Already logged' : 'Leave blank if not known yet'}
                 value={logForm.electricity} onChange={e => setLogForm(f => ({ ...f, electricity: e.target.value }))} />
               {!selectedPayment?.electricity_logged_at && (
                 <div style={{ fontSize: 11, color: '#f97316', marginTop: 6, display: 'flex', alignItems: 'center', gap: 4 }}>
-                  <AlertCircle size={11} /> Not logged yet — will keep showing as a caution until entered here or on the Electricity page.
+                  <AlertCircle size={11} /> Not logged yet - will keep showing as a caution until entered here or on the Electricity page.
                 </div>
               )}
             </div>

@@ -170,7 +170,7 @@ export default function SettingsPage() {
       const res = await fetch('/api/admin/seed-test-resident', { method: 'POST' })
       const data = await res.json()
       if (!res.ok) { setTestResidentMsg(data.error || 'Could not set this up.'); return }
-      setTestResidentMsg(`✓ Ready — sign in at /portal with "Sign in with password", email ${data.email}, password ${data.password}`)
+      setTestResidentMsg(`✓ Ready - sign in at /portal with "Sign in with password", email ${data.email}, password ${data.password}`)
     } catch {
       setTestResidentMsg('Something went wrong.')
     } finally {
@@ -250,7 +250,7 @@ export default function SettingsPage() {
         </div>
       </div>
 
-      {/* Payment info (resident portal — powers the Pay Rent button) */}
+      {/* Payment info (resident portal - powers the Pay Rent button) */}
       <div className="glass-card" style={{ padding: '24px', marginBottom: '20px' }}>
         <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '20px' }}>
           <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}><CreditCard size={16} color="var(--teal-500)" /><h3 style={{ fontFamily: 'Syne, sans-serif', fontSize: '15px', fontWeight: '600', color: 'var(--text-primary)', margin: 0 }}>Payment Info (resident portal)</h3></div>

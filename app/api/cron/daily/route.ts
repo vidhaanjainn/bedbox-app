@@ -96,14 +96,14 @@ async function sendReminders(supabase: ReturnType<typeof adminClient>, dryRun: b
     const tone = daysFromDue < 0 ? 'Upcoming rent' : daysFromDue === 0 ? 'Rent due today' : 'Rent overdue'
 
     if (dryRun) {
-      console.log(`[DRY RUN] would remind ${resident.email} — ${tone} — ${moneyINR(outstanding)}`)
+      console.log(`[DRY RUN] would remind ${resident.email} - ${tone} - ${moneyINR(outstanding)}`)
       sent++
       continue
     }
 
     const result = await sendEmail({
       to: resident.email,
-      subject: `${tone} — ${moneyINR(outstanding)} ${resident.room_number ? `(Room ${resident.room_number})` : ''}`.trim(),
+      subject: `${tone} - ${moneyINR(outstanding)} ${resident.room_number ? `(Room ${resident.room_number})` : ''}`.trim(),
       html: emailShell(tone, `
         <p style="color:#475569;font-size:14px;line-height:1.6;margin:0 0 20px">
           Hi ${resident.name?.split(' ')[0] || 'there'}, ${daysFromDue < 0
@@ -130,7 +130,7 @@ async function sendReminders(supabase: ReturnType<typeof adminClient>, dryRun: b
   return { sent }
 }
 
-// AUTO-07: admin-facing digest, days 1-6 of the month only — reminds the owner
+// AUTO-07: admin-facing digest, days 1-6 of the month only - reminds the owner
 // (not residents) to chase rent collection and pay staff/vendors. Sent once
 // per day in that window, to every active admin with an email on file.
 async function sendAdminMonthlyDigest(supabase: ReturnType<typeof adminClient>, dryRun: boolean) {
@@ -142,7 +142,7 @@ async function sendAdminMonthlyDigest(supabase: ReturnType<typeof adminClient>, 
   const year = today.getUTCFullYear()
   const todayStr = today.toISOString().split('T')[0]
 
-  // Dedupe — a manually re-triggered cron (e.g. testing) shouldn't re-send the
+  // Dedupe - a manually re-triggered cron (e.g. testing) shouldn't re-send the
   // same day's digest to every admin again.
   const { data: lastSentSetting } = await supabase.from('settings').select('value').eq('key', 'last_admin_digest_sent_date').maybeSingle()
   if (lastSentSetting?.value === todayStr) return { sent: 0, skipped: 'already sent today' }
@@ -166,7 +166,7 @@ async function sendAdminMonthlyDigest(supabase: ReturnType<typeof adminClient>, 
 
   const subject = `Monthly reminder: rent + staff payouts (${paidCount}/${totalCount} rent collected)`
   const html = emailShell('Monthly Admin Reminder', `
-    <p style="color:#475569;font-size:14px;line-height:1.6;margin:0 0 20px">It's the 1st–6th of the month — time to chase rent and settle staff/vendor payouts.</p>
+    <p style="color:#475569;font-size:14px;line-height:1.6;margin:0 0 20px">It's the 1st–6th of the month - time to chase rent and settle staff/vendor payouts.</p>
     <div style="background:#fff;border:1px solid #e2e8f0;border-radius:12px;padding:18px;margin-bottom:16px">
       <div style="font-weight:700;color:#0f172a;margin-bottom:8px">Rent collection</div>
       <div style="display:flex;justify-content:space-between;padding:4px 0"><span style="color:#64748b;font-size:13px">Collected</span><span>${paidCount} / ${totalCount} residents</span></div>
@@ -208,7 +208,7 @@ async function sendNoticeExpiryAlerts(supabase: ReturnType<typeof adminClient>, 
   const targetStr = target.toISOString().split('T')[0]
 
   // Matched in JS against last_day_of_stay falling back to
-  // last_day_per_agreement — a notice with no actual vacate date filed yet
+  // last_day_per_agreement - a notice with no actual vacate date filed yet
   // (last_day_of_stay left blank) would otherwise never trigger this alert.
   const { data: allActive } = await supabase
     .from('notice_periods')
@@ -230,7 +230,7 @@ async function sendNoticeExpiryAlerts(supabase: ReturnType<typeof adminClient>, 
     await Promise.all([
       sendPushToAdmins({
         title: 'Move-out in 3 days',
-        body: `${resident?.name || 'A resident'} ${roomLabel} — last day ${targetStr}`,
+        body: `${resident?.name || 'A resident'} ${roomLabel} - last day ${targetStr}`,
         url: '/admin/residents',
       }),
       sendEmail({

@@ -32,7 +32,7 @@ html, body {
   /* Hard backstop: the page itself must never scroll sideways, no matter
      what individual widget misbehaves. This has recurred repeatedly from
      flex rows whose text children don't shrink below their intrinsic width
-     (flexbox's `min-width: auto` default) — each instance gets fixed on
+     (flexbox's `min-width: auto` default) - each instance gets fixed on
      its own, but this guarantees a fresh one can only clip content, never
      drag the whole page/sidebar sideways again. */
   overflow-x: hidden;
@@ -52,7 +52,7 @@ h1, h2, h3, h4, h5, h6 { font-family: 'Syne', sans-serif; }
 ::-webkit-scrollbar-thumb { background: var(--navy-600); border-radius: 3px; }
 ::-webkit-scrollbar-thumb:hover { background: var(--teal-500); }
 
-/* Consistent page shell — caps content width so pages don't feel like they're
+/* Consistent page shell - caps content width so pages don't feel like they're
    "floating" arbitrarily wide on large monitors. Applied once at the admin
    layout level; every page inherits it for free. */
 .bb-page {
@@ -96,7 +96,7 @@ h1, h2, h3, h4, h5, h6 { font-family: 'Syne', sans-serif; }
   transform: translateY(-1px);
 }
 
-/* Empty states — one consistent look for every "nothing here yet" moment
+/* Empty states - one consistent look for every "nothing here yet" moment
    instead of each page inventing its own copy/spacing. */
 .bb-empty {
   padding: 64px 24px;
@@ -107,7 +107,7 @@ h1, h2, h3, h4, h5, h6 { font-family: 'Syne', sans-serif; }
 .bb-empty-title { font-size: 14px; color: var(--text-secondary); margin-bottom: 4px; font-weight: 500; }
 .bb-empty-hint { font-size: 13px; }
 
-/* Icon-only buttons — guarantees the 44px touch target the rest of the app
+/* Icon-only buttons - guarantees the 44px touch target the rest of the app
    doesn't consistently hit today. */
 .bb-icon-btn {
   display: inline-flex;
@@ -273,7 +273,7 @@ h1, h2, h3, h4, h5, h6 { font-family: 'Syne', sans-serif; }
   text-transform: uppercase;
   border: 1px solid;
 }
-/* Reusable status color variants — pages can use these classes instead of
+/* Reusable status color variants - pages can use these classes instead of
    re-deriving the same color map inline every time. */
 .status-badge.is-success { background: rgba(52,211,153,0.1); color: #34d399; border-color: rgba(52,211,153,0.3); }
 .status-badge.is-warning { background: rgba(251,191,36,0.1); color: #fbbf24; border-color: rgba(251,191,36,0.3); }
@@ -290,7 +290,7 @@ input:focus-visible, select:focus-visible, textarea:focus-visible, a:focus-visib
   *, *::before, *::after { animation-duration: 0.01ms !important; transition-duration: 0.01ms !important; }
 }
 
-/* Admin console mobile nav — the sidebar is a normal flex child on desktop
+/* Admin console mobile nav - the sidebar is a normal flex child on desktop
    (>900px) but becomes a fixed off-canvas drawer on phones/small tablets,
    opened via the topbar hamburger instead of always eating half the screen. */
 .admin-mobile-topbar { display: none; }

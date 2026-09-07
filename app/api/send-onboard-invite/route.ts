@@ -4,7 +4,7 @@ import { createClient as createAdminClient } from '@supabase/supabase-js'
 import { sendEmail, emailShell } from '@/lib/notify'
 
 // Admin-gated: emails a resident their self-onboarding link directly, instead
-// of the admin having to copy/paste it into WhatsApp themselves. Non-fatal —
+// of the admin having to copy/paste it into WhatsApp themselves. Non-fatal -
 // the admin still sees the raw link on the resident page as a manual fallback
 // (no email on file, or the send fails).
 export async function POST(req: Request) {
@@ -29,11 +29,11 @@ export async function POST(req: Request) {
 
   const result = await sendEmail({
     to: resident.email,
-    subject: `Welcome to TheBedBox, ${resident.name.split(' ')[0]} — complete your onboarding`,
+    subject: `Welcome to TheBedBox, ${resident.name.split(' ')[0]} - complete your onboarding`,
     html: emailShell('Complete your onboarding', `
       <p style="color:#475569;font-size:14px;line-height:1.6;margin:0 0 20px">
         Hi ${resident.name.split(' ')[0]}, you're moving into TheBedBox! Please complete a short
-        onboarding form — your details, ID, and digital agreement — so we can get your room ready.
+        onboarding form - your details, ID, and digital agreement - so we can get your room ready.
       </p>
       <a href="${link}" style="display:inline-block;padding:14px 28px;background:linear-gradient(135deg,#00d4c8,#0099ff);color:#070d1a;font-weight:700;text-decoration:none;border-radius:10px;font-size:15px;margin-bottom:20px">
         Start Onboarding →

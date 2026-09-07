@@ -6,10 +6,11 @@ import { usePathname, useRouter } from 'next/navigation'
 import { createClient } from '@/lib/supabase/client'
 import NotificationPrompt from '@/components/ui/NotificationPrompt'
 import InstallPrompt from '@/components/ui/InstallPrompt'
+import { BedBoxMark, BedBoxLogo } from '@/components/brand/BedBoxLogo'
 import {
   LayoutDashboard, Users, BookOpen, Hotel, Bed,
   CreditCard, Zap, Bell, Wrench, BarChart3,
-  Receipt, Settings, LogOut, Menu, X, Building2, ChevronRight, Wallet
+  Receipt, Settings, LogOut, Menu, X, ChevronRight, Wallet
 } from 'lucide-react'
 
 const navItems = [
@@ -49,12 +50,12 @@ export default function AdminLayoutClient({ children }: { children: React.ReactN
   }, [])
   const showLabels = isMobile ? true : sidebarOpen
 
-  // Close the drawer automatically on navigation — otherwise it stays open
+  // Close the drawer automatically on navigation - otherwise it stays open
   // over the new page after tapping a nav link.
   useEffect(() => { setMobileOpen(false) }, [pathname])
 
   // No persisted session (e.g. never logged in on this device, or explicitly
-  // logged out) — send to login instead of rendering an empty dashboard.
+  // logged out) - send to login instead of rendering an empty dashboard.
   useEffect(() => {
     supabase.auth.getSession().then(({ data }) => {
       if (!data.session) { router.replace('/login') } else { setCheckingSession(false) }
@@ -116,26 +117,16 @@ export default function AdminLayoutClient({ children }: { children: React.ReactN
           gap: '12px',
           minHeight: '70px'
         }}>
-          <div style={{
-            width: '36px', height: '36px', flexShrink: 0,
-            background: 'rgba(0,212,200,0.1)',
-            border: '1px solid rgba(0,212,200,0.2)',
-            borderRadius: '10px',
-            display: 'flex', alignItems: 'center', justifyContent: 'center'
-          }}>
-            <Building2 size={18} color="var(--teal-500)" />
-          </div>
-          {showLabels && (
+          {showLabels ? (
             <div style={{ overflow: 'hidden' }}>
-              <div style={{
-                fontFamily: 'Syne, sans-serif',
-                fontSize: '15px', fontWeight: '700',
-                color: 'var(--text-primary)',
-                whiteSpace: 'nowrap'
-              }}>TheBedBox</div>
-              <div style={{ fontSize: '11px', color: 'var(--text-muted)', whiteSpace: 'nowrap' }}>
+              <BedBoxLogo height={26} surface="dark" />
+              <div style={{ fontSize: '11px', color: 'var(--text-muted)', whiteSpace: 'nowrap', marginTop: '6px' }}>
                 Admin Panel
               </div>
+            </div>
+          ) : (
+            <div style={{ flexShrink: 0 }}>
+              <BedBoxMark size={36} />
             </div>
           )}
           {isMobile ? (
@@ -228,7 +219,7 @@ export default function AdminLayoutClient({ children }: { children: React.ReactN
             style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--text-primary)', display: 'flex', alignItems: 'center', padding: '4px' }}>
             <Menu size={22} />
           </button>
-          <span style={{ fontFamily: 'Syne, sans-serif', fontSize: '15px', fontWeight: '700', color: 'var(--text-primary)' }}>TheBedBox</span>
+          <BedBoxLogo height={22} surface="dark" />
         </div>
         <div className="bb-page">
           <div style={{ padding: '20px 32px 0' }}>

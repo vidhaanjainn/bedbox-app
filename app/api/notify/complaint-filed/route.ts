@@ -33,7 +33,7 @@ export async function POST(req: Request) {
     }),
     sendEmail({
       to: process.env.ADMIN_NOTIFY_EMAIL || 'thebedbox.in@gmail.com',
-      subject: `🔧 New maintenance request — ${resident.name}`,
+      subject: `🔧 New maintenance request - ${resident.name}`,
       html: emailShell('New maintenance request', `
         <p style="color:#475569;font-size:14px;line-height:1.6;margin:0 0 16px">
           <strong style="color:#0f172a">${resident.name}</strong> (${roomLabel}) raised a <strong>${categoryLabel}</strong> request.

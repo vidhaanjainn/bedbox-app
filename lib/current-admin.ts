@@ -2,7 +2,7 @@ import { SupabaseClient } from '@supabase/supabase-js'
 
 export type CurrentAdmin = { id: string; name: string; email: string | null }
 
-// Resolves the signed-in admin's own `admins` row — used to stamp who did what
+// Resolves the signed-in admin's own `admins` row - used to stamp who did what
 // (collected a payment, onboarded a resident) when multiple admins share the console.
 export async function getCurrentAdmin(supabase: SupabaseClient): Promise<CurrentAdmin | null> {
   const { data: { user } } = await supabase.auth.getUser()

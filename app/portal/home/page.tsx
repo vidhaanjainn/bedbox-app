@@ -193,7 +193,7 @@ export default function PortalHomePage() {
       </div>
 
       <div style={{ padding: '0 20px' }}>
-        {/* Rent status — the primary card. Pay/report options are always
+        {/* Rent status - the primary card. Pay/report options are always
             available, even before an admin has generated this month's bill,
             using the resident's on-file rent as the default amount. */}
         <div style={{ background: isPaid ? 'rgba(0,212,200,0.06)' : 'rgba(255,100,100,0.06)', border: `1px solid ${isPaid ? 'rgba(0,212,200,0.15)' : 'rgba(255,100,100,0.2)'}`, borderRadius: 16, padding: 20, marginBottom: 16 }}>
@@ -208,11 +208,11 @@ export default function PortalHomePage() {
           </div>
           {current?.electricity_amount > 0 && <div style={{ fontSize: 12, color: 'rgba(255,255,255,0.4)' }}>Includes electricity: ₹{current.electricity_amount}</div>}
           {isPaid && current.paid_at && <div style={{ marginTop: 8, fontSize: 12, color: 'rgba(0,212,200,0.7)' }}>✓ Paid on {new Date(current.paid_at).toLocaleDateString('en-IN', { day: 'numeric', month: 'short', year: 'numeric' })}</div>}
-          {!current && <div style={{ fontSize: 12, color: 'rgba(255,255,255,0.3)', marginTop: 4 }}>Your official bill isn't generated yet — you're welcome to pay your usual rent now.</div>}
+          {!current && <div style={{ fontSize: 12, color: 'rgba(255,255,255,0.3)', marginTop: 4 }}>Your official bill isn't generated yet - you're welcome to pay your usual rent now.</div>}
 
           {!isPaid && current?.resident_reported_at && (
             <div style={{ marginTop: 12, padding: '8px 12px', borderRadius: 10, background: 'rgba(56,189,248,0.08)', border: '1px solid rgba(56,189,248,0.2)', fontSize: 12, color: '#7dd3fc' }}>
-              ✓ You reported ₹{Number(current.resident_reported_amount).toLocaleString('en-IN')} paid — awaiting confirmation from TheBedBox.
+              ✓ You reported ₹{Number(current.resident_reported_amount).toLocaleString('en-IN')} paid - awaiting confirmation from TheBedBox.
             </div>
           )}
 
@@ -266,7 +266,7 @@ export default function PortalHomePage() {
           </div>
         )}
 
-        {/* Staff contacts — source of truth is Staff & Expenses in the admin console */}
+        {/* Staff contacts - source of truth is Staff & Expenses in the admin console */}
         {staff.length > 0 && (
           <div style={{ marginBottom: 20 }}>
             <div style={{ fontSize: 12, color: 'rgba(255,255,255,0.4)', fontWeight: 600, letterSpacing: '0.08em', textTransform: 'uppercase', marginBottom: 12 }}>Need help around the house?</div>
@@ -294,7 +294,7 @@ export default function PortalHomePage() {
           ))}
         </div>
 
-        {/* Secondary info — collapsed by default. These are reference
+        {/* Secondary info - collapsed by default. These are reference
             material residents check occasionally, not things that deserve
             prime real estate above the fold every time they open the app. */}
         <div style={{ display: 'flex', flexDirection: 'column', gap: 10, marginBottom: 24 }}>
@@ -367,7 +367,7 @@ export default function PortalHomePage() {
               <h3 style={{ fontFamily: "'Syne',sans-serif", fontSize: 18, fontWeight: 700, margin: 0 }}>Report your payment</h3>
               <button onClick={() => setShowPayModal(false)} style={{ background: 'none', border: 'none', color: 'rgba(255,255,255,0.5)', cursor: 'pointer' }}><X size={20} /></button>
             </div>
-            <p style={{ fontSize: 12, color: 'rgba(255,255,255,0.4)', marginBottom: 18, lineHeight: 1.5 }}>Let us know you've paid — we'll verify and update your status. This doesn't mark rent as paid automatically.</p>
+            <p style={{ fontSize: 12, color: 'rgba(255,255,255,0.4)', marginBottom: 18, lineHeight: 1.5 }}>Let us know you've paid - we'll verify and update your status. This doesn't mark rent as paid automatically.</p>
 
             <label style={{ display: 'block', fontSize: 11, fontWeight: 600, letterSpacing: '0.06em', textTransform: 'uppercase', color: 'rgba(255,255,255,0.35)', marginBottom: 8 }}>Amount paid (₹)</label>
             <input type="number" value={payAmount} onChange={e => setPayAmount(e.target.value)}

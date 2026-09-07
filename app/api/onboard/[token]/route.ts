@@ -36,7 +36,7 @@ async function residentForToken(supabase: SupabaseClient, token: string): Promis
   return { resident: { id: data.id, name: data.name, email: data.email, mobile: data.mobile } }
 }
 
-// GET /api/onboard/[token] — validate token, return only what the wizard displays
+// GET /api/onboard/[token] - validate token, return only what the wizard displays
 export async function GET(_req: Request, ctx: { params: Promise<{ token: string }> }) {
   try {
     const { token } = await ctx.params

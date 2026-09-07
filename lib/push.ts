@@ -1,7 +1,7 @@
 import webpush from 'web-push'
 import { createClient } from '@supabase/supabase-js'
 
-// Server-only. Self-hosted browser push via VAPID — no third-party account or
+// Server-only. Self-hosted browser push via VAPID - no third-party account or
 // per-message cost, works on installed PWAs (Android Chrome + iOS 16.4+ Home
 // Screen). Every send is non-fatal: a missing key or dead subscription never
 // throws for the caller, it just skips/cleans up and moves on.
@@ -38,7 +38,7 @@ async function sendToSubscriptions(subs: Sub[], payload: PushPayload) {
       )
     } catch (err: any) {
       // 404/410 = the browser subscription is gone (uninstalled, permission
-      // revoked, etc.) — clean it up so we stop trying every time.
+      // revoked, etc.) - clean it up so we stop trying every time.
       if (err?.statusCode === 404 || err?.statusCode === 410) {
         await supabase.from('push_subscriptions').delete().eq('id', sub.id)
       } else {

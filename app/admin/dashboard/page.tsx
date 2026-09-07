@@ -51,12 +51,12 @@ export default function DashboardPage() {
       const occupiedBeds = beds?.filter(b => b.status === 'occupied').length || 0
 
       // The review/test resident account should never skew real financial
-      // totals — excluded from every rent-derived number on this page.
+      // totals - excluded from every rent-derived number on this page.
       const realRentPayments = (rentPayments || []).filter((r: any) => !r.resident?.is_test_account)
 
       const monthlyIncome = realRentPayments.filter(r => r.status === 'paid').reduce((sum: number, r: any) => sum + r.amount_paid, 0)
 
-      // Only rows with an actual outstanding balance count as "pending" —
+      // Only rows with an actual outstanding balance count as "pending" -
       // the raw rentPayments array includes fully-paid rows too, which
       // contribute ₹0 to the total (so the amount looked right) but were
       // still being counted (so "N pending" and the table below were wrong).
@@ -388,7 +388,7 @@ export default function DashboardPage() {
                     <td>{new Date(payment.year, payment.month - 1).toLocaleDateString('en-IN', { month: 'short', year: 'numeric' })}</td>
                     <td>{formatCurrency(payment.rent_amount)}</td>
                     <td style={{ color: payment.late_fee > 0 ? '#fbbf24' : 'var(--text-muted)' }}>
-                      {payment.late_fee > 0 ? formatCurrency(payment.late_fee) : '—'}
+                      {payment.late_fee > 0 ? formatCurrency(payment.late_fee) : '-'}
                     </td>
                     <td style={{ color: 'var(--text-primary)', fontWeight: '600' }}>
                       {formatCurrency(payment.total_amount - payment.amount_paid)}

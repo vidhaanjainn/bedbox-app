@@ -4,7 +4,7 @@ import { createClient as createAdminClient } from '@supabase/supabase-js'
 
 // One-click, idempotent setup for a password-login test resident account, so
 // the owner can review the resident portal UX repeatedly without the OTP
-// round-trip. Admin-only — reuses the caller's own session, same pattern as
+// round-trip. Admin-only - reuses the caller's own session, same pattern as
 // /api/admin/invite. Safe to click more than once (upserts, doesn't duplicate).
 const TEST_NAME = 'Vidhaan (Review Account)'
 const TEST_MOBILE = '7999546362'
@@ -60,7 +60,7 @@ export async function POST() {
       onboarding_status: 'active',
       is_test_account: true,
       date_of_joining: new Date().toISOString().split('T')[0],
-      notes: '🧪 Admin review account — used to test the resident portal UX. Not a real resident; no bed occupied. Excluded from all admin financial totals. Log in at /portal via the "Sign in with password" link (email: vidhaanj29@gmail.com / password: admin).',
+      notes: '🧪 Admin review account - used to test the resident portal UX. Not a real resident; no bed occupied. Excluded from all admin financial totals. Log in at /portal via the "Sign in with password" link (email: vidhaanj29@gmail.com / password: admin).',
     })
   }
 
