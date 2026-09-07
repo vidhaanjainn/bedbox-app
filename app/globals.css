@@ -36,6 +36,14 @@ html, body {
      its own, but this guarantees a fresh one can only clip content, never
      drag the whole page/sidebar sideways again. */
   overflow-x: hidden;
+  /* overflow-x: hidden alone doesn't stop iOS Safari's elastic rubber-band
+     bounce at the page's horizontal edges - a fast swipe can still briefly
+     overscroll past the edge, which is what let the off-canvas mobile
+     sidebar drawer (position: fixed, translateX(-100%)) visibly peek in
+     for a frame even though it's meant to be fully off-screen. This kills
+     the bounce on the x-axis outright (y-axis bounce is normal iOS
+     behaviour and left alone). */
+  overscroll-behavior-x: none;
 }
 
 body {
@@ -303,11 +311,16 @@ input:focus-visible, select:focus-visible, textarea:focus-visible, a:focus-visib
     width: 78vw !important;
     max-width: 280px !important;
     transform: translateX(-100%);
-    transition: transform 0.25s ease !important;
+    transition: transform 0.25s ease, visibility 0.25s ease !important;
     z-index: 200 !important;
     box-shadow: 20px 0 40px -20px rgba(0,0,0,0.5);
+    /* translateX alone still paints the drawer just off-canvas, which iOS
+       Safari's elastic horizontal bounce can briefly reveal mid-swipe.
+       visibility: hidden stops it from painting at all while closed, so
+       there is nothing left to peek through even during an overscroll. */
+    visibility: hidden;
   }
-  .admin-sidebar.mobile-open { transform: translateX(0); }
+  .admin-sidebar.mobile-open { transform: translateX(0); visibility: visible; }
   .admin-mobile-topbar { display: flex !important; }
 
   /* Every hardcoded 2/3-column content or form grid across the admin pages

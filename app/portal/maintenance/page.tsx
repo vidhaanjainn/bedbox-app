@@ -17,7 +17,9 @@ export default function MaintenancePage() {
   const [error, setError] = useState('')
 
   const handleSubmit = async () => {
-    if (!cat||!desc.trim()) return
+    if (!cat) { setError('Please pick a category.'); return }
+    if (desc.trim().length<10) { setError('Please add a few more details (at least 10 characters).'); return }
+    setError('')
     setSubmitting(true)
     const {data:{session}} = await supabase.auth.getSession()
     if (!session) { router.replace('/portal'); return }
@@ -67,11 +69,12 @@ export default function MaintenancePage() {
       </div>
       <div style={{fontSize:12,color:'rgba(255,255,255,0.4)',fontWeight:600,letterSpacing:'0.08em',textTransform:'uppercase',marginBottom:10}}>Description</div>
       <textarea value={desc} onChange={e=>setDesc(e.target.value)} placeholder="Describe the issue - what, where, since when..." rows={5}
-        style={{width:'100%',padding:'14px',borderRadius:12,fontSize:14,lineHeight:1.6,background:'rgba(255,255,255,0.05)',border:'1px solid rgba(255,255,255,0.1)',color:'#fff',outline:'none',resize:'vertical',boxSizing:'border-box',fontFamily:"'DM Sans',sans-serif",marginBottom:24}}
+        style={{width:'100%',padding:'14px',borderRadius:12,fontSize:14,lineHeight:1.6,background:'rgba(255,255,255,0.05)',border:'1px solid rgba(255,255,255,0.1)',color:'#fff',outline:'none',resize:'vertical',boxSizing:'border-box',fontFamily:"'DM Sans',sans-serif",marginBottom:6}}
         onFocus={e=>e.target.style.borderColor='#00d4c8'} onBlur={e=>e.target.style.borderColor='rgba(255,255,255,0.1)'}/>
+      <div style={{fontSize:11,color:desc.trim().length<10?'rgba(255,255,255,0.3)':'rgba(0,212,200,0.6)',marginBottom:18,textAlign:'right'}}>{desc.trim().length}/10 characters minimum</div>
       {error&&<div style={{fontSize:13,color:'#ff6b6b',marginBottom:16,padding:'10px 12px',background:'rgba(255,107,107,0.08)',borderRadius:8}}>{error}</div>}
-      <button onClick={handleSubmit} disabled={!cat||desc.trim().length<10||submitting}
-        style={{width:'100%',padding:'14px',borderRadius:12,fontSize:15,fontWeight:600,background:!cat||desc.trim().length<10||submitting?'rgba(255,255,255,0.08)':'linear-gradient(135deg,#00d4c8,#0099ff)',color:!cat||desc.trim().length<10||submitting?'rgba(255,255,255,0.3)':'#070d1a',border:'none',cursor:'pointer',fontFamily:"'DM Sans',sans-serif"}}>
+      <button onClick={handleSubmit} disabled={submitting}
+        style={{width:'100%',padding:'14px',borderRadius:12,fontSize:15,fontWeight:600,background:submitting?'rgba(255,255,255,0.08)':'linear-gradient(135deg,#00d4c8,#0099ff)',color:submitting?'rgba(255,255,255,0.3)':'#070d1a',border:'none',cursor:submitting?'default':'pointer',fontFamily:"'DM Sans',sans-serif"}}>
         {submitting?'Submitting...':'Submit request →'}
       </button>
     </div>
