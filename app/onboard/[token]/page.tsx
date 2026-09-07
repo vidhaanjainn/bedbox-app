@@ -29,6 +29,7 @@ export default function OnboardPage() {
     agreement_agreed: false,
   })
   const [signatureDataUrl, setSignatureDataUrl] = useState<string | null>(null)
+  const [submitError, setSubmitError] = useState('')
 
   useEffect(() => {
     if (!token) { setStep('error'); setErrorMsg('Invalid link.'); return }
@@ -62,7 +63,9 @@ export default function OnboardPage() {
 
   const handleSubmit = async () => {
     if (!resident) return
-    if (!signatureDataUrl) { alert('Please sign above before submitting.'); return }
+    setSubmitError('')
+    if (!form.agreement_agreed) { setSubmitError('Please tick the box above to confirm you agree to the terms.'); return }
+    if (!signatureDataUrl) { setSubmitError('Please draw your signature above before submitting - tap and drag inside the box.'); return }
     setSubmitting(true)
     try {
       let aadhaarFrontPath = ''
@@ -110,7 +113,7 @@ export default function OnboardPage() {
       // Go to done FIRST before anything else can interfere
       setStep('done')
     } catch (err: any) {
-      alert('Something went wrong: ' + (err?.message || 'Please try again or contact TheBedBox.'))
+      setSubmitError(err?.message || 'Something went wrong. Please try again or contact TheBedBox.')
     } finally {
       setSubmitting(false)
       setUploadProgress('')
@@ -270,9 +273,15 @@ export default function OnboardPage() {
           <SectionLabel>Sign below to confirm</SectionLabel>
           <SignaturePad value={signatureDataUrl} onChange={setSignatureDataUrl} />
 
+          {submitError && (
+            <div style={{ marginTop: 16, padding: '12px 14px', borderRadius: 10, background: 'rgba(255,107,107,0.1)', border: '1px solid rgba(255,107,107,0.3)', color: '#ff9494', fontSize: 13, lineHeight: 1.5 }}>
+              {submitError}
+            </div>
+          )}
+
           <div style={{ display: 'flex', gap: 10, marginTop: 20 }}>
             <GhostBtn onClick={() => setStep('docs')}>← Back</GhostBtn>
-            <Btn onClick={handleSubmit} disabled={!form.agreement_agreed || !signatureDataUrl || submitting}>
+            <Btn onClick={handleSubmit} disabled={submitting}>
               {submitting ? (uploadProgress || 'Submitting...') : 'Submit & Complete ✓'}
             </Btn>
           </div>
