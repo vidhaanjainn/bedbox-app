@@ -5,6 +5,7 @@ import Link from 'next/link'
 import { usePathname, useRouter } from 'next/navigation'
 import { createClient } from '@/lib/supabase/client'
 import NotificationPrompt from '@/components/ui/NotificationPrompt'
+import InstallPrompt from '@/components/ui/InstallPrompt'
 import {
   LayoutDashboard, Users, BookOpen, Hotel, Bed,
   CreditCard, Zap, Bell, Wrench, BarChart3,
@@ -230,7 +231,10 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
           <span style={{ fontFamily: 'Syne, sans-serif', fontSize: '15px', fontWeight: '700', color: 'var(--text-primary)' }}>TheBedBox</span>
         </div>
         <div className="bb-page">
-          <div style={{ padding: '20px 32px 0' }}><NotificationPrompt dark={false} /></div>
+          <div style={{ padding: '20px 32px 0' }}>
+            <InstallPrompt dark={false} />
+            <NotificationPrompt dark={false} />
+          </div>
           {children}
         </div>
       </main>
