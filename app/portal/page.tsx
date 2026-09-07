@@ -5,7 +5,6 @@ import { useRouter } from 'next/navigation'
 import { createClient } from '@/lib/supabase/client'
 import { ArrowRight, Phone } from 'lucide-react'
 import Link from 'next/link'
-import { BedBoxLogo } from '@/components/brand/BedBoxLogo'
 
 export default function PortalLoginPage() {
   const router = useRouter()
@@ -72,8 +71,9 @@ export default function PortalLoginPage() {
       <link href="https://fonts.googleapis.com/css2?family=Syne:wght@600;700;800&family=DM+Sans:wght@400;500;600&display=swap" rel="stylesheet"/>
 
       <div style={{padding:'32px 24px 0',maxWidth:420,margin:'0 auto',width:'100%',boxSizing:'border-box'}}>
-        <div style={{display:'flex',alignItems:'center',marginBottom:56}}>
-          <BedBoxLogo height={30} surface="dark" />
+        <div style={{display:'flex',alignItems:'center',gap:11,marginBottom:56}}>
+          <div style={{width:38,height:38,borderRadius:11,background:'linear-gradient(135deg,#00d4c8,#0099ff)',display:'flex',alignItems:'center',justifyContent:'center',fontFamily:"'Syne',sans-serif",fontWeight:800,fontSize:17,color:'#070d1a',boxShadow:'0 6px 20px -6px rgba(0,212,200,0.5)'}}>B</div>
+          <span style={{fontFamily:"'Syne',sans-serif",fontWeight:700,fontSize:16,color:'#f4f7fb',letterSpacing:'-0.01em'}}>TheBedBox</span>
         </div>
       </div>
 
