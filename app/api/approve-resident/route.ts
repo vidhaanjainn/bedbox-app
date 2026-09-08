@@ -4,6 +4,7 @@ import { createClient } from '@/lib/supabase/server'
 import { createClient as createAdminClient } from '@supabase/supabase-js'
 import { APP_URL } from '@/lib/config'
 import { syncResidentsSheet } from '@/lib/sheets'
+import { computeProrata } from '@/lib/prorata'
 
 const resend = new Resend(process.env.RESEND_API_KEY)
 
@@ -30,7 +31,7 @@ export async function POST(req: Request) {
 
   const { data: resident, error: fetchError } = await admin
     .from('residents')
-    .select('id, name, email, mobile, bed_id, rent_amount, security_deposit, security_deposit_received_at')
+    .select('id, name, email, mobile, bed_id, rent_amount, security_deposit, security_deposit_received_at, date_of_joining, prorata_status')
     .eq('id', residentId)
     .single()
   if (fetchError || !resident) return NextResponse.json({ error: 'Resident not found.' }, { status: 404 })
@@ -49,6 +50,20 @@ export async function POST(req: Request) {
       security_deposit_received_amount: Number(resident.security_deposit),
       security_deposit_received_at: nowIso,
     } : {}),
+    // A resident who joins well into the month but pays a full month's
+    // rent at signing has overpaid for the days before they moved in -
+    // that's a decision for the admin, not something to silently apply or
+    // silently ignore (see lib/prorata.ts). Only computed once - never
+    // re-evaluated on a second approve call, so it can't clobber a
+    // decision an admin already made.
+    ...(!resident.prorata_status ? (() => {
+      const p = computeProrata(resident.date_of_joining, Number(resident.rent_amount) || 0)
+      return p ? {
+        prorata_status: 'pending_review',
+        prorata_unused_days: p.unusedDays,
+        prorata_credit_amount: p.creditAmount,
+      } : {}
+    })() : {}),
   }).eq('id', residentId)
   if (updateError) return NextResponse.json({ error: 'Could not activate resident.' }, { status: 500 })
 

@@ -3,6 +3,7 @@ import { createClient } from '@/lib/supabase/server'
 import { createClient as createAdminClient } from '@supabase/supabase-js'
 import { sendEmail, emailShell, moneyINR } from '@/lib/notify'
 import { sendPushToAdmins } from '@/lib/push'
+import { computeTotalAmount } from '@/lib/prorata'
 
 // Resident-gated: lets a resident log their own meter reading each month,
 // exactly like the admin's "Add Reading" flow (electricity_readings.units_consumed
@@ -74,7 +75,7 @@ export async function POST(req: Request) {
   // Fold straight into this month's rent, same as the admin flow.
   let { data: rentPayment } = await admin
     .from('rent_payments')
-    .select('id, rent_amount, late_fee')
+    .select('id, rent_amount, late_fee, prorata_credit_applied')
     .eq('resident_id', resident.id)
     .eq('month', month)
     .eq('year', year)
@@ -84,14 +85,14 @@ export async function POST(req: Request) {
     const { data: created } = await admin.from('rent_payments').insert({
       resident_id: resident.id, month, year,
       rent_amount: 0, total_amount: 0, amount_paid: 0, status: 'pending',
-    }).select('id, rent_amount, late_fee').single()
+    }).select('id, rent_amount, late_fee, prorata_credit_applied').single()
     rentPayment = created || null
   }
 
   if (rentPayment) {
     await admin.from('rent_payments').update({
       electricity_amount: reading.bill_amount,
-      total_amount: Number(rentPayment.rent_amount || 0) + Number(rentPayment.late_fee || 0) + Number(reading.bill_amount),
+      total_amount: computeTotalAmount(rentPayment.rent_amount, reading.bill_amount, rentPayment.late_fee, rentPayment.prorata_credit_applied),
       electricity_logged_at: new Date().toISOString(),
     }).eq('id', rentPayment.id)
     await admin.from('electricity_readings').update({ added_to_rent: true }).eq('id', reading.id)

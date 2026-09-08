@@ -27,6 +27,7 @@ interface DashboardData {
   pendingApprovals: any[]
   pendingSettlements: any[]
   missingDeposits: any[]
+  prorataReviews: any[]
 }
 
 export default function DashboardPage() {
@@ -48,6 +49,7 @@ export default function DashboardPage() {
         { data: pendingApprovals },
         { data: pendingSettlements },
         { data: missingDeposits },
+        { data: prorataReviews },
       ] = await Promise.all([
         supabase.from('beds').select('*, room:rooms(room_number)'),
         supabase.from('residents').select('*, bed:beds(bed_number, room:rooms(room_number))').eq('status', 'active').order('created_at', { ascending: false }).limit(5),
@@ -66,6 +68,10 @@ export default function DashboardPage() {
         // deposit go unrecorded: nothing ever asked, and nothing ever
         // surfaced that it hadn't been answered.
         supabase.from('residents').select('id, name, room_number, security_deposit').eq('status', 'active').gt('security_deposit', 0).is('security_deposit_received_at', null),
+        // Residents who joined well into a month but paid a full month's
+        // rent at signing (see lib/prorata.ts) - the credit is computed,
+        // but never applied without an admin actually choosing to.
+        supabase.from('residents').select('id, name, room_number, date_of_joining, prorata_unused_days, prorata_credit_amount').eq('status', 'active').eq('prorata_status', 'pending_review').order('date_of_joining', { ascending: true }),
       ])
 
       const totalBeds = beds?.length || 0
@@ -119,6 +125,7 @@ export default function DashboardPage() {
         pendingApprovals: pendingApprovals || [],
         pendingSettlements: pendingSettlements || [],
         missingDeposits: missingDeposits || [],
+        prorataReviews: prorataReviews || [],
       })
     } catch (err) {
       console.error(err)
@@ -128,6 +135,23 @@ export default function DashboardPage() {
   }
 
   useEffect(() => { fetchDashboard() }, [])
+
+  const [decidingProrata, setDecidingProrata] = useState<string | null>(null)
+  const decideProrata = async (residentId: string, action: 'apply' | 'decline') => {
+    setDecidingProrata(residentId)
+    try {
+      const res = await fetch('/api/admin/prorata-decision', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ residentId, action }),
+      })
+      if (res.ok) await fetchDashboard()
+      else { const d = await res.json(); alert(d.error || 'Could not save this decision.') }
+    } catch {
+      alert('Something went wrong. Please try again.')
+    }
+    setDecidingProrata(null)
+  }
 
   const now = new Date()
   const greeting = now.getHours() < 12 ? 'Good morning' : now.getHours() < 17 ? 'Good afternoon' : 'Good evening'
@@ -242,6 +266,42 @@ export default function DashboardPage() {
           <Link href={`/admin/residents/${data!.missingDeposits[0].id}`} className="bb-btn-secondary" style={{ fontSize: '13px' }}>
             Review <ChevronRight size={14} />
           </Link>
+        </div>
+      )}
+
+      {/* A resident who joined well into a month but paid a full month's
+          rent at signing has overpaid for the days before they moved in -
+          that credit is computed but deliberately never auto-applied.
+          Someone joining a couple of days in isn't worth this at all
+          (lib/prorata.ts skips them entirely); past that, it's a genuine
+          judgment call this banner exists to make once, not something the
+          system should silently decide either way. */}
+      {data!.prorataReviews.length > 0 && (
+        <div style={{ padding: '16px 20px', borderRadius: '14px', marginBottom: '24px', background: 'rgba(56,189,248,0.06)', border: '1px solid rgba(56,189,248,0.25)' }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: '10px', marginBottom: '4px' }}>
+            <AlertCircle size={20} color="#38bdf8" />
+            <div style={{ fontSize: '14px', fontWeight: '700', color: '#38bdf8' }}>
+              {data!.prorataReviews.length} resident{data!.prorataReviews.length > 1 ? 's' : ''} joined mid-month - pro-rata decision needed
+            </div>
+          </div>
+          {data!.prorataReviews.map((r: any) => (
+            <div key={r.id} style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: '10px', padding: '10px 0', borderTop: '1px solid rgba(56,189,248,0.15)' }}>
+              <div>
+                <Link href={`/admin/residents/${r.id}`} style={{ color: 'var(--text-primary)', fontWeight: '600', fontSize: '13px', textDecoration: 'none' }}>{r.name}</Link>
+                <div style={{ fontSize: '12px', color: 'var(--text-muted)', marginTop: '2px' }}>
+                  Joined {formatDate(r.date_of_joining)} · {r.prorata_unused_days} unused day{r.prorata_unused_days === 1 ? '' : 's'} · credit {formatCurrency(r.prorata_credit_amount)}
+                </div>
+              </div>
+              <div style={{ display: 'flex', gap: '6px' }}>
+                <button onClick={() => decideProrata(r.id, 'apply')} disabled={decidingProrata === r.id} className="bb-btn-primary" style={{ fontSize: '12px' }}>
+                  Apply {formatCurrency(r.prorata_credit_amount)} Credit
+                </button>
+                <button onClick={() => decideProrata(r.id, 'decline')} disabled={decidingProrata === r.id} className="bb-btn-secondary" style={{ fontSize: '12px' }}>
+                  Charge Full Month
+                </button>
+              </div>
+            </div>
+          ))}
         </div>
       )}
 

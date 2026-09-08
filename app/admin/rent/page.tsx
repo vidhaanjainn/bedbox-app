@@ -6,6 +6,7 @@ import { getCurrentAdmin, CurrentAdmin } from '@/lib/current-admin'
 import { formatCurrency, formatDate } from '@/lib/utils'
 import { useIsMobile } from '@/lib/useIsMobile'
 import { DocViewerModal, DocPreview } from '@/components/ui/DocViewerModal'
+import { computeTotalAmount } from '@/lib/prorata'
 import { CreditCard, Plus, Search, CheckCircle, Clock, AlertCircle, Loader2, X, Upload, MessageCircle, FileSpreadsheet } from 'lucide-react'
 
 function waReminderLink(mobile: string, name: string, room: string, outstanding: number) {
@@ -68,7 +69,7 @@ export default function RentPage() {
   const generateMonthlyRent = async () => {
     const { data: activeResidents } = await supabase
       .from('residents')
-      .select('id, rent_amount')
+      .select('id, rent_amount, prorata_status, prorata_credit_amount')
       .eq('status', 'active')
 
     if (!activeResidents?.length) return
@@ -81,16 +82,29 @@ export default function RentPage() {
       return
     }
 
-    const records = toCreate.map(r => ({
-      resident_id: r.id,
-      month: monthFilter,
-      year: yearFilter,
-      rent_amount: r.rent_amount,
-      total_amount: r.rent_amount,
-      status: 'pending',
-    }))
+    // Same pro-rata handling as the daily cron's own row creation (see
+    // lib/prorata.ts) - this button exists to create rows before the cron
+    // gets to it, so it needs to honor an admin-approved credit the same
+    // way, not silently skip it because a different code path made the row.
+    const records = toCreate.map(r => {
+      const hasCredit = r.prorata_status === 'applied' && Number(r.prorata_credit_amount) > 0
+      const credit = hasCredit ? Math.min(Number(r.prorata_credit_amount), Number(r.rent_amount)) : 0
+      return {
+        resident_id: r.id,
+        month: monthFilter,
+        year: yearFilter,
+        rent_amount: r.rent_amount,
+        prorata_credit_applied: credit,
+        total_amount: Number(r.rent_amount) - credit,
+        status: 'pending',
+      }
+    })
 
     await supabase.from('rent_payments').insert(records)
+    const credited = toCreate.filter(r => r.prorata_status === 'applied' && Number(r.prorata_credit_amount) > 0)
+    if (credited.length) {
+      await supabase.from('residents').update({ prorata_status: 'credited', prorata_credit_amount: 0 }).in('id', credited.map(r => r.id))
+    }
     fetchPayments()
   }
 
@@ -112,7 +126,7 @@ export default function RentPage() {
     // same as "zero".
     const electricityProvided = logForm.electricity.trim() !== ''
     const electricityAmount = electricityProvided ? parseFloat(logForm.electricity) || 0 : selectedPayment.electricity_amount
-    const totalAmount = Number(selectedPayment.rent_amount) + electricityAmount + Number(selectedPayment.late_fee || 0)
+    const totalAmount = computeTotalAmount(selectedPayment.rent_amount, electricityAmount, selectedPayment.late_fee, selectedPayment.prorata_credit_applied)
 
     // A move-in payment is very often rent + security deposit handed over
     // together in one transfer - without this, the whole amount was
@@ -207,7 +221,7 @@ export default function RentPage() {
   // this row's fee again, even if it's still unpaid.
   const forgiveLateFee = async (p: any) => {
     if (!confirm(`Forgive the ${formatCurrency(p.late_fee)} late fee for ${p.resident?.name}? This removes it from what they owe - it won't come back for this month.`)) return
-    const newTotal = Number(p.rent_amount) + Number(p.electricity_amount || 0)
+    const newTotal = computeTotalAmount(p.rent_amount, p.electricity_amount, 0, p.prorata_credit_applied)
     const isFullyPaid = Number(p.amount_paid || 0) >= newTotal
     await supabase.from('rent_payments').update({
       late_fee_forgiven_at: new Date().toISOString(),
@@ -433,6 +447,9 @@ export default function RentPage() {
                   <span>{p.electricity_logged_at ? (p.electricity_amount > 0 ? formatCurrency(p.electricity_amount) : '-') : 'Not logged'}</span>
                 </div>
                 <div className="bb-row-card-detail-row"><span>Late Fee</span><span>{p.late_fee > 0 ? `${formatCurrency(p.late_fee)}${p.late_fee_forgiven_at ? ' (forgiven)' : ''}` : '-'}</span></div>
+                {p.prorata_credit_applied > 0 && (
+                  <div className="bb-row-card-detail-row"><span>Pro-rata Credit</span><span style={{ color: '#38bdf8' }}>-{formatCurrency(p.prorata_credit_applied)}</span></div>
+                )}
                 <div className="bb-row-card-detail-row"><span>Paid</span><span>{formatCurrency(p.amount_paid)}</span></div>
                 <div className="bb-row-card-detail-row">
                   <span>Mode</span>
@@ -489,7 +506,10 @@ export default function RentPage() {
                         </>
                       ) : '-'}
                     </td>
-                    <td style={{ fontWeight: '700', color: 'var(--text-primary)' }}>{formatCurrency(p.total_amount)}</td>
+                    <td style={{ fontWeight: '700', color: 'var(--text-primary)' }}>
+                      {formatCurrency(p.total_amount)}
+                      {p.prorata_credit_applied > 0 && <div style={{ fontSize: 10, fontWeight: 600, color: '#38bdf8' }}>-{formatCurrency(p.prorata_credit_applied)} pro-rata</div>}
+                    </td>
                     <td style={{ color: '#34d399', fontWeight: '600' }}>{formatCurrency(p.amount_paid)}</td>
                     <td style={{ fontSize: '12px' }}>
                       <div style={{ textTransform: 'capitalize' }}>{p.payment_mode?.replace('_', ' ') || '-'}</div>

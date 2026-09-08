@@ -3,6 +3,7 @@ import { createClient } from '@supabase/supabase-js'
 import { sendEmail, emailShell, moneyINR } from '@/lib/notify'
 import { syncNoticeFormSubmissions } from '@/lib/notice-form-sync'
 import { sendPushToAdmins, sendPushToResident } from '@/lib/push'
+import { computeTotalAmount } from '@/lib/prorata'
 
 // AUTO-01 + AUTO-02 + AUTO-03 (daily): runs once a day via Vercel Cron (see vercel.json).
 //   1. Ensures every active resident has a rent_payments row for the current month.
@@ -31,7 +32,7 @@ async function ensureCurrentMonthRows(supabase: ReturnType<typeof adminClient>, 
 
   const { data: residents, error } = await supabase
     .from('residents')
-    .select('id, rent_amount')
+    .select('id, rent_amount, prorata_status, prorata_credit_amount')
     .eq('status', 'active')
   if (error || !residents) return { created: 0, error }
 
@@ -47,6 +48,17 @@ async function ensureCurrentMonthRows(supabase: ReturnType<typeof adminClient>, 
     if (existing) continue
     if (dryRun) { created++; continue }
     const rent = Number(r.rent_amount) || 0
+
+    // This is the very first row this function ever creates for this
+    // resident after they went active (their join-month row is created
+    // directly by onboarding/approval, not here) - so it's exactly "next
+    // month" relative to joining, the one point an admin-approved pro-rata
+    // credit (see lib/prorata.ts) is meant to land. Applied once, then
+    // zeroed so it can never silently reapply to a later month.
+    const hasCredit = r.prorata_status === 'applied' && Number(r.prorata_credit_amount) > 0
+    const credit = hasCredit ? Math.min(Number(r.prorata_credit_amount), rent) : 0
+    const total = rent - credit
+
     const { error: insertError } = await supabase.from('rent_payments').insert({
       resident_id: r.id,
       month,
@@ -54,11 +66,17 @@ async function ensureCurrentMonthRows(supabase: ReturnType<typeof adminClient>, 
       rent_amount: rent,
       electricity_amount: 0,
       late_fee: 0,
-      total_amount: rent,
+      prorata_credit_applied: credit,
+      total_amount: total,
       amount_paid: 0,
       status: 'pending',
     })
-    if (!insertError) created++
+    if (!insertError) {
+      created++
+      if (hasCredit) {
+        await supabase.from('residents').update({ prorata_status: 'credited', prorata_credit_amount: 0 }).eq('id', r.id)
+      }
+    }
   }
   return { created }
 }
@@ -92,7 +110,7 @@ const LATE_FEE_PER_DAY = 200
 async function accrueLateFees(supabase: ReturnType<typeof adminClient>, dryRun: boolean) {
   const { data: rows, error } = await supabase
     .from('rent_payments')
-    .select('id, month, year, rent_amount, electricity_amount, late_fee, status, late_fee_forgiven_at, residents(is_test_account, status)')
+    .select('id, month, year, rent_amount, electricity_amount, late_fee, prorata_credit_applied, status, late_fee_forgiven_at, residents(is_test_account, status)')
     .neq('status', 'paid')
     .is('late_fee_forgiven_at', null)
   if (error || !rows) return { updated: 0, error }
@@ -116,7 +134,7 @@ async function accrueLateFees(supabase: ReturnType<typeof adminClient>, dryRun: 
     if (newLateFee === Number(row.late_fee || 0)) continue // no change, no write
 
     if (dryRun) { updated++; continue }
-    const newTotal = Number(row.rent_amount) + Number(row.electricity_amount || 0) + newLateFee
+    const newTotal = computeTotalAmount(row.rent_amount, row.electricity_amount, newLateFee, row.prorata_credit_applied)
     await supabase.from('rent_payments').update({ late_fee: newLateFee, total_amount: newTotal }).eq('id', row.id)
     updated++
   }

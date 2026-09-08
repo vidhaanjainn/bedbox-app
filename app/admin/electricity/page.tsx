@@ -6,6 +6,7 @@ import { formatCurrency, formatDate } from '@/lib/utils'
 import { Zap, Plus, X, Loader2, CheckCircle, Camera, User, Shield } from 'lucide-react'
 import { useIsMobile } from '@/lib/useIsMobile'
 import { DocViewerModal, DocPreview } from '@/components/ui/DocViewerModal'
+import { computeTotalAmount } from '@/lib/prorata'
 
 export default function ElectricityPage() {
   const [readings, setReadings] = useState<any[]>([])
@@ -83,7 +84,7 @@ export default function ElectricityPage() {
       if (rentPayment) {
         await supabase.from('rent_payments').update({
           electricity_amount: reading.bill_amount,
-          total_amount: rentPayment.rent_amount + rentPayment.late_fee + reading.bill_amount,
+          total_amount: computeTotalAmount(rentPayment.rent_amount, reading.bill_amount, rentPayment.late_fee, rentPayment.prorata_credit_applied),
           electricity_logged_at: new Date().toISOString(),
         }).eq('id', rentPayment.id)
       }
