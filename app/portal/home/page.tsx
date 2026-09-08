@@ -4,7 +4,7 @@ import { useEffect, useState } from 'react'
 import { useRouter } from 'next/navigation'
 import { createClient } from '@/lib/supabase/client'
 import Link from 'next/link'
-import { Wrench, Receipt, ClipboardList, Phone, Wifi, MapPin, Cross, Pill, ShoppingCart, UtensilsCrossed, TreePine, TrainFront, ChevronDown, Star, Upload, X, Loader2, Check, IndianRupee, Copy, Zap } from 'lucide-react'
+import { Wrench, Receipt, ClipboardList, Phone, Wifi, MapPin, Cross, Pill, ShoppingCart, UtensilsCrossed, TreePine, TrainFront, ChevronDown, Star, Upload, X, Loader2, Check, IndianRupee, Copy, Zap, Video, Users, PartyPopper, ChevronRight } from 'lucide-react'
 
 const CATEGORY_META: Record<string, { label: string; Icon: typeof MapPin }> = {
   hospital: { label: 'Hospitals', Icon: Cross },
@@ -36,6 +36,9 @@ export default function PortalHomePage() {
   const [houseInfoOpen, setHouseInfoOpen] = useState(false)
   const [upiCopied, setUpiCopied] = useState(false)
   const [loading, setLoading] = useState(true)
+  const [hasElectricityReading, setHasElectricityReading] = useState(false)
+  const [whatsappGroups, setWhatsappGroups] = useState<{ name: string; link: string }[]>([])
+  const [propertyPhone, setPropertyPhone] = useState('')
 
   const [showPayModal, setShowPayModal] = useState(false)
   const [payAmount, setPayAmount] = useState('')
@@ -73,13 +76,24 @@ export default function PortalHomePage() {
     const past = (unpaid || []).filter(r => r.year < currentYear || (r.year === currentYear && r.month < currentMonth))
     setPastArrears(past.reduce((sum, r) => sum + Math.max(0, Number(r.total_amount) - Number(r.amount_paid || 0)), 0))
 
-    const { data: settingsRows } = await supabase.from('settings').select('key, value').in('key', ['wifi_password', 'wifi_network_name', 'upi_id', 'upi_payee_name'])
-    settingsRows?.forEach(s => {
-      if (s.key === 'wifi_password') setWifiPassword(s.value || '')
-      if (s.key === 'wifi_network_name') setWifiNetwork(s.value || '')
-      if (s.key === 'upi_id') setUpiId(s.value || '')
-      if (s.key === 'upi_payee_name') setUpiPayeeName(s.value || 'TheBedBox')
-    })
+    const { data: settingsRows } = await supabase.from('settings').select('key, value').in('key', ['wifi_password', 'wifi_network_name', 'upi_id', 'upi_payee_name', 'property_phone', 'whatsapp_group_1_name', 'whatsapp_group_1_link', 'whatsapp_group_2_name', 'whatsapp_group_2_link'])
+    const settingsMap: Record<string, string> = {}
+    settingsRows?.forEach(s => { settingsMap[s.key] = s.value || '' })
+    setWifiPassword(settingsMap.wifi_password || '')
+    setWifiNetwork(settingsMap.wifi_network_name || '')
+    setUpiId(settingsMap.upi_id || '')
+    setUpiPayeeName(settingsMap.upi_payee_name || 'TheBedBox')
+    setPropertyPhone(settingsMap.property_phone || '')
+    setWhatsappGroups([
+      { name: settingsMap.whatsapp_group_1_name, link: settingsMap.whatsapp_group_1_link },
+      { name: settingsMap.whatsapp_group_2_name, link: settingsMap.whatsapp_group_2_link },
+    ].filter(g => g.link))
+
+    // Getting Started's electricity step is derived, not self-reported - it's
+    // done the moment they've logged a reading at all, same source of truth
+    // the admin's Electricity page uses.
+    const { data: electricityRows } = await supabase.from('electricity_readings').select('id').eq('resident_id', res.id).limit(1)
+    setHasElectricityReading((electricityRows?.length || 0) > 0)
 
     const { data: placesData } = await supabase.from('nearby_places').select('*').order('category').order('sort_order')
     setPlaces(placesData || [])
@@ -113,6 +127,25 @@ export default function PortalHomePage() {
     const rows = ratings.filter(r => r.place_id === placeId)
     if (!rows.length) return null
     return { avg: rows.reduce((s, r) => s + r.rating, 0) / rows.length, count: rows.length }
+  }
+
+  // Both of these are things that happen outside our system entirely (a
+  // WhatsApp message, tapping a group invite link) - there's nothing here to
+  // verify automatically, so it's a plain "I've done this" the resident
+  // marks themselves, same trust level as ticking off a paper checklist.
+  const markRoomVideoDone = async () => {
+    setResident((r: any) => ({ ...r, checklist_room_video_done_at: new Date().toISOString() }))
+    await supabase.from('residents').update({ checklist_room_video_done_at: new Date().toISOString() }).eq('id', resident.id)
+  }
+  const markGroupsJoined = async () => {
+    setResident((r: any) => ({ ...r, checklist_groups_joined_at: new Date().toISOString() }))
+    await supabase.from('residents').update({ checklist_groups_joined_at: new Date().toISOString() }).eq('id', resident.id)
+  }
+  const roomVideoWaLink = () => {
+    const digits = (propertyPhone || '').replace(/\D/g, '')
+    const number = digits.length === 10 ? `91${digits}` : digits
+    const msg = `Hi! This is ${resident?.name?.split(' ')[0] || ''} from Room ${resident?.room_number || ''}. Sharing a video of my room's condition at move-in.`
+    return `https://wa.me/${number}?text=${encodeURIComponent(msg)}`
   }
 
   const copyUpiId = async () => {
@@ -177,6 +210,13 @@ export default function PortalHomePage() {
     .map(cat => ({ cat, items: places.filter(p => p.category === cat) }))
     .filter(g => g.items.length > 0)
 
+  const gettingStartedSteps = [
+    { key: 'electricity', done: hasElectricityReading, Icon: Zap, title: 'Log your electricity meter reading', desc: 'Your starting number, so future bills are accurate.' },
+    { key: 'video', done: !!resident?.checklist_room_video_done_at, Icon: Video, title: "Send a video of your room's condition", desc: 'Protects both of us in case of any damage dispute later.' },
+    { key: 'groups', done: !!resident?.checklist_groups_joined_at, Icon: Users, title: 'Join the resident WhatsApp groups', desc: 'For house announcements and staying in the loop.' },
+  ]
+  const gettingStartedDone = gettingStartedSteps.filter(s => s.done).length
+
   return (
     <div>
       <div style={{ padding: '28px 20px 20px', borderBottom: '1px solid rgba(255,255,255,0.05)', marginBottom: 20 }}>
@@ -193,6 +233,62 @@ export default function PortalHomePage() {
       </div>
 
       <div style={{ padding: '0 20px' }}>
+        {/* Getting Started - a plain checklist of the few things worth doing
+            in the first days, not a spotlight-tour overlay. Disappears for
+            good once all three are done, so it never nags a settled-in
+            resident - it's a welcome moment, not a permanent fixture. */}
+        {gettingStartedDone < gettingStartedSteps.length && (
+          <div style={{ background: 'rgba(0,212,200,0.05)', border: '1px solid rgba(0,212,200,0.18)', borderRadius: 16, padding: 20, marginBottom: 16 }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 4 }}>
+              <PartyPopper size={16} color="#00d4c8" />
+              <span style={{ fontFamily: "'Syne',sans-serif", fontWeight: 700, fontSize: 15 }}>Getting Started</span>
+            </div>
+            <div style={{ fontSize: 12, color: 'rgba(255,255,255,0.4)', marginBottom: 14 }}>{gettingStartedDone} of {gettingStartedSteps.length} done - a few quick things to wrap up</div>
+            <div className="bb-progress" style={{ marginBottom: 16 }}>
+              <div className="bb-progress-bar" style={{ width: `${(gettingStartedDone / gettingStartedSteps.length) * 100}%` }} />
+            </div>
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
+              {gettingStartedSteps.map(step => (
+                <div key={step.key} style={{ display: 'flex', alignItems: 'flex-start', gap: 12, padding: 14, borderRadius: 12, background: step.done ? 'rgba(0,212,200,0.06)' : 'rgba(255,255,255,0.04)', border: `1px solid ${step.done ? 'rgba(0,212,200,0.2)' : 'rgba(255,255,255,0.07)'}` }}>
+                  <div style={{ width: 30, height: 30, borderRadius: 9, flexShrink: 0, display: 'flex', alignItems: 'center', justifyContent: 'center', background: step.done ? 'rgba(0,212,200,0.15)' : 'rgba(255,255,255,0.06)' }}>
+                    {step.done ? <Check size={15} color="#00d4c8" /> : <step.Icon size={15} color="rgba(255,255,255,0.6)" />}
+                  </div>
+                  <div style={{ flex: 1, minWidth: 0 }}>
+                    <div style={{ fontSize: 13, fontWeight: 600, color: step.done ? 'rgba(255,255,255,0.5)' : '#fff', textDecoration: step.done ? 'line-through' : 'none' }}>{step.title}</div>
+                    {!step.done && <div style={{ fontSize: 11, color: 'rgba(255,255,255,0.4)', marginTop: 2, lineHeight: 1.5 }}>{step.desc}</div>}
+                    {!step.done && step.key === 'electricity' && (
+                      <Link href="/portal/electricity" style={{ display: 'inline-flex', alignItems: 'center', gap: 4, marginTop: 8, fontSize: 12, fontWeight: 600, color: '#00d4c8', textDecoration: 'none' }}>
+                        Enter reading <ChevronRight size={12} />
+                      </Link>
+                    )}
+                    {!step.done && step.key === 'video' && (
+                      <div style={{ display: 'flex', gap: 8, marginTop: 8, flexWrap: 'wrap' }}>
+                        <a href={roomVideoWaLink()} target="_blank" rel="noopener noreferrer" onClick={markRoomVideoDone} style={{ display: 'inline-flex', alignItems: 'center', gap: 4, fontSize: 12, fontWeight: 600, color: '#00d4c8', textDecoration: 'none' }}>
+                          Open WhatsApp <ChevronRight size={12} />
+                        </a>
+                      </div>
+                    )}
+                    {!step.done && step.key === 'groups' && (
+                      <div style={{ display: 'flex', flexDirection: 'column', gap: 6, marginTop: 8 }}>
+                        {whatsappGroups.map((g, i) => (
+                          <a key={i} href={g.link} target="_blank" rel="noopener noreferrer" onClick={markGroupsJoined} style={{ display: 'inline-flex', alignItems: 'center', gap: 4, fontSize: 12, fontWeight: 600, color: '#00d4c8', textDecoration: 'none' }}>
+                            Join {g.name || `Group ${i + 1}`} <ChevronRight size={12} />
+                          </a>
+                        ))}
+                        {whatsappGroups.length === 0 && (
+                          <button onClick={markGroupsJoined} style={{ alignSelf: 'flex-start', fontSize: 12, fontWeight: 600, color: '#00d4c8', background: 'none', border: 'none', padding: 0, cursor: 'pointer' }}>
+                            Mark as done ✓
+                          </button>
+                        )}
+                      </div>
+                    )}
+                  </div>
+                </div>
+              ))}
+            </div>
+          </div>
+        )}
+
         {/* Rent status - the primary card. Pay/report options are always
             available, even before an admin has generated this month's bill,
             using the resident's on-file rent as the default amount. */}

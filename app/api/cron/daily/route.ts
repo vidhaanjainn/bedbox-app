@@ -300,6 +300,73 @@ async function sendElectricityReminders(supabase: ReturnType<typeof adminClient>
   return { sent }
 }
 
+// AUTO-10: rent can be paid while the electricity portion of the same
+// month's bill is left outstanding (resident pays a round number that
+// covers rent but not the meter charge added later) - that balance can
+// otherwise sit forgotten indefinitely since the invoice already reads
+// "partial" rather than a fresh, attention-grabbing due date. Nudges every
+// 3 days for as long as it stays outstanding, tracked via
+// electricity_payment_reminded_at (resets naturally each month with the
+// rent_payments row itself).
+async function sendElectricityPaymentReminders(supabase: ReturnType<typeof adminClient>, dryRun: boolean) {
+  const month = new Date().getUTCMonth() + 1
+  const year = new Date().getUTCFullYear()
+
+  const { data: rows, error } = await supabase
+    .from('rent_payments')
+    .select('id, resident_id, rent_amount, late_fee, electricity_amount, total_amount, amount_paid, electricity_payment_reminded_at, residents(name, email, room_number, is_test_account)')
+    .eq('month', month).eq('year', year)
+    .eq('status', 'partial')
+    .not('electricity_logged_at', 'is', null)
+  if (error || !rows) return { sent: 0, error }
+
+  const now = new Date()
+  let sent = 0
+
+  for (const row of rows as any[]) {
+    const resident = row.residents
+    if (!resident || resident.is_test_account) continue
+
+    const rentAndLateFee = Number(row.rent_amount) + Number(row.late_fee || 0)
+    const outstanding = Number(row.total_amount) - Number(row.amount_paid || 0)
+    // Rent (and any late fee) is fully covered - what's left owed is the
+    // electricity charge specifically, not a partial rent payment.
+    const isElectricityOnlyBalance = Number(row.amount_paid || 0) >= rentAndLateFee && outstanding > 0
+    if (!isElectricityOnlyBalance) continue
+
+    if (row.electricity_payment_reminded_at) {
+      const daysSince = (now.getTime() - new Date(row.electricity_payment_reminded_at).getTime()) / 86400000
+      if (daysSince < 3) continue
+    }
+
+    if (dryRun) { sent++; continue }
+
+    await Promise.all([
+      sendPushToResident(row.resident_id, {
+        title: 'Electricity charge still due',
+        body: `${moneyINR(outstanding)} outstanding for this month's electricity - your rent is settled, just this left.`,
+        url: '/portal/home',
+      }),
+      resident.email ? sendEmail({
+        to: resident.email,
+        subject: `Electricity charge pending - ${moneyINR(outstanding)} ${resident.room_number ? `(Room ${resident.room_number})` : ''}`.trim(),
+        html: emailShell('Electricity charge pending', `
+          <p style="color:#475569;font-size:14px;line-height:1.6;margin:0 0 20px">
+            Hi ${resident.name?.split(' ')[0] || 'there'}, your rent for this month is settled - thank you! There's just the electricity charge left to clear.
+          </p>
+          <div style="background:#fff;border:1px solid #e2e8f0;border-radius:12px;padding:18px;margin-bottom:20px">
+            <div style="display:flex;justify-content:space-between;padding:4px 0"><span style="color:#64748b;font-size:13px">Electricity outstanding</span><span style="font-weight:700;color:#0f172a">${moneyINR(outstanding)}</span></div>
+          </div>
+          <p style="color:#94a3b8;font-size:12px;margin:0">Already paid? Please let TheBedBox know so we can update your record.</p>
+        `),
+      }) : Promise.resolve(),
+    ])
+    await supabase.from('rent_payments').update({ electricity_payment_reminded_at: now.toISOString() }).eq('id', row.id)
+    sent++
+  }
+  return { sent }
+}
+
 export async function GET(req: Request) {
   const secret = process.env.CRON_SECRET
   const auth = req.headers.get('authorization')
@@ -316,6 +383,7 @@ export async function GET(req: Request) {
   const digestResult = await sendAdminMonthlyDigest(supabase, dryRun)
   const expiryResult = await sendNoticeExpiryAlerts(supabase, dryRun)
   const electricityResult = await sendElectricityReminders(supabase, dryRun)
+  const electricityPaymentResult = await sendElectricityPaymentReminders(supabase, dryRun)
 
   return NextResponse.json({
     dryRun,
@@ -325,5 +393,6 @@ export async function GET(req: Request) {
     adminDigestSent: digestResult.sent,
     moveOutAlertsSent: expiryResult.alerted,
     electricityRemindersSent: electricityResult.sent,
+    electricityPaymentRemindersSent: electricityPaymentResult.sent,
   })
 }
