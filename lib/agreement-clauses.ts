@@ -11,13 +11,20 @@ export const AGREEMENT_VERSION = 'v2-2026-09'
 
 // {{room}}, {{rent}}, {{deposit}}, {{term_end}} are filled in per-resident by
 // renderAgreementClauses() below - never shown raw to a resident or in a PDF.
+//
+// Money is written as "Rs." rather than the ₹ symbol on purpose - jsPDF's
+// standard fonts (WinAnsiEncoding, used for the generated agreement PDF in
+// lib/documents.ts) cannot represent ₹, and it doesn't just show as a wrong
+// glyph: it corrupts the letter-spacing of the entire rest of that text
+// block in the PDF. Never reintroduce ₹ (or any other non-Latin1 symbol,
+// e.g. emoji) into clause text - it silently wrecks the generated PDF.
 export const AGREEMENT_CLAUSES = [
-  "The monthly rent for Room {{room}} is ₹{{rent}}, payable on or before the 5th of each calendar month. A penalty of ₹200 per day shall be levied for each day of delay beyond the 5th. Non-payment by the 10th gives TheBedBox the right to repossess the room and remove the tenant's belongings.",
-  "The security deposit of ₹{{deposit}} paid at the time of check-in is non-adjustable against rent and is returnable without interest at the end of the tenancy, subject to deductions for unpaid dues, damages, missing items, or any other outstanding charges.",
-  "Electricity charges are billed at ₹10 per unit as per the sub-meter reading, payable along with rent. TheBedBox reserves the right to revise this rate in line with revisions by the electricity distribution company.",
+  "The monthly rent for Room {{room}} is Rs. {{rent}}, payable on or before the 5th of each calendar month. A penalty of Rs. 200 per day shall be levied for each day of delay beyond the 5th. Non-payment by the 10th gives TheBedBox the right to repossess the room and remove the tenant's belongings.",
+  "The security deposit of Rs. {{deposit}} paid at the time of check-in is non-adjustable against rent and is returnable without interest at the end of the tenancy, subject to deductions for unpaid dues, damages, missing items, or any other outstanding charges.",
+  "Electricity charges are billed at Rs. 10 per unit as per the sub-meter reading, payable along with rent. TheBedBox reserves the right to revise this rate in line with revisions by the electricity distribution company.",
   "Rent shall be subject to an increase of 5-10% after the initial 11-month term (ending {{term_end}}). TheBedBox reserves the right to revise rent annually thereafter, with 30 days prior notice.",
   "A minimum of two calendar months written notice is mandatory before vacating. Failure to give adequate notice will result in forfeiture of the full security deposit. During the notice period, the tenant consents to TheBedBox showing the room to prospective tenants between 9:00 AM and 8:30 PM.",
-  "If the tenant fails to vacate on the termination date, a holdover penalty of ₹1,000 per day shall be charged in addition to applicable rent, until physical possession is handed over.",
+  "If the tenant fails to vacate on the termination date, a holdover penalty of Rs. 1,000 per day shall be charged in addition to applicable rent, until physical possession is handed over.",
   "Upon vacating, the tenant shall return the room and all fixtures in the same condition as received (normal wear and tear accepted). Failure to do so makes the tenant liable for full replacement or repair costs.",
   "If the tenant leaves the premises locked and unoccupied for more than 30 consecutive days without prior notice, TheBedBox reserves the right to break the lock and take possession in the presence of a local authority witness. The tenant shall have no claim against this action.",
   "Alcohol, drugs, tobacco, and any intoxicating substances are strictly prohibited on the premises including rooms and all common areas. This applies to visitors as well. Violation is grounds for immediate termination and forfeiture of deposit.",

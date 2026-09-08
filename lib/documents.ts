@@ -28,7 +28,12 @@ export type ResidentForDoc = {
   emergency_contact_phone?: string | null
 }
 
-const money = (n?: number | null) => `₹${Math.round(Number(n) || 0).toLocaleString('en-IN')}`
+// "Rs." rather than the ₹ symbol - jsPDF's standard fonts (WinAnsiEncoding)
+// can't represent ₹, and the failure isn't just a wrong glyph: it corrupts
+// the letter-spacing of the rest of that text block in the rendered PDF.
+// Confirmed by reproducing it directly - do not reintroduce ₹ (or emoji)
+// anywhere in this file's PDF text.
+const money = (n?: number | null) => `Rs. ${Math.round(Number(n) || 0).toLocaleString('en-IN')}`
 const date = (d?: string | null) => d ? new Date(d).toLocaleDateString('en-IN', { day: '2-digit', month: 'short', year: 'numeric' }) : '-'
 
 function header(doc: jsPDF, property: PropertyInfo, title: string) {
@@ -167,7 +172,7 @@ export function generatePoliceVerificationPdf(resident: ResidentForDoc, property
   y = row(doc, y, 'Mobile Number', resident.mobile)
   y = row(doc, y, 'Email', resident.email || '-')
   y = row(doc, y, 'Permanent Address / Hometown', resident.hometown || '-')
-  y = row(doc, y, 'Aadhaar Number', resident.aadhaar_number || '⚠️ NOT ON FILE')
+  y = row(doc, y, 'Aadhaar Number', resident.aadhaar_number || 'NOT ON FILE')
   y = row(doc, y, 'Room / Occupancy', resident.room_number || '-')
   y = row(doc, y, 'Date of Occupancy', date(resident.date_of_joining))
   y = row(doc, y, 'Purpose of Stay', 'Residential (student/working professional accommodation)')

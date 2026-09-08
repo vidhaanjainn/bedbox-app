@@ -19,8 +19,8 @@ export interface DocPreview {
 export function DocViewerModal({ doc, onClose }: { doc: DocPreview | null; onClose: () => void }) {
   if (!doc) return null
   return (
-    <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.88)', zIndex: 200, display: 'flex', flexDirection: 'column' }} onClick={onClose}>
-      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '14px 20px', background: 'rgba(13,21,38,0.97)', borderBottom: '1px solid rgba(255,255,255,0.1)' }} onClick={e => e.stopPropagation()}>
+    <div style={{ position: 'fixed', inset: 0, height: '100dvh', background: 'rgba(0,0,0,0.88)', zIndex: 200, display: 'flex', flexDirection: 'column' }} onClick={onClose}>
+      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '14px 20px', background: 'rgba(13,21,38,0.97)', borderBottom: '1px solid rgba(255,255,255,0.1)', flexShrink: 0 }} onClick={e => e.stopPropagation()}>
         <span style={{ color: '#fff', fontSize: 14, fontWeight: 600 }}>{doc.label || 'Document'}</span>
         <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
           <a
@@ -34,13 +34,24 @@ export function DocViewerModal({ doc, onClose }: { doc: DocPreview | null; onClo
           </button>
         </div>
       </div>
-      <div style={{ flex: 1, overflow: 'auto', display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 20 }} onClick={e => e.stopPropagation()}>
-        {doc.type === 'image' ? (
+      {doc.type === 'image' ? (
+        // Images are simple raster content, generally smaller than the
+        // viewport - centering them in a scrollable area is safe here.
+        <div style={{ flex: 1, minHeight: 0, overflow: 'auto', display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 20 }} onClick={e => e.stopPropagation()}>
           <img src={doc.url} alt={doc.label || 'Document'} style={{ maxWidth: '100%', maxHeight: '100%', borderRadius: 8, boxShadow: '0 8px 40px rgba(0,0,0,0.5)' }} />
-        ) : (
-          <iframe src={doc.url} title={doc.label || 'Document'} style={{ width: '100%', height: '100%', border: 'none', borderRadius: 8, background: '#fff' }} />
-        )}
-      </div>
+        </div>
+      ) : (
+        // A PDF is its own scrollable document (the mobile browser's PDF
+        // viewer manages that internally) - it must fill this area exactly,
+        // never be centered inside a larger overflowing box. Centering an
+        // element that overflows its container makes most browsers scroll
+        // to the middle of it by default, cutting the start off above the
+        // fold - which is exactly what showed up as "opens to a black
+        // screen, only visible after scrolling up".
+        <div style={{ flex: 1, minHeight: 0, position: 'relative' }} onClick={e => e.stopPropagation()}>
+          <iframe src={doc.url} title={doc.label || 'Document'} style={{ position: 'absolute', inset: 0, width: '100%', height: '100%', border: 'none', background: '#fff' }} />
+        </div>
+      )}
     </div>
   )
 }
