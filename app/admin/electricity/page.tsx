@@ -5,6 +5,7 @@ import { createClient } from '@/lib/supabase/client'
 import { formatCurrency, formatDate } from '@/lib/utils'
 import { Zap, Plus, X, Loader2, CheckCircle, Camera, User, Shield } from 'lucide-react'
 import { useIsMobile } from '@/lib/useIsMobile'
+import { DocViewerModal, DocPreview } from '@/components/ui/DocViewerModal'
 
 export default function ElectricityPage() {
   const [readings, setReadings] = useState<any[]>([])
@@ -15,6 +16,7 @@ export default function ElectricityPage() {
   const [monthFilter, setMonthFilter] = useState(new Date().getMonth() + 1)
   const [yearFilter, setYearFilter] = useState(new Date().getFullYear())
   const [form, setForm] = useState({ resident_id: '', current_reading: '', month: new Date().getMonth() + 1, year: new Date().getFullYear() })
+  const [previewDoc, setPreviewDoc] = useState<DocPreview | null>(null)
   const supabase = createClient()
   const isMobile = useIsMobile()
 
@@ -127,7 +129,7 @@ export default function ElectricityPage() {
       body: JSON.stringify({ path }),
     })
     const data = await res.json()
-    if (res.ok && data.url) window.open(data.url, '_blank')
+    if (res.ok && data.url) setPreviewDoc({ url: data.url, type: 'image', label: 'Meter Reading Photo' })
   }
 
   return (
@@ -347,6 +349,8 @@ export default function ElectricityPage() {
           </div>
         </div>
       )}
+
+      <DocViewerModal doc={previewDoc} onClose={() => setPreviewDoc(null)} />
     </div>
   )
 }

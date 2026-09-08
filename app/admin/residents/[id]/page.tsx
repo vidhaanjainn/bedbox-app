@@ -10,6 +10,7 @@ import { generateAgreementPdf, generatePoliceVerificationPdf } from '@/lib/docum
 import { renderAgreementClauses } from '@/lib/agreement-clauses'
 import { Modal } from '@/components/ui/Modal'
 import { useIsMobile } from '@/lib/useIsMobile'
+import { DocViewerModal, DocPreview } from '@/components/ui/DocViewerModal'
 
 export default function ResidentDetailPage() {
   const { id } = useParams()
@@ -22,6 +23,7 @@ export default function ResidentDetailPage() {
   const [maintenance, setMaintenance] = useState<any[]>([])
   const [notice, setNotice] = useState<any>(null)
   const [loading, setLoading] = useState(true)
+  const [previewDoc, setPreviewDoc] = useState<DocPreview | null>(null)
   const [inviteLink, setInviteLink] = useState('')
   const [inviteLoading, setInviteLoading] = useState(false)
   const [inviteEmailStatus, setInviteEmailStatus] = useState('')
@@ -128,7 +130,7 @@ export default function ResidentDetailPage() {
       await supabase.from('residents').update({ [column]: path }).eq('id', resident.id)
 
       const { data: signed } = await supabase.storage.from('private-docs').createSignedUrl(path, 300)
-      if (signed?.signedUrl) window.open(signed.signedUrl, '_blank')
+      if (signed?.signedUrl) setPreviewDoc({ url: signed.signedUrl, type: 'pdf', label: type === 'agreement' ? 'Agreement' : 'Police Verification Form' })
 
       const sigNote = type === 'agreement' && !signatureDataUrl ? ' (no signature on file yet - line left blank)' : ''
       setDocMsg(`✓ ${type === 'agreement' ? 'Agreement' : 'Police verification form'} generated${sigNote}`)
@@ -142,22 +144,33 @@ export default function ResidentDetailPage() {
     }
   }
 
-  const viewStoredDoc = async (path: string) => {
-    const { data } = await supabase.storage.from('private-docs').createSignedUrl(path, 300)
-    if (data?.signedUrl) window.open(data.signedUrl, '_blank')
+  const viewStoredDoc = async (path: string, label: string) => {
+    const { data, error } = await supabase.storage.from('private-docs').createSignedUrl(path, 300)
+    if (data?.signedUrl) setPreviewDoc({ url: data.signedUrl, type: 'pdf', label })
+    else { console.error(error); setDocMsg('Could not open this document. Please try again.'); setTimeout(() => setDocMsg(''), 4000) }
   }
 
   // Aadhaar images and the signature come from the self-onboarding flow,
   // which uploads to the resident-docs bucket (not private-docs) - the
   // admin's own client session has no direct RLS read access there, so
-  // this goes through the admin-gated signed-URL route instead.
-  const viewResidentDoc = async (path: string) => {
-    const res = await fetch('/api/admin/document-url', {
-      method: 'POST', headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ path }),
-    })
-    const data = await res.json()
-    if (res.ok && data.url) window.open(data.url, '_blank')
+  // this goes through the admin-gated signed-URL route instead. Rendered
+  // inline via DocViewerModal rather than a new tab, so there is nothing
+  // depending on window.open (which browsers - and some in-app browsers
+  // outright - can silently block) between an admin and a document that
+  // is sitting there perfectly fine in storage.
+  const viewResidentDoc = async (path: string, label: string) => {
+    try {
+      const res = await fetch('/api/admin/document-url', {
+        method: 'POST', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ path }),
+      })
+      const data = await res.json()
+      if (res.ok && data.url) setPreviewDoc({ url: data.url, type: 'image', label })
+      else { setDocMsg(data.error || 'Could not open this file. Please try again.'); setTimeout(() => setDocMsg(''), 4000) }
+    } catch {
+      setDocMsg('Could not open this file. Please try again.')
+      setTimeout(() => setDocMsg(''), 4000)
+    }
   }
 
   useEffect(() => { fetchAll() }, [id])
@@ -336,17 +349,17 @@ export default function ResidentDetailPage() {
 
               <div style={{ display: 'flex', gap: '8px', flexWrap: 'wrap', marginBottom: '14px' }}>
                 {resident.aadhaar_front_url && (
-                  <button onClick={() => viewResidentDoc(resident.aadhaar_front_url)} className="bb-btn-secondary" style={{ fontSize: '12px' }}>
+                  <button onClick={() => viewResidentDoc(resident.aadhaar_front_url, 'Aadhaar Front')} className="bb-btn-secondary" style={{ fontSize: '12px' }}>
                     <FileText size={12} /> Aadhaar Front
                   </button>
                 )}
                 {resident.aadhaar_back_url && (
-                  <button onClick={() => viewResidentDoc(resident.aadhaar_back_url)} className="bb-btn-secondary" style={{ fontSize: '12px' }}>
+                  <button onClick={() => viewResidentDoc(resident.aadhaar_back_url, 'Aadhaar Back')} className="bb-btn-secondary" style={{ fontSize: '12px' }}>
                     <FileText size={12} /> Aadhaar Back
                   </button>
                 )}
                 {resident.signature_path && (
-                  <button onClick={() => viewResidentDoc(resident.signature_path)} className="bb-btn-secondary" style={{ fontSize: '12px' }}>
+                  <button onClick={() => viewResidentDoc(resident.signature_path, 'Signature')} className="bb-btn-secondary" style={{ fontSize: '12px' }}>
                     <Edit size={12} /> Signature
                   </button>
                 )}
@@ -526,14 +539,14 @@ export default function ResidentDetailPage() {
             {resident.agreement_path ? 'Regenerate Agreement PDF' : 'Generate Agreement PDF'}
           </button>
           {resident.agreement_path && (
-            <button onClick={() => viewStoredDoc(resident.agreement_path)} className="bb-btn-secondary" style={{ fontSize: '13px' }}><FileText size={13} /> View Agreement</button>
+            <button onClick={() => viewStoredDoc(resident.agreement_path, 'Agreement')} className="bb-btn-secondary" style={{ fontSize: '13px' }}><FileText size={13} /> View Agreement</button>
           )}
           <button onClick={() => generateAndStore('police')} disabled={generatingDoc !== null} className="bb-btn-secondary" style={{ fontSize: '13px' }}>
             {generatingDoc === 'police' ? <Loader2 size={13} style={{ animation: 'spin 1s linear infinite' }} /> : <ShieldCheck size={13} />}
             {resident.police_verification_path ? 'Regenerate Police Form' : 'Generate Police Verification Form'}
           </button>
           {resident.police_verification_path && (
-            <button onClick={() => viewStoredDoc(resident.police_verification_path)} className="bb-btn-secondary" style={{ fontSize: '13px' }}><ShieldCheck size={13} /> View Police Form</button>
+            <button onClick={() => viewStoredDoc(resident.police_verification_path, 'Police Verification Form')} className="bb-btn-secondary" style={{ fontSize: '13px' }}><ShieldCheck size={13} /> View Police Form</button>
           )}
         </div>
         <div style={{ fontSize: '11px', color: 'var(--text-muted)', marginTop: '10px' }}>
@@ -849,6 +862,8 @@ export default function ResidentDetailPage() {
           </button>
         </Modal>
       )}
+
+      <DocViewerModal doc={previewDoc} onClose={() => setPreviewDoc(null)} />
     </div>
   )
 }

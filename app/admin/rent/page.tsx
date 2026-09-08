@@ -5,6 +5,7 @@ import { createClient } from '@/lib/supabase/client'
 import { getCurrentAdmin, CurrentAdmin } from '@/lib/current-admin'
 import { formatCurrency, formatDate } from '@/lib/utils'
 import { useIsMobile } from '@/lib/useIsMobile'
+import { DocViewerModal, DocPreview } from '@/components/ui/DocViewerModal'
 import { CreditCard, Plus, Search, CheckCircle, Clock, AlertCircle, Loader2, X, Upload, MessageCircle, FileSpreadsheet } from 'lucide-react'
 
 function waReminderLink(mobile: string, name: string, room: string, outstanding: number) {
@@ -18,6 +19,7 @@ export default function RentPage() {
   const [payments, setPayments] = useState<any[]>([])
   const [loading, setLoading] = useState(true)
   const [search, setSearch] = useState('')
+  const [statusFilter, setStatusFilter] = useState<'all' | 'pending' | 'partial' | 'paid'>('all')
   const [monthFilter, setMonthFilter] = useState(new Date().getMonth() + 1)
   const [yearFilter, setYearFilter] = useState(new Date().getFullYear())
   const [showLogModal, setShowLogModal] = useState(false)
@@ -29,6 +31,7 @@ export default function RentPage() {
   const [syncMsg, setSyncMsg] = useState('')
   const [currentAdmin, setCurrentAdmin] = useState<CurrentAdmin | null>(null)
   const [admins, setAdmins] = useState<{ id: string; name: string }[]>([])
+  const [previewDoc, setPreviewDoc] = useState<DocPreview | null>(null)
   const supabase = createClient()
   const isMobile = useIsMobile()
 
@@ -151,7 +154,7 @@ export default function RentPage() {
 
   const viewPaymentProof = async (path: string) => {
     const { data } = await supabase.storage.from('resident-docs').createSignedUrl(path, 300)
-    if (data?.signedUrl) window.open(data.signedUrl, '_blank')
+    if (data?.signedUrl) setPreviewDoc({ url: data.signedUrl, type: 'image', label: 'Payment Screenshot' })
   }
 
   const requestReceipt = async (paymentId: string) => {
@@ -160,10 +163,19 @@ export default function RentPage() {
     fetchPayments()
   }
 
-  const filtered = payments.filter(p =>
-    p.resident?.name?.toLowerCase().includes(search.toLowerCase()) ||
-    p.resident?.room_number?.includes(search)
-  )
+  const filtered = payments
+    .filter(p => statusFilter === 'all' || p.status === statusFilter)
+    .filter(p => p.resident?.name?.toLowerCase().includes(search.toLowerCase()) || p.resident?.room_number?.includes(search))
+    .sort((a, b) => {
+      // Only impose an order when showing everything - picking a specific
+      // status chip already puts exactly what you asked for "on top" (it's
+      // all that's left), and re-sorting within a single status would just
+      // be noise. In "All", surface what needs action first: pending, then
+      // partial, then paid last.
+      if (statusFilter !== 'all') return 0
+      const rank: Record<string, number> = { pending: 0, partial: 1, paid: 2 }
+      return (rank[a.status] ?? 3) - (rank[b.status] ?? 3)
+    })
 
   const stats = {
     total: payments.length,
@@ -301,10 +313,24 @@ export default function RentPage() {
         ))}
       </div>
 
-      {/* Search */}
-      <div style={{ position: 'relative', marginBottom: '16px', maxWidth: '320px' }}>
-        <Search size={16} color="var(--text-muted)" style={{ position: 'absolute', left: '12px', top: '50%', transform: 'translateY(-50%)' }} />
-        <input className="bb-input" style={{ paddingLeft: '38px' }} placeholder="Search resident or room..." value={search} onChange={e => setSearch(e.target.value)} />
+      {/* Search + status filter */}
+      <div style={{ display: 'flex', gap: '12px', marginBottom: '16px', flexWrap: 'wrap', alignItems: 'center' }}>
+        <div style={{ position: 'relative', maxWidth: '320px', flex: '1 1 200px' }}>
+          <Search size={16} color="var(--text-muted)" style={{ position: 'absolute', left: '12px', top: '50%', transform: 'translateY(-50%)' }} />
+          <input className="bb-input" style={{ paddingLeft: '38px' }} placeholder="Search resident or room..." value={search} onChange={e => setSearch(e.target.value)} />
+        </div>
+        <div style={{ display: 'flex', gap: '6px', background: 'var(--surface-1)', border: '1px solid var(--border)', borderRadius: '10px', padding: '4px' }}>
+          {([
+            { key: 'all', label: 'All', count: stats.total },
+            { key: 'pending', label: '⚠ Pending', count: stats.pending },
+            { key: 'partial', label: '◐ Partial', count: stats.partial },
+            { key: 'paid', label: '✓ Paid', count: stats.paid },
+          ] as const).map(f => (
+            <button key={f.key} onClick={() => setStatusFilter(f.key)} style={{ padding: '6px 12px', borderRadius: '7px', border: 'none', fontSize: '12px', fontWeight: '600', cursor: 'pointer', whiteSpace: 'nowrap', transition: 'all 0.15s', background: statusFilter === f.key ? 'var(--teal-500)' : 'transparent', color: statusFilter === f.key ? 'var(--navy-900)' : 'var(--text-muted)' }}>
+              {f.label}{f.count > 0 ? ` (${f.count})` : ''}
+            </button>
+          ))}
+        </div>
       </div>
 
       {/* Table (desktop) / cards (mobile) - phones get the essentials
@@ -349,7 +375,7 @@ export default function RentPage() {
           ))}
           {filtered.length === 0 && (
             <div className="glass-card" style={{ padding: '60px', textAlign: 'center', color: 'var(--text-muted)', fontSize: '14px' }}>
-              No rent records for this month. Tap "Generate Monthly" to create them.
+              {payments.length === 0 ? 'No rent records for this month. Tap "Generate Monthly" to create them.' : `No ${statusFilter} records match${search ? ' your search' : ''}.`}
             </div>
           )}
         </div>
@@ -405,7 +431,7 @@ export default function RentPage() {
             </table>
             {filtered.length === 0 && (
               <div style={{ padding: '60px', textAlign: 'center', color: 'var(--text-muted)', fontSize: '14px' }}>
-                No rent records for this month. Click "Generate Monthly" to create them.
+                {payments.length === 0 ? 'No rent records for this month. Click "Generate Monthly" to create them.' : `No ${statusFilter} records match${search ? ' your search' : ''}.`}
               </div>
             )}
           </div>
@@ -516,6 +542,8 @@ export default function RentPage() {
           </div>
         </div>
       )}
+
+      <DocViewerModal doc={previewDoc} onClose={() => setPreviewDoc(null)} />
     </div>
   )
 }

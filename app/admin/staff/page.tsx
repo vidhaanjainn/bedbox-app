@@ -26,6 +26,7 @@ export default function StaffPage() {
 
   const [showExpenseModal, setShowExpenseModal] = useState(false)
   const [expenseForm, setExpenseForm] = useState({ category: 'maintenance', vendor: '', description: '', amount: '' })
+  const [payoutFilter, setPayoutFilter] = useState<'all' | 'paid' | 'unpaid'>('all')
 
   const months = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec']
 
@@ -113,6 +114,8 @@ export default function StaffPage() {
   const totalPaidOut = payouts.filter(p => p.status === 'paid').reduce((sum, p) => sum + Number(p.amount), 0)
   const totalExpenses = expenses.reduce((sum, e) => sum + Number(e.amount), 0)
   const pendingStaffCount = activeStaff.filter(s => !payoutFor(s.id) || payoutFor(s.id)?.status !== 'paid').length
+  const isPaid = (s: any) => payoutFor(s.id)?.status === 'paid'
+  const filteredStaff = staff.filter(s => payoutFilter === 'all' || (payoutFilter === 'paid' ? isPaid(s) : !isPaid(s)))
 
   return (
     <div style={{ padding: '32px' }} className="animate-fade-in">
@@ -157,14 +160,25 @@ export default function StaffPage() {
 
       {tab === 'staff' ? (
         <>
-          <div style={{ display: 'flex', justifyContent: 'flex-end', marginBottom: '16px' }}>
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '16px', gap: '12px', flexWrap: 'wrap' }}>
+            <div style={{ display: 'flex', gap: '6px', background: 'var(--surface-1)', border: '1px solid var(--border)', borderRadius: '10px', padding: '4px' }}>
+              {([
+                { key: 'all', label: 'All', count: staff.length },
+                { key: 'unpaid', label: 'Not Paid', count: staff.filter(s => !isPaid(s)).length },
+                { key: 'paid', label: '✓ Paid', count: staff.filter(isPaid).length },
+              ] as const).map(f => (
+                <button key={f.key} onClick={() => setPayoutFilter(f.key)} style={{ padding: '6px 12px', borderRadius: '7px', border: 'none', fontSize: '12px', fontWeight: '600', cursor: 'pointer', whiteSpace: 'nowrap', background: payoutFilter === f.key ? 'var(--teal-500)' : 'transparent', color: payoutFilter === f.key ? 'var(--navy-900)' : 'var(--text-muted)' }}>
+                  {f.label}{f.count > 0 ? ` (${f.count})` : ''}
+                </button>
+              ))}
+            </div>
             <button onClick={openAddStaff} className="bb-btn-secondary"><Plus size={14} /> Add Staff</button>
           </div>
           {loading ? (
             <div className="glass-card" style={{ padding: '60px', textAlign: 'center', color: 'var(--text-muted)' }}>Loading...</div>
           ) : isMobile ? (
             <div>
-              {staff.map(s => {
+              {filteredStaff.map(s => {
                 const payout = payoutFor(s.id)
                 return (
                   <div key={s.id} className="bb-row-card">
@@ -195,7 +209,7 @@ export default function StaffPage() {
                   </div>
                 )
               })}
-              {staff.length === 0 && <div className="glass-card" style={{ padding: '60px', textAlign: 'center', color: 'var(--text-muted)', fontSize: '14px' }}>No staff added yet. Tap "Add Staff" to get started.</div>}
+              {filteredStaff.length === 0 && <div className="glass-card" style={{ padding: '60px', textAlign: 'center', color: 'var(--text-muted)', fontSize: '14px' }}>{staff.length === 0 ? 'No staff added yet. Tap "Add Staff" to get started.' : `No ${payoutFilter === 'unpaid' ? 'unpaid' : 'paid'} staff this month.`}</div>}
             </div>
           ) : (
           <div className="glass-card" style={{ overflow: 'hidden' }}>
@@ -203,7 +217,7 @@ export default function StaffPage() {
                 <table className="bb-table">
                   <thead><tr><th>Name</th><th>Role</th><th>Phone</th><th>Monthly Salary</th><th>This Month</th><th>Actions</th></tr></thead>
                   <tbody>
-                    {staff.map(s => {
+                    {filteredStaff.map(s => {
                       const payout = payoutFor(s.id)
                       return (
                         <tr key={s.id}>
@@ -234,7 +248,7 @@ export default function StaffPage() {
                     })}
                   </tbody>
                 </table>
-                {staff.length === 0 && <div style={{ padding: '60px', textAlign: 'center', color: 'var(--text-muted)', fontSize: '14px' }}>No staff added yet. Click "Add Staff" to get started.</div>}
+                {filteredStaff.length === 0 && <div style={{ padding: '60px', textAlign: 'center', color: 'var(--text-muted)', fontSize: '14px' }}>{staff.length === 0 ? 'No staff added yet. Click "Add Staff" to get started.' : `No ${payoutFilter === 'unpaid' ? 'unpaid' : 'paid'} staff this month.`}</div>}
               </div>
           </div>
           )}
