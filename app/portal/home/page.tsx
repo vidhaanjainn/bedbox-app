@@ -64,7 +64,7 @@ export default function PortalHomePage() {
 
     const { data: rents } = await supabase
       .from('rent_payments')
-      .select('id, month, year, total_amount, amount_paid, status, electricity_amount, paid_at, resident_reported_at, resident_reported_amount')
+      .select('id, month, year, total_amount, amount_paid, status, electricity_amount, late_fee, late_fee_forgiven_at, paid_at, resident_reported_at, resident_reported_amount')
       .eq('resident_id', res.id)
       .order('year', { ascending: false })
       .order('month', { ascending: false })
@@ -410,6 +410,11 @@ export default function PortalHomePage() {
             </span>
           </div>
           {current?.electricity_amount > 0 && <div style={{ fontSize: 12, color: 'rgba(255,255,255,0.4)' }}>Includes electricity: ₹{current.electricity_amount}</div>}
+          {current?.late_fee > 0 && !current?.late_fee_forgiven_at && (
+            <div style={{ marginTop: 6, display: 'flex', alignItems: 'center', gap: 5, fontSize: 12, fontWeight: 600, color: '#ff6b6b' }}>
+              ⚠ Late fee: ₹{current.late_fee.toLocaleString('en-IN')} (₹200/day past the 5th - growing until paid)
+            </div>
+          )}
           {isPaid && current.paid_at && <div style={{ marginTop: 8, fontSize: 12, color: 'rgba(0,212,200,0.7)' }}>✓ Paid on {new Date(current.paid_at).toLocaleDateString('en-IN', { day: 'numeric', month: 'short', year: 'numeric' })}</div>}
           {!current && <div style={{ fontSize: 12, color: 'rgba(255,255,255,0.3)', marginTop: 4 }}>Your official bill isn't generated yet - you're welcome to pay your usual rent now.</div>}
 

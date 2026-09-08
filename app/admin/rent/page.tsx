@@ -179,6 +179,26 @@ export default function RentPage() {
     fetchPayments()
   }
 
+  // Forgiving drops the late fee out of what's actually owed (recomputing
+  // total_amount without it) so the resident stops being charged for it
+  // immediately - but the late_fee column itself is left untouched, so
+  // there's a permanent record of exactly how much accrued before it was
+  // waived. late_fee_forgiven_at also tells the daily cron to never grow
+  // this row's fee again, even if it's still unpaid.
+  const forgiveLateFee = async (p: any) => {
+    if (!confirm(`Forgive the ${formatCurrency(p.late_fee)} late fee for ${p.resident?.name}? This removes it from what they owe - it won't come back for this month.`)) return
+    const newTotal = Number(p.rent_amount) + Number(p.electricity_amount || 0)
+    const isFullyPaid = Number(p.amount_paid || 0) >= newTotal
+    await supabase.from('rent_payments').update({
+      late_fee_forgiven_at: new Date().toISOString(),
+      late_fee_forgiven_by: currentAdmin?.id || null,
+      total_amount: newTotal,
+      status: isFullyPaid ? 'paid' : p.status,
+      paid_at: isFullyPaid ? new Date().toISOString() : p.paid_at,
+    }).eq('id', p.id)
+    fetchPayments()
+  }
+
   const filtered = payments
     .filter(p => statusFilter === 'all' || p.status === statusFilter)
     .filter(p => p.resident?.name?.toLowerCase().includes(search.toLowerCase()) || p.resident?.room_number?.includes(search))
@@ -266,6 +286,15 @@ export default function RentPage() {
           }}
         >
           Log
+        </button>
+      )}
+      {p.late_fee > 0 && !p.late_fee_forgiven_at && (
+        <button
+          onClick={() => forgiveLateFee(p)}
+          title="Waive this month's late fee"
+          style={{ padding: '4px 10px', borderRadius: '6px', border: '1px solid rgba(251,191,36,0.3)', background: 'rgba(251,191,36,0.08)', color: '#fbbf24', fontSize: '11px', fontWeight: '600', cursor: 'pointer' }}
+        >
+          Forgive Fee
         </button>
       )}
       {p.status === 'paid' && !p.receipt_sent_at && (
@@ -383,7 +412,7 @@ export default function RentPage() {
                   <span>Electricity</span>
                   <span>{p.electricity_logged_at ? (p.electricity_amount > 0 ? formatCurrency(p.electricity_amount) : '-') : 'Not logged'}</span>
                 </div>
-                <div className="bb-row-card-detail-row"><span>Late Fee</span><span>{p.late_fee > 0 ? formatCurrency(p.late_fee) : '-'}</span></div>
+                <div className="bb-row-card-detail-row"><span>Late Fee</span><span>{p.late_fee > 0 ? `${formatCurrency(p.late_fee)}${p.late_fee_forgiven_at ? ' (forgiven)' : ''}` : '-'}</span></div>
                 <div className="bb-row-card-detail-row"><span>Paid</span><span>{formatCurrency(p.amount_paid)}</span></div>
                 <div className="bb-row-card-detail-row">
                   <span>Mode</span>
@@ -432,8 +461,13 @@ export default function RentPage() {
                         </span>
                       )}
                     </td>
-                    <td style={{ color: p.late_fee > 0 ? '#fbbf24' : 'inherit' }}>
-                      {p.late_fee > 0 ? formatCurrency(p.late_fee) : '-'}
+                    <td style={{ color: p.late_fee > 0 ? (p.late_fee_forgiven_at ? 'var(--text-muted)' : '#fbbf24') : 'inherit' }}>
+                      {p.late_fee > 0 ? (
+                        <>
+                          {formatCurrency(p.late_fee)}
+                          {p.late_fee_forgiven_at && <div style={{ fontSize: 10, color: '#34d399' }}>Forgiven</div>}
+                        </>
+                      ) : '-'}
                     </td>
                     <td style={{ fontWeight: '700', color: 'var(--text-primary)' }}>{formatCurrency(p.total_amount)}</td>
                     <td style={{ color: '#34d399', fontWeight: '600' }}>{formatCurrency(p.amount_paid)}</td>

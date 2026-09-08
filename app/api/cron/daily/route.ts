@@ -63,10 +63,66 @@ async function ensureCurrentMonthRows(supabase: ReturnType<typeof adminClient>, 
   return { created }
 }
 
+// Rs. 200/day past the 5th of the calendar month, per the signed agreement
+// clause (flat calendar rule, not the per-resident join-date due day the
+// reminder schedule below uses for "when to nudge" - those are two
+// different concerns, and only this one has to match the contract text
+// exactly). Capped at how many of those late days actually fall within the
+// row's own month, so an old unpaid row doesn't keep growing forever into
+// months it was never for - a fresh, independent Rs. 200/day starts on the
+// NEXT month's own row instead, exactly like a real invoice would.
+function lateFeeDaysForRow(month: number, year: number, now: Date): number {
+  const dueDate = Date.UTC(year, month - 1, 5)
+  const endOfMonth = Date.UTC(year, month, 0) // last day of that row's month
+  const today = Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), now.getUTCDate())
+  const effectiveEnd = Math.min(today, endOfMonth)
+  if (effectiveEnd <= dueDate) return 0
+  return Math.round((effectiveEnd - dueDate) / 86400000)
+}
+
+const LATE_FEE_PER_DAY = 200
+
+// AUTO-11: grows the late fee on every unpaid rent_payments row daily,
+// exactly matching the agreement's Rs. 200/day-past-the-5th clause - this
+// column has existed since the schema was first written but nothing has
+// ever actually set it to anything but 0. Skips anything already paid
+// (never rewrite a settled invoice) and anything an admin has forgiven
+// (late_fee_forgiven_at) - forgiveness is permanent for that row, this
+// never re-applies a fee once waived.
+async function accrueLateFees(supabase: ReturnType<typeof adminClient>, dryRun: boolean) {
+  const { data: rows, error } = await supabase
+    .from('rent_payments')
+    .select('id, month, year, rent_amount, electricity_amount, late_fee, status, late_fee_forgiven_at, residents(is_test_account, status)')
+    .neq('status', 'paid')
+    .is('late_fee_forgiven_at', null)
+  if (error || !rows) return { updated: 0, error }
+
+  const now = new Date()
+  let updated = 0
+
+  for (const row of rows as any[]) {
+    if (row.residents?.is_test_account) continue
+    // A resident who has already vacated shouldn't keep accumulating a
+    // per-day penalty for a month they're no longer living through - their
+    // unpaid balance is a fixed final-dues figure to settle at move-out,
+    // not a growing late fee. Only ever accrues for a currently active resident.
+    if (row.residents?.status !== 'active') continue
+    const days = lateFeeDaysForRow(row.month, row.year, now)
+    const newLateFee = days * LATE_FEE_PER_DAY
+    if (newLateFee === Number(row.late_fee || 0)) continue // no change, no write
+
+    if (dryRun) { updated++; continue }
+    const newTotal = Number(row.rent_amount) + Number(row.electricity_amount || 0) + newLateFee
+    await supabase.from('rent_payments').update({ late_fee: newLateFee, total_amount: newTotal }).eq('id', row.id)
+    updated++
+  }
+  return { updated }
+}
+
 async function sendReminders(supabase: ReturnType<typeof adminClient>, dryRun: boolean) {
   const { data: rows, error } = await supabase
     .from('rent_payments')
-    .select('id, resident_id, total_amount, amount_paid, status, reminder_count, last_reminded_at, created_at, residents(name, email, date_of_joining, room_number)')
+    .select('id, resident_id, total_amount, amount_paid, status, reminder_count, last_reminded_at, created_at, late_fee, late_fee_forgiven_at, residents(name, email, date_of_joining, room_number)')
     .in('status', ['pending', 'partial'])
   if (error || !rows) return { sent: 0, error }
 
@@ -95,17 +151,25 @@ async function sendReminders(supabase: ReturnType<typeof adminClient>, dryRun: b
     const outstanding = Number(row.total_amount) - Number(row.amount_paid || 0)
     const tone = daysFromDue < 0 ? 'Upcoming rent' : daysFromDue === 0 ? 'Rent due today' : 'Rent overdue'
 
+    // The late fee (Rs. 200/day past the 5th, per the agreement) is accrued
+    // separately by accrueLateFees() earlier in this same run, so row.late_fee
+    // here is already today's real number - just decide whether to mention it.
+    const lateFee = Number(row.late_fee || 0)
+    const lateFeeActive = today.getUTCDate() > 5 && lateFee > 0 && !row.late_fee_forgiven_at
+    const lateFeeLine = lateFeeActive ? ` This includes ${moneyINR(lateFee)} in late fees (Rs. 200/day past the 5th) - still growing until paid.` : ''
+
     if (dryRun) {
-      console.log(`[DRY RUN] would remind ${resident.email} - ${tone} - ${moneyINR(outstanding)}`)
+      console.log(`[DRY RUN] would remind ${resident.email} - ${tone} - ${moneyINR(outstanding)}${lateFeeActive ? ' (late fee accruing)' : ''}`)
       sent++
       continue
     }
 
-    const pushBody = daysFromDue < 0
+    const pushBody = (daysFromDue < 0
       ? `Coming up in ${Math.abs(daysFromDue)} day${Math.abs(daysFromDue) === 1 ? '' : 's'} - ${moneyINR(outstanding)}`
       : daysFromDue === 0
         ? `Due today - ${moneyINR(outstanding)}`
-        : `${daysFromDue} day${daysFromDue === 1 ? '' : 's'} overdue - ${moneyINR(outstanding)}`
+        : `${daysFromDue} day${daysFromDue === 1 ? '' : 's'} overdue - ${moneyINR(outstanding)}`)
+      + (lateFeeActive ? ` - late fee accruing daily, pay today to stop it growing.` : '')
 
     const [result] = await Promise.all([
       sendEmail({
@@ -117,10 +181,11 @@ async function sendReminders(supabase: ReturnType<typeof adminClient>, dryRun: b
               ? `your rent is coming up in ${Math.abs(daysFromDue)} day${Math.abs(daysFromDue) === 1 ? '' : 's'}.`
               : daysFromDue === 0
                 ? 'your rent is due today.'
-                : `your rent is ${daysFromDue} day${daysFromDue === 1 ? '' : 's'} overdue.`}
+                : `your rent is ${daysFromDue} day${daysFromDue === 1 ? '' : 's'} overdue.`}${lateFeeLine}
           </p>
           <div style="background:#fff;border:1px solid #e2e8f0;border-radius:12px;padding:18px;margin-bottom:20px">
             <div style="display:flex;justify-content:space-between;padding:4px 0"><span style="color:#64748b;font-size:13px">Outstanding</span><span style="font-weight:700;color:#0f172a">${moneyINR(outstanding)}</span></div>
+            ${lateFeeActive ? `<div style="display:flex;justify-content:space-between;padding:4px 0"><span style="color:#ef4444;font-size:13px">Late fee (growing daily)</span><span style="font-weight:700;color:#ef4444">${moneyINR(lateFee)}</span></div>` : ''}
           </div>
           <p style="color:#94a3b8;font-size:12px;margin:0">Already paid? Please ignore this and let TheBedBox know so we can update your record.</p>
         `),
@@ -378,6 +443,7 @@ export async function GET(req: Request) {
   const supabase = adminClient()
 
   const rowsResult = await ensureCurrentMonthRows(supabase, dryRun)
+  const lateFeeResult = await accrueLateFees(supabase, dryRun)
   const reminderResult = await sendReminders(supabase, dryRun)
   const noticeFormResult = dryRun ? { imported: 0 } : await syncNoticeFormSubmissions().catch(() => ({ imported: 0 }))
   const digestResult = await sendAdminMonthlyDigest(supabase, dryRun)
@@ -388,6 +454,7 @@ export async function GET(req: Request) {
   return NextResponse.json({
     dryRun,
     rentRowsCreated: rowsResult.created,
+    lateFeesUpdated: lateFeeResult.updated,
     remindersSent: reminderResult.sent,
     noticeFormRowsImported: 'imported' in noticeFormResult ? noticeFormResult.imported : 0,
     adminDigestSent: digestResult.sent,

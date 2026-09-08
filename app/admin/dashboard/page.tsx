@@ -446,8 +446,8 @@ export default function DashboardPage() {
                     <td>Room {payment.resident?.room_number}</td>
                     <td>{new Date(payment.year, payment.month - 1).toLocaleDateString('en-IN', { month: 'short', year: 'numeric' })}</td>
                     <td>{formatCurrency(payment.rent_amount)}</td>
-                    <td style={{ color: payment.late_fee > 0 ? '#fbbf24' : 'var(--text-muted)' }}>
-                      {payment.late_fee > 0 ? formatCurrency(payment.late_fee) : '-'}
+                    <td style={{ color: payment.late_fee > 0 ? (payment.late_fee_forgiven_at ? 'var(--text-muted)' : '#fbbf24') : 'var(--text-muted)' }}>
+                      {payment.late_fee > 0 ? `${formatCurrency(payment.late_fee)}${payment.late_fee_forgiven_at ? ' (forgiven)' : ''}` : '-'}
                     </td>
                     <td style={{ color: 'var(--text-primary)', fontWeight: '600' }}>
                       {formatCurrency(payment.total_amount - payment.amount_paid)}
