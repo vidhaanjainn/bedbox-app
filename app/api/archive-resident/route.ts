@@ -46,6 +46,16 @@ export async function POST(request: Request) {
         vacate_reason_notes: reasonNotes || null,
         deposit_refund_status: depositStatus || null,
         would_readmit: wouldReAdmit,
+        // Cleared here, at the source, rather than left for every downstream
+        // view to remember to filter out - a vacated resident's bed_id
+        // pointing at a bed they no longer occupy is what let the Rooms &
+        // Beds page (which joins bed -> resident to show "who's in this
+        // bed") keep showing them there indefinitely, with the room card
+        // never reflecting the actual vacate at all. room_number is a
+        // separate, permanent text field on this same record, so their own
+        // history ("Room 105") stays intact - only the live occupancy link
+        // is removed.
+        bed_id: null,
       })
       .eq('id', residentId)
 

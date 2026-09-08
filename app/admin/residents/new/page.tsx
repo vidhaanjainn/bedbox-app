@@ -7,6 +7,7 @@ import { ArrowLeft, Upload, CheckCircle, Loader2, User, Home, FileText, Shield, 
 import Link from 'next/link'
 import { STAY_DURATIONS } from '@/lib/utils'
 import { AGREEMENT_VERSION, renderAgreementClauses } from '@/lib/agreement-clauses'
+import { APP_URL } from '@/lib/config'
 
 const STEPS = [
   { id: 1, label: 'Basic Info', icon: User, required: true },
@@ -112,7 +113,7 @@ export default function NewResidentPage() {
           await fetch('/api/send-onboard-invite', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ residentId: resident.id, link: `${window.location.origin}/onboard/${token}` }),
+            body: JSON.stringify({ residentId: resident.id, link: `${APP_URL}/onboard/${token}` }),
           })
         } catch { /* non-fatal - admin can still send the link manually from the detail page */ }
       }

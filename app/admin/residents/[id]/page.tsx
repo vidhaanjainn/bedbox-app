@@ -11,6 +11,7 @@ import { renderAgreementClauses } from '@/lib/agreement-clauses'
 import { Modal } from '@/components/ui/Modal'
 import { useIsMobile } from '@/lib/useIsMobile'
 import { DocViewerModal, DocPreview } from '@/components/ui/DocViewerModal'
+import { APP_URL } from '@/lib/config'
 
 export default function ResidentDetailPage() {
   const { id } = useParams()
@@ -296,7 +297,7 @@ export default function ResidentDetailPage() {
     setInviteEmailStatus('')
     const { data, error } = await supabase.rpc('generate_onboard_token', { p_resident_id: id })
     if (error || !data) { alert('Failed to generate invite link. Try again.'); setInviteLoading(false); return }
-    const url = `${window.location.origin}/onboard/${data}`
+    const url = `${APP_URL}/onboard/${data}`
     setInviteLink(url)
     await supabase.from('residents').update({ last_invite_sent_at: new Date().toISOString() }).eq('id', id)
     setResident((r: any) => ({ ...r, last_invite_sent_at: new Date().toISOString(), onboard_token_used: false }))

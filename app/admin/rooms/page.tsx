@@ -145,7 +145,11 @@ export default function RoomsPage() {
                             <div style={{ fontSize: '13px', fontWeight: '600', color: 'var(--text-primary)' }}>
                               Bed {bed.bed_number}
                             </div>
-                            {bed.resident && (
+                            {/* bed.resident comes from residents.bed_id, which archiving
+                                now clears - this status check is the second line of
+                                defense against that same stale-join bug ever showing a
+                                departed resident as still living in a bed again. */}
+                            {bed.resident && bed.resident.status !== 'vacated' && (
                               <div style={{ fontSize: '11px', color: 'var(--text-muted)' }}>{bed.resident.name}</div>
                             )}
                             {bed.resident?.status === 'notice' && availableFrom(bed.resident.id) && (
