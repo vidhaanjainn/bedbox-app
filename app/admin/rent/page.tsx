@@ -32,6 +32,7 @@ export default function RentPage() {
   const [currentAdmin, setCurrentAdmin] = useState<CurrentAdmin | null>(null)
   const [admins, setAdmins] = useState<{ id: string; name: string }[]>([])
   const [previewDoc, setPreviewDoc] = useState<DocPreview | null>(null)
+  const [loadingDoc, setLoadingDoc] = useState<string | null>(null)
   const supabase = createClient()
   const isMobile = useIsMobile()
 
@@ -153,8 +154,10 @@ export default function RentPage() {
   }
 
   const viewPaymentProof = async (path: string) => {
+    setLoadingDoc(path)
     const { data } = await supabase.storage.from('resident-docs').createSignedUrl(path, 300)
     if (data?.signedUrl) setPreviewDoc({ url: data.signedUrl, type: 'image', label: 'Payment Screenshot' })
+    setLoadingDoc(null)
   }
 
   const requestReceipt = async (paymentId: string) => {
@@ -228,10 +231,11 @@ export default function RentPage() {
       {p.resident_payment_screenshot_path && (
         <button
           onClick={() => viewPaymentProof(p.resident_payment_screenshot_path)}
+          disabled={loadingDoc === p.resident_payment_screenshot_path}
           title="View resident's payment screenshot"
-          style={{ padding: '4px 10px', borderRadius: '6px', border: '1px solid rgba(56,189,248,0.3)', background: 'rgba(56,189,248,0.08)', color: '#38bdf8', fontSize: '11px', fontWeight: '600', cursor: 'pointer' }}
+          style={{ padding: '4px 10px', borderRadius: '6px', border: '1px solid rgba(56,189,248,0.3)', background: 'rgba(56,189,248,0.08)', color: '#38bdf8', fontSize: '11px', fontWeight: '600', cursor: 'pointer', display: 'inline-flex', alignItems: 'center', gap: 4 }}
         >
-          Proof
+          {loadingDoc === p.resident_payment_screenshot_path && <Loader2 size={11} style={{ animation: 'spin 1s linear infinite' }} />} Proof
         </button>
       )}
       {p.status !== 'paid' && (

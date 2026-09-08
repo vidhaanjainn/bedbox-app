@@ -24,6 +24,7 @@ export default function ResidentDetailPage() {
   const [notice, setNotice] = useState<any>(null)
   const [loading, setLoading] = useState(true)
   const [previewDoc, setPreviewDoc] = useState<DocPreview | null>(null)
+  const [loadingDoc, setLoadingDoc] = useState<string | null>(null)
   const [inviteLink, setInviteLink] = useState('')
   const [inviteLoading, setInviteLoading] = useState(false)
   const [inviteEmailStatus, setInviteEmailStatus] = useState('')
@@ -144,10 +145,12 @@ export default function ResidentDetailPage() {
     }
   }
 
-  const viewStoredDoc = async (path: string, label: string) => {
+  const viewStoredDoc = async (path: string, label: string, key: string) => {
+    setLoadingDoc(key)
     const { data, error } = await supabase.storage.from('private-docs').createSignedUrl(path, 300)
     if (data?.signedUrl) setPreviewDoc({ url: data.signedUrl, type: 'pdf', label })
     else { console.error(error); setDocMsg('Could not open this document. Please try again.'); setTimeout(() => setDocMsg(''), 4000) }
+    setLoadingDoc(null)
   }
 
   // Aadhaar images and the signature come from the self-onboarding flow,
@@ -157,8 +160,11 @@ export default function ResidentDetailPage() {
   // inline via DocViewerModal rather than a new tab, so there is nothing
   // depending on window.open (which browsers - and some in-app browsers
   // outright - can silently block) between an admin and a document that
-  // is sitting there perfectly fine in storage.
-  const viewResidentDoc = async (path: string, label: string) => {
+  // is sitting there perfectly fine in storage. `key` drives the
+  // per-button spinner (loadingDoc) so a slow fetch never leaves the
+  // admin wondering whether the tap registered.
+  const viewResidentDoc = async (path: string, label: string, key: string) => {
+    setLoadingDoc(key)
     try {
       const res = await fetch('/api/admin/document-url', {
         method: 'POST', headers: { 'Content-Type': 'application/json' },
@@ -170,6 +176,8 @@ export default function ResidentDetailPage() {
     } catch {
       setDocMsg('Could not open this file. Please try again.')
       setTimeout(() => setDocMsg(''), 4000)
+    } finally {
+      setLoadingDoc(null)
     }
   }
 
@@ -349,18 +357,18 @@ export default function ResidentDetailPage() {
 
               <div style={{ display: 'flex', gap: '8px', flexWrap: 'wrap', marginBottom: '14px' }}>
                 {resident.aadhaar_front_url && (
-                  <button onClick={() => viewResidentDoc(resident.aadhaar_front_url, 'Aadhaar Front')} className="bb-btn-secondary" style={{ fontSize: '12px' }}>
-                    <FileText size={12} /> Aadhaar Front
+                  <button onClick={() => viewResidentDoc(resident.aadhaar_front_url, 'Aadhaar Front', 'aadhaar_front')} disabled={loadingDoc === 'aadhaar_front'} className="bb-btn-secondary" style={{ fontSize: '12px' }}>
+                    {loadingDoc === 'aadhaar_front' ? <Loader2 size={12} style={{ animation: 'spin 1s linear infinite' }} /> : <FileText size={12} />} Aadhaar Front
                   </button>
                 )}
                 {resident.aadhaar_back_url && (
-                  <button onClick={() => viewResidentDoc(resident.aadhaar_back_url, 'Aadhaar Back')} className="bb-btn-secondary" style={{ fontSize: '12px' }}>
-                    <FileText size={12} /> Aadhaar Back
+                  <button onClick={() => viewResidentDoc(resident.aadhaar_back_url, 'Aadhaar Back', 'aadhaar_back')} disabled={loadingDoc === 'aadhaar_back'} className="bb-btn-secondary" style={{ fontSize: '12px' }}>
+                    {loadingDoc === 'aadhaar_back' ? <Loader2 size={12} style={{ animation: 'spin 1s linear infinite' }} /> : <FileText size={12} />} Aadhaar Back
                   </button>
                 )}
                 {resident.signature_path && (
-                  <button onClick={() => viewResidentDoc(resident.signature_path, 'Signature')} className="bb-btn-secondary" style={{ fontSize: '12px' }}>
-                    <Edit size={12} /> Signature
+                  <button onClick={() => viewResidentDoc(resident.signature_path, 'Signature', 'signature')} disabled={loadingDoc === 'signature'} className="bb-btn-secondary" style={{ fontSize: '12px' }}>
+                    {loadingDoc === 'signature' ? <Loader2 size={12} style={{ animation: 'spin 1s linear infinite' }} /> : <Edit size={12} />} Signature
                   </button>
                 )}
                 <Link href={`/admin/residents/${id}/edit`} className="bb-btn-secondary" style={{ fontSize: '12px' }}>Full Details</Link>
@@ -539,14 +547,14 @@ export default function ResidentDetailPage() {
             {resident.agreement_path ? 'Regenerate Agreement PDF' : 'Generate Agreement PDF'}
           </button>
           {resident.agreement_path && (
-            <button onClick={() => viewStoredDoc(resident.agreement_path, 'Agreement')} className="bb-btn-secondary" style={{ fontSize: '13px' }}><FileText size={13} /> View Agreement</button>
+            <button onClick={() => viewStoredDoc(resident.agreement_path, 'Agreement', 'agreement_view')} disabled={loadingDoc === 'agreement_view'} className="bb-btn-secondary" style={{ fontSize: '13px' }}>{loadingDoc === 'agreement_view' ? <Loader2 size={13} style={{ animation: 'spin 1s linear infinite' }} /> : <FileText size={13} />} View Agreement</button>
           )}
           <button onClick={() => generateAndStore('police')} disabled={generatingDoc !== null} className="bb-btn-secondary" style={{ fontSize: '13px' }}>
             {generatingDoc === 'police' ? <Loader2 size={13} style={{ animation: 'spin 1s linear infinite' }} /> : <ShieldCheck size={13} />}
             {resident.police_verification_path ? 'Regenerate Police Form' : 'Generate Police Verification Form'}
           </button>
           {resident.police_verification_path && (
-            <button onClick={() => viewStoredDoc(resident.police_verification_path, 'Police Verification Form')} className="bb-btn-secondary" style={{ fontSize: '13px' }}><ShieldCheck size={13} /> View Police Form</button>
+            <button onClick={() => viewStoredDoc(resident.police_verification_path, 'Police Verification Form', 'police_view')} disabled={loadingDoc === 'police_view'} className="bb-btn-secondary" style={{ fontSize: '13px' }}>{loadingDoc === 'police_view' ? <Loader2 size={13} style={{ animation: 'spin 1s linear infinite' }} /> : <ShieldCheck size={13} />} View Police Form</button>
           )}
         </div>
         <div style={{ fontSize: '11px', color: 'var(--text-muted)', marginTop: '10px' }}>

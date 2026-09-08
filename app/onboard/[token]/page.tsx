@@ -370,6 +370,19 @@ function SignaturePad({ value, onChange }: { value: string | null; onChange: (v:
 
   const getCtx = () => canvasRef.current?.getContext('2d') || null
 
+  // The pad is drawn white-on-transparent so it reads fine against this
+  // page's dark background - but that exact PNG later gets placed
+  // straight into the agreement PDF, which has a white page. White ink on
+  // a transparent canvas composited onto a white page is invisible - the
+  // signature was never "misplaced", it was there and unreadable. Filling
+  // a real white background and drawing in dark ink fixes both: it now
+  // looks like an actual signature pad here, and the exported PNG is a
+  // normal dark-on-white signature that shows up correctly in the PDF.
+  const paintBackground = (ctx: CanvasRenderingContext2D, width: number, height: number) => {
+    ctx.fillStyle = '#ffffff'
+    ctx.fillRect(0, 0, width, height)
+  }
+
   const setupCanvas = () => {
     const canvas = canvasRef.current
     if (!canvas) return
@@ -380,7 +393,8 @@ function SignaturePad({ value, onChange }: { value: string | null; onChange: (v:
     const ctx = getCtx()
     if (!ctx) return
     ctx.scale(ratio, ratio)
-    ctx.strokeStyle = '#fff'
+    paintBackground(ctx, rect.width, rect.height)
+    ctx.strokeStyle = '#1a1a2e'
     ctx.lineWidth = 2.5
     ctx.lineCap = 'round'
     ctx.lineJoin = 'round'
@@ -416,14 +430,18 @@ function SignaturePad({ value, onChange }: { value: string | null; onChange: (v:
   const clear = () => {
     const canvas = canvasRef.current
     const ctx = getCtx()
-    if (canvas && ctx) ctx.clearRect(0, 0, canvas.width, canvas.height)
+    if (canvas && ctx) {
+      const rect = canvas.getBoundingClientRect()
+      ctx.clearRect(0, 0, canvas.width, canvas.height)
+      paintBackground(ctx, rect.width, rect.height)
+    }
     hasInk.current = false
     onChange(null)
   }
 
   return (
     <div style={{ marginBottom: 4 }}>
-      <div style={{ position: 'relative', borderRadius: 12, border: `1px solid ${value ? 'rgba(0,212,200,0.4)' : 'rgba(255,255,255,0.15)'}`, background: 'rgba(255,255,255,0.03)', overflow: 'hidden' }}>
+      <div style={{ position: 'relative', borderRadius: 12, border: `1px solid ${value ? 'rgba(0,212,200,0.5)' : 'rgba(255,255,255,0.15)'}`, background: '#ffffff', overflow: 'hidden' }}>
         <canvas
           ref={canvasRef}
           style={{ width: '100%', height: 140, touchAction: 'none', cursor: 'crosshair', display: 'block' }}
@@ -433,7 +451,7 @@ function SignaturePad({ value, onChange }: { value: string | null; onChange: (v:
           onPointerLeave={end}
         />
         {!value && (
-          <div style={{ position: 'absolute', inset: 0, display: 'flex', alignItems: 'center', justifyContent: 'center', pointerEvents: 'none', fontSize: 13, color: 'rgba(255,255,255,0.25)' }}>
+          <div style={{ position: 'absolute', inset: 0, display: 'flex', alignItems: 'center', justifyContent: 'center', pointerEvents: 'none', fontSize: 13, color: 'rgba(0,0,0,0.3)' }}>
             Draw your signature here
           </div>
         )}

@@ -17,6 +17,7 @@ export default function ElectricityPage() {
   const [yearFilter, setYearFilter] = useState(new Date().getFullYear())
   const [form, setForm] = useState({ resident_id: '', current_reading: '', month: new Date().getMonth() + 1, year: new Date().getFullYear() })
   const [previewDoc, setPreviewDoc] = useState<DocPreview | null>(null)
+  const [loadingDoc, setLoadingDoc] = useState<string | null>(null)
   const supabase = createClient()
   const isMobile = useIsMobile()
 
@@ -115,21 +116,23 @@ export default function ElectricityPage() {
         {r.submitted_by === 'resident' ? 'Resident' : 'Admin'}
       </span>
       {r.reading_photo_path && (
-        <button onClick={() => viewPhoto(r.reading_photo_path)} title="View photo"
+        <button onClick={() => viewPhoto(r.reading_photo_path)} disabled={loadingDoc === r.reading_photo_path} title="View photo"
           style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--teal-500)', padding: 2, display: 'flex' }}>
-          <Camera size={14} />
+          {loadingDoc === r.reading_photo_path ? <Loader2 size={14} style={{ animation: 'spin 1s linear infinite' }} /> : <Camera size={14} />}
         </button>
       )}
     </div>
   )
 
   const viewPhoto = async (path: string) => {
+    setLoadingDoc(path)
     const res = await fetch('/api/admin/document-url', {
       method: 'POST', headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ path }),
     })
     const data = await res.json()
     if (res.ok && data.url) setPreviewDoc({ url: data.url, type: 'image', label: 'Meter Reading Photo' })
+    setLoadingDoc(null)
   }
 
   return (
