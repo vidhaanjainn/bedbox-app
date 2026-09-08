@@ -42,6 +42,7 @@ export default function PortalHomePage() {
   const [reviewRating, setReviewRating] = useState(0)
   const [reviewComment, setReviewComment] = useState('')
   const [submittingReview, setSubmittingReview] = useState(false)
+  const [hasFinalElectricityReading, setHasFinalElectricityReading] = useState(false)
 
   const [showPayModal, setShowPayModal] = useState(false)
   const [payAmount, setPayAmount] = useState('')
@@ -61,6 +62,19 @@ export default function PortalHomePage() {
     const { data: res } = await supabase.from('residents').select('*').eq('portal_user_id', session.user.id).single()
     if (!res) { setLoading(false); return }
     setResident(res)
+
+    if (res.status === 'vacated' && res.vacated_at) {
+      const { data: finalReadingRows } = await supabase
+        .from('electricity_readings')
+        .select('id')
+        .eq('resident_id', res.id)
+        .gte('created_at', res.vacated_at)
+        .limit(1)
+      setHasFinalElectricityReading((finalReadingRows?.length || 0) > 0)
+      if (!res.move_out_ready_notified_at) {
+        fetch('/api/portal/notify-moveout-ready', { method: 'POST' }).catch(() => {})
+      }
+    }
 
     const { data: rents } = await supabase
       .from('rent_payments')
@@ -149,6 +163,29 @@ export default function PortalHomePage() {
     const number = digits.length === 10 ? `91${digits}` : digits
     const msg = `Hi! This is ${resident?.name?.split(' ')[0] || ''} from Room ${resident?.room_number || ''}. Sharing a video of my room's condition at move-in.`
     return `https://wa.me/${number}?text=${encodeURIComponent(msg)}`
+  }
+
+  const finalVideoWaLink = () => {
+    const digits = (propertyPhone || '').replace(/\D/g, '')
+    const number = digits.length === 10 ? `91${digits}` : digits
+    const msg = `Hi! This is ${resident?.name?.split(' ')[0] || ''} from Room ${resident?.room_number || ''}. Sharing a final video of my room's condition before moving out.`
+    return `https://wa.me/${number}?text=${encodeURIComponent(msg)}`
+  }
+
+  // Fires after any move-out step changes - the route re-verifies all three
+  // conditions itself against the real data, so this is just "check now,"
+  // never a claim this page is trusted to make on its own. Safe to call
+  // even when nothing's actually finished yet; it just no-ops.
+  const checkMoveOutReady = async () => {
+    try { await fetch('/api/portal/notify-moveout-ready', { method: 'POST' }) } catch { /* non-fatal */ }
+  }
+
+  const markFinalVideoDone = async () => {
+    if (!resident) return
+    const nowIso = new Date().toISOString()
+    setResident((r: any) => ({ ...r, checklist_final_video_done_at: nowIso }))
+    await supabase.from('residents').update({ checklist_final_video_done_at: nowIso }).eq('id', resident.id)
+    checkMoveOutReady()
   }
 
   const submitReview = async () => {
@@ -278,6 +315,46 @@ export default function PortalHomePage() {
             <span style={{ fontSize: 12, color: 'rgba(255,255,255,0.4)' }}>Status not recorded yet - check with TheBedBox.</span>
           )}
         </div>
+
+        {(() => {
+          const moveOutSteps = [
+            { key: 'dues', done: totalOwed <= 0, label: 'Clear all dues', desc: 'Settle whatever is still owed above.' },
+            { key: 'electricity', done: hasFinalElectricityReading, label: 'Submit a final electricity reading', desc: 'A photo of the meter helps avoid any dispute.' },
+            { key: 'video', done: !!resident.checklist_final_video_done_at, label: "Send a final video of your room's condition", desc: 'Same as move-in - protects both of us.' },
+          ]
+          const moveOutDone = moveOutSteps.filter(s => s.done).length
+          return (
+            <div style={{ background: 'rgba(255,255,255,0.04)', border: '1px solid rgba(255,255,255,0.07)', borderRadius: 16, padding: 20, marginBottom: 16 }}>
+              <div style={{ fontSize: 14, fontWeight: 700, marginBottom: 4 }}>Before we settle your deposit</div>
+              <div style={{ fontSize: 12, color: 'rgba(255,255,255,0.4)', marginBottom: 14 }}>
+                {moveOutDone === moveOutSteps.length ? "✓ All done - we've been notified and will settle your deposit shortly." : `${moveOutDone} of ${moveOutSteps.length} done`}
+              </div>
+              <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
+                {moveOutSteps.map(step => (
+                  <div key={step.key} style={{ display: 'flex', alignItems: 'flex-start', gap: 12, padding: 12, borderRadius: 10, background: step.done ? 'rgba(0,212,200,0.06)' : 'rgba(255,255,255,0.03)', border: `1px solid ${step.done ? 'rgba(0,212,200,0.2)' : 'rgba(255,255,255,0.06)'}` }}>
+                    <div style={{ width: 24, height: 24, borderRadius: 7, flexShrink: 0, display: 'flex', alignItems: 'center', justifyContent: 'center', background: step.done ? 'rgba(0,212,200,0.15)' : 'rgba(255,255,255,0.06)' }}>
+                      {step.done && <Check size={13} color="#00d4c8" />}
+                    </div>
+                    <div style={{ flex: 1, minWidth: 0 }}>
+                      <div style={{ fontSize: 13, fontWeight: 600, color: step.done ? 'rgba(255,255,255,0.5)' : '#fff', textDecoration: step.done ? 'line-through' : 'none' }}>{step.label}</div>
+                      {!step.done && <div style={{ fontSize: 11, color: 'rgba(255,255,255,0.4)', marginTop: 2 }}>{step.desc}</div>}
+                      {!step.done && step.key === 'electricity' && (
+                        <Link href="/portal/electricity" style={{ display: 'inline-flex', alignItems: 'center', gap: 4, marginTop: 8, fontSize: 12, fontWeight: 600, color: '#00d4c8', textDecoration: 'none' }}>
+                          Submit reading <ChevronRight size={12} />
+                        </Link>
+                      )}
+                      {!step.done && step.key === 'video' && (
+                        <a href={finalVideoWaLink()} target="_blank" rel="noopener noreferrer" onClick={markFinalVideoDone} style={{ display: 'inline-flex', alignItems: 'center', gap: 4, marginTop: 8, fontSize: 12, fontWeight: 600, color: '#00d4c8', textDecoration: 'none' }}>
+                          Open WhatsApp <ChevronRight size={12} />
+                        </a>
+                      )}
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </div>
+          )
+        })()}
 
         <div style={{ background: 'rgba(255,255,255,0.04)', border: '1px solid rgba(255,255,255,0.07)', borderRadius: 16, padding: 20, marginBottom: 24 }}>
           <div style={{ fontSize: 14, fontWeight: 700, marginBottom: 4 }}>How was your stay?</div>

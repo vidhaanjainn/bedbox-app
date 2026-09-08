@@ -48,6 +48,8 @@ export default function ResidentDetailPage() {
   const [depositAmountInput, setDepositAmountInput] = useState('')
   const [editingDeposit, setEditingDeposit] = useState(false)
   const [savingDeposit, setSavingDeposit] = useState(false)
+  const [editingRefundStatus, setEditingRefundStatus] = useState(false)
+  const [refundStatusInput, setRefundStatusInput] = useState('')
   const supabase = createClient()
   const isMobile = useIsMobile()
 
@@ -239,6 +241,17 @@ export default function ResidentDetailPage() {
     setSavingDeposit(false)
   }
 
+  // The archive flow only ever sets this once, at the moment a resident is
+  // marked vacated - but the whole point of the move-out checklist is to
+  // let the admin come back and finalize it afterward, once the resident's
+  // actually cleared their end. Editable any time from here.
+  const saveRefundStatus = async () => {
+    if (!refundStatusInput) return
+    await supabase.from('residents').update({ deposit_refund_status: refundStatusInput }).eq('id', id)
+    setResident((r: any) => ({ ...r, deposit_refund_status: refundStatusInput }))
+    setEditingRefundStatus(false)
+  }
+
   const handleGenerateInvite = async () => {
     // Regenerating overwrites the single onboard_token column - if one was
     // already sent and the resident hasn't used it yet, this silently kills
@@ -378,13 +391,47 @@ export default function ResidentDetailPage() {
               </div>
             </div>
           </div>
+
+          <div style={{ marginBottom: '14px' }}>
+            {resident.move_out_ready_notified_at ? (
+              <span style={{ display: 'inline-flex', alignItems: 'center', gap: 5, fontSize: 12, fontWeight: 600, color: '#34d399', padding: '4px 10px', borderRadius: 999, background: 'rgba(52,211,153,0.1)' }}>
+                <CheckCircle size={11} /> Ready for settlement - cleared dues, final reading, and video on their end
+              </span>
+            ) : (
+              <span style={{ display: 'inline-flex', alignItems: 'center', gap: 5, fontSize: 12, fontWeight: 600, color: '#fbbf24', padding: '4px 10px', borderRadius: 999, background: 'rgba(251,191,36,0.1)' }}>
+                Still completing move-out steps on their end
+              </span>
+            )}
+          </div>
+
           <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '12px', fontSize: '13px' }}>
             {resident.vacate_reason && (
               <div><span style={{ color: 'var(--text-muted)' }}>Reason: </span><span style={{ color: 'var(--text-primary)', textTransform: 'capitalize' }}>{resident.vacate_reason.replace(/_/g, ' ')}</span></div>
             )}
-            {resident.deposit_refund_status && (
-              <div><span style={{ color: 'var(--text-muted)' }}>Deposit: </span><span style={{ color: 'var(--text-primary)', textTransform: 'capitalize' }}>{resident.deposit_refund_status.replace(/_/g, ' ')}</span></div>
-            )}
+            <div>
+              <span style={{ color: 'var(--text-muted)' }}>Deposit: </span>
+              {editingRefundStatus ? (
+                <span style={{ display: 'inline-flex', gap: 6, alignItems: 'center' }}>
+                  <select className="bb-input" value={refundStatusInput} onChange={e => setRefundStatusInput(e.target.value)} style={{ fontSize: 12, padding: '4px 8px', width: 'auto' }}>
+                    <option value="">Select status</option>
+                    <option value="returned_full">Returned in full</option>
+                    <option value="partial_deduction">Partial deduction</option>
+                    <option value="fully_deducted">Fully deducted</option>
+                    <option value="pending">Pending</option>
+                  </select>
+                  <button onClick={saveRefundStatus} className="bb-btn-primary" style={{ fontSize: 11, padding: '4px 8px' }}>Save</button>
+                  <button onClick={() => setEditingRefundStatus(false)} style={{ fontSize: 11, color: 'var(--text-muted)', background: 'none', border: 'none', cursor: 'pointer' }}>Cancel</button>
+                </span>
+              ) : (
+                <span
+                  onClick={() => { setEditingRefundStatus(true); setRefundStatusInput(resident.deposit_refund_status || '') }}
+                  style={{ color: 'var(--text-primary)', textTransform: 'capitalize', cursor: 'pointer', borderBottom: '1px dashed var(--text-muted)' }}
+                  title="Click to update"
+                >
+                  {resident.deposit_refund_status ? resident.deposit_refund_status.replace(/_/g, ' ') : 'Not set - click to update'}
+                </span>
+              )}
+            </div>
             {resident.would_readmit !== null && resident.would_readmit !== undefined && (
               <div><span style={{ color: 'var(--text-muted)' }}>Would re-admit: </span><span style={{ color: resident.would_readmit ? '#34d399' : '#f87171', fontWeight: 600 }}>{resident.would_readmit ? 'Yes' : 'No'}</span></div>
             )}
