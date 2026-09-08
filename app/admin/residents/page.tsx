@@ -3,7 +3,7 @@
 import { useEffect, useState } from 'react'
 import { createClient } from '@/lib/supabase/client'
 import { formatCurrency, formatDate, getNoticeDaysRemaining, getNoticeTargetDate } from '@/lib/utils'
-import { Users, Plus, Search, Eye, Mail, Phone, CheckCircle, Download } from 'lucide-react'
+import { Users, Plus, Search, Eye, Mail, Phone, CheckCircle, Download, Smartphone } from 'lucide-react'
 import Link from 'next/link'
 import { useRouter } from 'next/navigation'
 import { useIsMobile } from '@/lib/useIsMobile'
@@ -45,7 +45,7 @@ export default function ResidentsPage() {
       'Date of Joining', 'Stay Type', 'Status', 'Onboarding Status',
       'Emergency Contact Name', 'Emergency Contact Phone', 'Hometown', 'Institution', 'Occupation',
       'Agreement Signed At', 'Agreement IP', 'Agreement Version',
-      'Aadhaar On File', 'Signature On File',
+      'Aadhaar On File', 'Signature On File', 'App Installed At',
       'Onboarded By', 'Onboarded At', 'Notes', 'Record Created At',
     ]
     const escape = (v: unknown) => {
@@ -57,7 +57,7 @@ export default function ResidentsPage() {
       r.date_of_joining, r.stay_type, r.status, r.onboarding_status,
       r.emergency_contact_name, r.emergency_contact_phone || r.emergency_contact_number, r.hometown, r.institution, r.occupation,
       r.agreement_signed_at, r.agreement_ip, r.agreement_version,
-      (r.aadhaar_front_url || r.aadhaar_back_url) ? 'Yes' : 'No', r.signature_path ? 'Yes' : 'No',
+      (r.aadhaar_front_url || r.aadhaar_back_url) ? 'Yes' : 'No', r.signature_path ? 'Yes' : 'No', r.pwa_installed_at || '',
       r.onboarded_by_admin?.name, r.onboarded_at, r.notes, r.created_at,
     ])
     const csv = [headers, ...rows].map(row => row.map(escape).join(',')).join('\n')
@@ -85,9 +85,16 @@ export default function ResidentsPage() {
 
   const pendingApprovals = residents.filter(r => r.onboarding_status === 'submitted')
 
+  // "Has portal access at all" - pending/submitted residents haven't been
+  // approved yet so there's no meaningful "installed the app" answer for
+  // them; only active/notice residents have ever been able to log in.
+  const hasPortalAccess = (r: any) => r.status === 'active' || r.status === 'notice'
+  const notInstalled = residents.filter(r => hasPortalAccess(r) && !r.pwa_installed_at)
+
   const filtered = residents.filter(r => {
     const matchesSearch = r.name.toLowerCase().includes(search.toLowerCase()) || r.mobile.includes(search) || r.room_number?.includes(search)
     if (statusFilter === 'submitted') return r.onboarding_status === 'submitted' && matchesSearch
+    if (statusFilter === 'not_installed') return hasPortalAccess(r) && !r.pwa_installed_at && matchesSearch
     const matchesStatus = statusFilter === 'all' || r.status === statusFilter
     return matchesSearch && matchesStatus
   })
@@ -99,6 +106,7 @@ export default function ResidentsPage() {
     notice: residents.filter(r => r.status === 'notice').length,
     vacated: residents.filter(r => r.status === 'vacated').length,
     submitted: pendingApprovals.length,
+    not_installed: notInstalled.length,
   }
 
   const statusStyle = (status: string): any => {
@@ -116,7 +124,7 @@ export default function ResidentsPage() {
       <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '24px' }}>
         <div>
           <h1 style={{ fontFamily: 'Syne, sans-serif', fontSize: '26px', fontWeight: '700', color: 'var(--text-primary)', margin: '0 0 6px' }}>Residents</h1>
-          <p style={{ color: 'var(--text-muted)', fontSize: '14px', margin: 0 }}>{counts.active} active · {counts.notice} on notice · {counts.pending} pending</p>
+          <p style={{ color: 'var(--text-muted)', fontSize: '14px', margin: 0 }}>{counts.active} active · {counts.notice} on notice · {counts.pending} pending · {counts.not_installed} haven't installed the app</p>
         </div>
         <div style={{ display: 'flex', gap: '10px' }}>
           <button onClick={exportCsv} className="bb-btn-secondary"><Download size={16} />Export CSV</button>
@@ -145,9 +153,9 @@ export default function ResidentsPage() {
           <input className="bb-input" style={{ paddingLeft: '38px' }} placeholder="Search by name, phone, room..." value={search} onChange={e => setSearch(e.target.value)} />
         </div>
         <div style={{ display: 'flex', gap: '6px', background: 'var(--surface-1)', border: '1px solid var(--border)', borderRadius: '10px', padding: '4px' }}>
-          {(['all', 'active', 'pending', 'notice', 'vacated', 'submitted'] as const).map(s => (
-            <button key={s} onClick={() => setStatusFilter(s)} style={{ padding: '6px 12px', borderRadius: '7px', border: 'none', fontSize: '12px', fontWeight: '600', cursor: 'pointer', textTransform: 'capitalize', transition: 'all 0.15s', background: statusFilter === s ? 'var(--teal-500)' : 'transparent', color: statusFilter === s ? 'var(--navy-900)' : s === 'submitted' && counts.submitted > 0 ? '#34d399' : 'var(--text-muted)' }}>
-              {s === 'submitted' ? `✓ Approvals` : s}{counts[s] > 0 ? ` (${counts[s]})` : ''}
+          {(['all', 'active', 'pending', 'notice', 'vacated', 'submitted', 'not_installed'] as const).map(s => (
+            <button key={s} onClick={() => setStatusFilter(s)} style={{ padding: '6px 12px', borderRadius: '7px', border: 'none', fontSize: '12px', fontWeight: '600', cursor: 'pointer', textTransform: 'capitalize', whiteSpace: 'nowrap', transition: 'all 0.15s', background: statusFilter === s ? 'var(--teal-500)' : 'transparent', color: statusFilter === s ? 'var(--navy-900)' : s === 'submitted' && counts.submitted > 0 ? '#34d399' : 'var(--text-muted)' }}>
+              {s === 'submitted' ? `✓ Approvals` : s === 'not_installed' ? 'App Not Installed' : s}{counts[s] > 0 ? ` (${counts[s]})` : ''}
             </button>
           ))}
         </div>
@@ -184,6 +192,11 @@ export default function ResidentsPage() {
                   <span style={{ fontSize: '11px', fontWeight: '600', padding: '3px 8px', borderRadius: '999px', background: r.onboarding_status === 'active' ? 'rgba(52,211,153,0.1)' : r.onboarding_status === 'submitted' ? 'rgba(52,211,153,0.15)' : 'rgba(100,116,139,0.1)', color: r.onboarding_status === 'active' ? '#34d399' : r.onboarding_status === 'submitted' ? '#34d399' : '#94a3b8' }}>
                     {r.onboarding_status === 'active' ? '✓ Active' : r.onboarding_status === 'submitted' ? '⏳ Approve' : r.onboarding_status === 'pending' ? 'Sent' : 'Not sent'}
                   </span>
+                  {hasPortalAccess(r) && (
+                    <span title={r.pwa_installed_at ? `App installed ${formatDate(r.pwa_installed_at)}` : 'Has not installed the app'} style={{ marginLeft: '6px', display: 'inline-flex', alignItems: 'center', gap: '3px', fontSize: '11px', fontWeight: '600', color: r.pwa_installed_at ? '#34d399' : 'var(--text-muted)' }}>
+                      <Smartphone size={11} />{r.pwa_installed_at ? 'Installed' : 'Not installed'}
+                    </span>
+                  )}
                   {r.status === 'notice' && daysLeftFor(r.id) && (
                     <span style={{ marginLeft: '8px', fontSize: '11px', color: daysLeftFor(r.id)!.days <= 7 ? '#f87171' : '#f97316', fontWeight: '600' }}>
                       ⏳ {daysLeftFor(r.id)!.days}d left
@@ -224,6 +237,11 @@ export default function ResidentsPage() {
                         {r.onboarding_status === 'active' ? '✓ Active' : r.onboarding_status === 'submitted' ? '⏳ Approve' : r.onboarding_status === 'pending' ? 'Sent' : 'Not sent'}
                       </span>
                       {r.onboarded_by_admin?.name && <div style={{ fontSize: '10px', color: 'var(--text-muted)', marginTop: '3px' }}>by {r.onboarded_by_admin.name.split(' ')[0]}</div>}
+                      {hasPortalAccess(r) && (
+                        <div title={r.pwa_installed_at ? `App installed ${formatDate(r.pwa_installed_at)}` : 'Has not installed the app'} style={{ marginTop: '3px', display: 'flex', alignItems: 'center', gap: '3px', fontSize: '11px', fontWeight: '600', color: r.pwa_installed_at ? '#34d399' : 'var(--text-muted)' }}>
+                          <Smartphone size={11} />{r.pwa_installed_at ? 'App installed' : 'App not installed'}
+                        </div>
+                      )}
                     </td>
                     <td>
                       <span className="status-badge" style={statusStyle(r.status)}>{r.status}</span>

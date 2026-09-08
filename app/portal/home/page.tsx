@@ -4,7 +4,8 @@ import { useEffect, useState } from 'react'
 import { useRouter } from 'next/navigation'
 import { createClient } from '@/lib/supabase/client'
 import Link from 'next/link'
-import { Wrench, Receipt, ClipboardList, Phone, Wifi, MapPin, Cross, Pill, ShoppingCart, UtensilsCrossed, TreePine, TrainFront, ChevronDown, Star, Upload, X, Loader2, Check, IndianRupee, Copy, Zap, Video, Users, PartyPopper, ChevronRight } from 'lucide-react'
+import { Wrench, Receipt, ClipboardList, Phone, Wifi, MapPin, Cross, Pill, ShoppingCart, UtensilsCrossed, TreePine, TrainFront, ChevronDown, Star, Upload, X, Loader2, Check, IndianRupee, Copy, Zap, Video, Users, PartyPopper, ChevronRight, Download } from 'lucide-react'
+import InstallGuideSheet from '@/components/ui/InstallGuideSheet'
 
 const CATEGORY_META: Record<string, { label: string; Icon: typeof MapPin }> = {
   hospital: { label: 'Hospitals', Icon: Cross },
@@ -38,6 +39,7 @@ export default function PortalHomePage() {
   const [loading, setLoading] = useState(true)
   const [hasElectricityReading, setHasElectricityReading] = useState(false)
   const [whatsappGroups, setWhatsappGroups] = useState<{ name: string; link: string }[]>([])
+  const [showInstallGuide, setShowInstallGuide] = useState(false)
   const [propertyPhone, setPropertyPhone] = useState('')
   const [reviewRating, setReviewRating] = useState(0)
   const [reviewComment, setReviewComment] = useState('')
@@ -605,7 +607,11 @@ export default function PortalHomePage() {
               <a.Icon size={18} color="#00d4c8" strokeWidth={1.75} />{a.label}
             </Link>
           ))}
+          <button onClick={() => setShowInstallGuide(true)} style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '14px', minHeight: 44, borderRadius: 12, background: 'rgba(255,255,255,0.04)', border: '1px solid rgba(255,255,255,0.07)', color: 'rgba(255,255,255,0.8)', fontSize: 13, fontWeight: 500, cursor: 'pointer', textAlign: 'left', fontFamily: 'inherit' }}>
+            <Download size={18} color="#00d4c8" strokeWidth={1.75} />Download the app
+          </button>
         </div>
+        <InstallGuideSheet open={showInstallGuide} onClose={() => setShowInstallGuide(false)} />
 
         {/* Secondary info - collapsed by default. These are reference
             material residents check occasionally, not things that deserve

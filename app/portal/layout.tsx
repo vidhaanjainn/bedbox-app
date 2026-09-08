@@ -5,6 +5,7 @@ import { useRouter, usePathname } from 'next/navigation'
 import { createClient } from '@/lib/supabase/client'
 import NotificationPrompt from '@/components/ui/NotificationPrompt'
 import InstallPrompt from '@/components/ui/InstallPrompt'
+import { initPwaInstallTracking } from '@/lib/pwaInstallTracking'
 import Link from 'next/link'
 import { Home, Wrench, ClipboardList, Receipt } from 'lucide-react'
 
@@ -25,6 +26,8 @@ export default function PortalLayout({ children }: { children: React.ReactNode }
   useEffect(() => {
     if ('serviceWorker' in navigator) { navigator.serviceWorker.register('/sw.js').catch(()=>{}) }
   }, [])
+
+  useEffect(() => initPwaInstallTracking(), [])
 
   useEffect(() => {
     if (pathname==='/portal') { setChecking(false); return }

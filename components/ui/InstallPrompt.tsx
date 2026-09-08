@@ -3,6 +3,7 @@
 import { useEffect, useState } from 'react'
 import { Download, X, Share } from 'lucide-react'
 import { onInstallPromptCaptured, clearCapturedInstallPrompt } from '@/lib/pwaInstall'
+import InstallGuideSheet from '@/components/ui/InstallGuideSheet'
 
 const DISMISS_KEY = 'bb_install_prompt_dismissed'
 
@@ -27,6 +28,7 @@ export default function InstallPrompt({ dark = true }: { dark?: boolean }) {
   const [visible, setVisible] = useState(false)
   const [installing, setInstalling] = useState(false)
   const [ios, setIos] = useState(false)
+  const [showGuide, setShowGuide] = useState(false)
 
   useEffect(() => {
     if (localStorage.getItem(DISMISS_KEY) === '1') return
@@ -68,25 +70,31 @@ export default function InstallPrompt({ dark = true }: { dark?: boolean }) {
     : { bg: 'var(--surface-1)', border: 'var(--border)', text: 'var(--text-primary)', muted: 'var(--text-muted)' }
 
   return (
-    <div style={{ display: 'flex', alignItems: 'center', gap: 12, padding: '14px 16px', borderRadius: 12, marginBottom: 16, background: colors.bg, border: `1px solid ${colors.border}` }}>
-      {ios ? <Share size={18} color="#00d4c8" style={{ flexShrink: 0 }} /> : <Download size={18} color="#00d4c8" style={{ flexShrink: 0 }} />}
-      <div style={{ flex: 1, minWidth: 0 }}>
-        <div style={{ fontSize: 13, fontWeight: 600, color: colors.text }}>Install this app</div>
-        <div style={{ fontSize: 12, color: colors.muted, marginTop: 2 }}>
-          {ios
-            ? 'Tap the Share icon below, then "Add to Home Screen".'
-            : 'Add it to your home screen for one-tap access.'}
+    <>
+      <div style={{ display: 'flex', alignItems: 'center', gap: 12, padding: '14px 16px', borderRadius: 12, marginBottom: 16, background: colors.bg, border: `1px solid ${colors.border}` }}>
+        {ios ? <Share size={18} color="#00d4c8" style={{ flexShrink: 0 }} /> : <Download size={18} color="#00d4c8" style={{ flexShrink: 0 }} />}
+        <div style={{ flex: 1, minWidth: 0 }}>
+          <div style={{ fontSize: 13, fontWeight: 600, color: colors.text }}>Install this app</div>
+          <div style={{ fontSize: 12, color: colors.muted, marginTop: 2 }}>
+            Add it to your home screen for one-tap access.
+          </div>
         </div>
-      </div>
-      {!ios && (
-        <button onClick={install} disabled={installing}
-          style={{ padding: '8px 14px', borderRadius: 8, fontSize: 12, fontWeight: 700, background: 'linear-gradient(135deg,#00d4c8,#0099ff)', color: '#070d1a', border: 'none', cursor: 'pointer', whiteSpace: 'nowrap', flexShrink: 0 }}>
-          {installing ? 'Installing...' : 'Install'}
+        {ios ? (
+          <button onClick={() => setShowGuide(true)}
+            style={{ padding: '8px 14px', borderRadius: 8, fontSize: 12, fontWeight: 700, background: 'linear-gradient(135deg,#00d4c8,#0099ff)', color: '#070d1a', border: 'none', cursor: 'pointer', whiteSpace: 'nowrap', flexShrink: 0 }}>
+            Show me how
+          </button>
+        ) : (
+          <button onClick={install} disabled={installing}
+            style={{ padding: '8px 14px', borderRadius: 8, fontSize: 12, fontWeight: 700, background: 'linear-gradient(135deg,#00d4c8,#0099ff)', color: '#070d1a', border: 'none', cursor: 'pointer', whiteSpace: 'nowrap', flexShrink: 0 }}>
+            {installing ? 'Installing...' : 'Install'}
+          </button>
+        )}
+        <button onClick={dismiss} aria-label="Dismiss" style={{ background: 'none', border: 'none', cursor: 'pointer', color: colors.muted, flexShrink: 0, padding: 4 }}>
+          <X size={16} />
         </button>
-      )}
-      <button onClick={dismiss} aria-label="Dismiss" style={{ background: 'none', border: 'none', cursor: 'pointer', color: colors.muted, flexShrink: 0, padding: 4 }}>
-        <X size={16} />
-      </button>
-    </div>
+      </div>
+      <InstallGuideSheet open={showGuide} onClose={() => setShowGuide(false)} onInstalled={() => setVisible(false)} />
+    </>
   )
 }
