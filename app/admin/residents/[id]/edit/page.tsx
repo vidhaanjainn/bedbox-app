@@ -104,6 +104,13 @@ export default function EditResidentPage() {
       if (newBedId && newBedId !== oldBedId) {
         await supabase.from('beds').update({ status: 'occupied' }).eq('id', newBedId)
       }
+      // Whatever rent is saved here for this resident's bed is now the
+      // source of truth for that bed's rate, overriding any previously
+      // fixed rate - so it shows correctly everywhere else the bed's rate
+      // is displayed (Rooms & Beds, future onboarding prefill, etc).
+      if (newBedId && form.rent_amount) {
+        await supabase.from('beds').update({ rate_monthly: parseFloat(form.rent_amount) }).eq('id', newBedId)
+      }
 
       const { error: updateError } = await supabase.from('residents').update({
         name: form.name,

@@ -71,12 +71,19 @@ export default function ResidentDetailPage() {
   const confirmRenewal = async () => {
     setRenewing(true)
     const oldRent = resident.rent_amount
+    const newRent = parseFloat(renewRent) || resident.rent_amount
     await supabase.from('residents').update({
-      rent_amount: parseFloat(renewRent) || resident.rent_amount,
+      rent_amount: newRent,
       lease_end_date: renewEndDate,
       lease_renewed_at: new Date().toISOString(),
       notes: `${resident.notes ? resident.notes + ' | ' : ''}Lease renewed ${new Date().toLocaleDateString('en-IN')}: rent ${oldRent} → ${renewRent}, new term ends ${renewEndDate}.`,
     }).eq('id', resident.id)
+    // The renewed rent becomes this bed's new source-of-truth rate too,
+    // same as at onboarding - so it's what the next resident sees offered
+    // and what Rooms & Beds displays, not the stale pre-renewal number.
+    if (resident.bed_id) {
+      await supabase.from('beds').update({ rate_monthly: newRent }).eq('id', resident.bed_id)
+    }
     setShowRenewModal(false)
     setRenewing(false)
     fetchAll()
@@ -500,6 +507,11 @@ export default function ResidentDetailPage() {
                     {loadingDoc === 'signature' ? <Loader2 size={12} style={{ animation: 'spin 1s linear infinite' }} /> : <Edit size={12} />} Signature
                   </button>
                 )}
+                {resident.affiliation_proof_path && (
+                  <button onClick={() => viewResidentDoc(resident.affiliation_proof_path, 'Affiliation Proof', 'affiliation_proof')} disabled={loadingDoc === 'affiliation_proof'} className="bb-btn-secondary" style={{ fontSize: '12px' }}>
+                    {loadingDoc === 'affiliation_proof' ? <Loader2 size={12} style={{ animation: 'spin 1s linear infinite' }} /> : <FileText size={12} />} Affiliation Proof
+                  </button>
+                )}
                 <Link href={`/admin/residents/${id}/edit`} className="bb-btn-secondary" style={{ fontSize: '12px' }}>Full Details</Link>
               </div>
 
@@ -691,6 +703,7 @@ export default function ResidentDetailPage() {
           <DocBadge label="Aadhaar Number" uploaded={!!resident.aadhaar_number} note={resident.aadhaar_number || undefined} />
           <DocBadge label="Aadhaar Front" uploaded={!!(resident.aadhaar_front_path || resident.aadhaar_front_url)} />
           <DocBadge label="Aadhaar Back" uploaded={!!(resident.aadhaar_back_path || resident.aadhaar_back_url)} />
+          <DocBadge label="Affiliation Proof" uploaded={!!resident.affiliation_proof_path} />
           <DocBadge label="T&C Agreed" uploaded={!!(resident.tc_agreed_at || resident.agreement_signed_at)} note={resident.agreement_signed_at ? formatDate(resident.agreement_signed_at) : resident.tc_agreed_at ? formatDate(resident.tc_agreed_at) : undefined} />
           {resident.agreement_ip && <DocBadge label={`Signed IP: ${resident.agreement_ip}`} uploaded={true} />}
         </div>

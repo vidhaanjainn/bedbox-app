@@ -25,6 +25,7 @@ export default function OnboardPage() {
     occupation: '',
     aadhaar_front: null as File | null,
     aadhaar_back: null as File | null,
+    affiliation_proof: null as File | null,
     agreement_agreed: false,
   })
   const [signatureDataUrl, setSignatureDataUrl] = useState<string | null>(null)
@@ -49,7 +50,7 @@ export default function OnboardPage() {
   }, [token])
 
   // Uploads go to a server-issued signed URL - the token authorizes, no open bucket policy needed
-  const uploadDoc = async (side: 'front' | 'back' | 'signature', file: File | Blob) => {
+  const uploadDoc = async (side: 'front' | 'back' | 'signature' | 'affiliation_proof', file: File | Blob) => {
     const res = await fetch(`/api/onboard/${token}`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
@@ -72,6 +73,7 @@ export default function OnboardPage() {
       let aadhaarFrontPath = ''
       let aadhaarBackPath = ''
       let signaturePath = ''
+      let affiliationProofPath = ''
 
       if (form.aadhaar_front) {
         setUploadProgress('Uploading Aadhaar front...')
@@ -80,6 +82,10 @@ export default function OnboardPage() {
       if (form.aadhaar_back) {
         setUploadProgress('Uploading Aadhaar back...')
         aadhaarBackPath = await uploadDoc('back', form.aadhaar_back)
+      }
+      if (form.affiliation_proof) {
+        setUploadProgress('Uploading affiliation proof...')
+        affiliationProofPath = await uploadDoc('affiliation_proof', form.affiliation_proof)
       }
 
       setUploadProgress('Saving your signature...')
@@ -99,6 +105,7 @@ export default function OnboardPage() {
           occupation: form.occupation,
           aadhaar_front_path: aadhaarFrontPath,
           aadhaar_back_path: aadhaarBackPath,
+          affiliation_proof_path: affiliationProofPath,
           signature_path: signaturePath,
           agreement_agreed: form.agreement_agreed,
           agreement_version: AGREEMENT_VERSION,
@@ -120,8 +127,8 @@ export default function OnboardPage() {
     }
   }
 
-  const canStep1 = () => form.emergency_contact_name.trim() && form.emergency_contact_phone.trim() && form.hometown.trim() && form.occupation.trim()
-  const canStep2 = () => !!form.aadhaar_front && !!form.aadhaar_back
+  const canStep1 = () => form.emergency_contact_name.trim() && form.emergency_contact_phone.trim() && form.hometown.trim() && form.occupation.trim() && form.institution.trim()
+  const canStep2 = () => !!form.aadhaar_front && !!form.aadhaar_back && !!form.affiliation_proof
 
   const stepIndex = { welcome: 0, details: 1, docs: 2, agreement: 3, done: 4 }
   const currentIndex = stepIndex[step as keyof typeof stepIndex] ?? -1
@@ -229,7 +236,7 @@ export default function OnboardPage() {
           <Field label="Their mobile number" value={form.emergency_contact_phone} onChange={v => setForm(f => ({ ...f, emergency_contact_phone: v }))} placeholder="+91 98765 43210" type="tel" />
           <SectionLabel>Background</SectionLabel>
           <Field label="Hometown" value={form.hometown} onChange={v => setForm(f => ({ ...f, hometown: v }))} placeholder="Indore, Delhi, Mumbai..." />
-          <Field label="Institution / Company" value={form.institution} onChange={v => setForm(f => ({ ...f, institution: v }))} placeholder="College or employer name" />
+          <Field label="Institution / Company" value={form.institution} onChange={v => setForm(f => ({ ...f, institution: v }))} placeholder="College or employer name" required />
           <div style={{ marginBottom: 14 }}>
             <label style={{ display: 'block', fontSize: 12, color: 'rgba(255,255,255,0.5)', marginBottom: 6 }}>Occupation</label>
             <select value={form.occupation} onChange={e => setForm(f => ({ ...f, occupation: e.target.value }))}
@@ -251,10 +258,11 @@ export default function OnboardPage() {
       {/* DOCS */}
       {step === 'docs' && (
         <div style={{ animation: 'fadeIn 0.3s ease' }}>
-          <h2 style={{ fontFamily: "'Syne',sans-serif", fontWeight: 700, fontSize: 24, margin: '0 0 6px' }}>Upload Aadhaar</h2>
+          <h2 style={{ fontFamily: "'Syne',sans-serif", fontWeight: 700, fontSize: 24, margin: '0 0 6px' }}>Upload documents</h2>
           <p style={{ color: 'rgba(255,255,255,0.4)', fontSize: 14, margin: '0 0 24px' }}>Required for identity verification. Stored securely.</p>
           <FileUpload label="Aadhaar front side" hint="Name & photo side" file={form.aadhaar_front} onFile={f => setForm(fm => ({ ...fm, aadhaar_front: f }))} />
           <FileUpload label="Aadhaar back side" hint="Address side" file={form.aadhaar_back} onFile={f => setForm(fm => ({ ...fm, aadhaar_back: f }))} />
+          <FileUpload label="Proof of affiliation" hint="e.g. joining letter, admission slip, employee ID" file={form.affiliation_proof} onFile={f => setForm(fm => ({ ...fm, affiliation_proof: f }))} />
           <div style={{ display: 'flex', gap: 8, alignItems: 'flex-start', background: 'rgba(255,200,0,0.06)', border: '1px solid rgba(255,200,0,0.15)', borderRadius: 10, padding: 14, marginBottom: 20, fontSize: 13, color: 'rgba(255,200,100,0.8)', lineHeight: 1.6 }}>
             <Lock size={15} style={{ flexShrink: 0, marginTop: 2 }} />
             <span>Stored in private encrypted storage. Only TheBedBox management can access it.</span>
@@ -337,10 +345,10 @@ function SectionLabel({ children }: { children: React.ReactNode }) {
   return <div style={{ fontSize: 11, fontWeight: 600, letterSpacing: '0.08em', textTransform: 'uppercase', color: '#00d4c8', marginBottom: 10, marginTop: 4 }}>{children}</div>
 }
 
-function Field({ label, value, onChange, placeholder, type = 'text' }: { label: string; value: string; onChange: (v: string) => void; placeholder?: string; type?: string }) {
+function Field({ label, value, onChange, placeholder, type = 'text', required = false }: { label: string; value: string; onChange: (v: string) => void; placeholder?: string; type?: string; required?: boolean }) {
   return (
     <div style={{ marginBottom: 14 }}>
-      <label style={{ display: 'block', fontSize: 12, color: 'rgba(255,255,255,0.5)', marginBottom: 6 }}>{label}</label>
+      <label style={{ display: 'block', fontSize: 12, color: 'rgba(255,255,255,0.5)', marginBottom: 6 }}>{label}{required && <span style={{ color: '#ff8080' }}> *</span>}</label>
       <input type={type} value={value} onChange={e => onChange(e.target.value)} placeholder={placeholder}
         style={{ width: '100%', padding: '12px 14px', borderRadius: 10, fontSize: 14, background: 'rgba(255,255,255,0.06)', border: '1px solid rgba(255,255,255,0.1)', color: '#fff', outline: 'none', boxSizing: 'border-box' }}
         onFocus={e => e.target.style.borderColor = '#00d4c8'} onBlur={e => e.target.style.borderColor = 'rgba(255,255,255,0.1)'} />

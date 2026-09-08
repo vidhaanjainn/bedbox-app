@@ -92,8 +92,8 @@ export async function POST(req: Request, ctx: { params: Promise<{ token: string 
     const body = await req.json()
 
     if (body.action === 'upload-url') {
-      const side = body.side === 'back' ? 'back' : body.side === 'signature' ? 'signature' : 'front'
-      const prefix = side === 'signature' ? 'signature' : `aadhaar-${side}`
+      const side = body.side === 'back' ? 'back' : body.side === 'signature' ? 'signature' : body.side === 'affiliation_proof' ? 'affiliation_proof' : 'front'
+      const prefix = side === 'signature' ? 'signature' : side === 'affiliation_proof' ? 'affiliation-proof' : `aadhaar-${side}`
       const path = `onboarding/${resident.id}/${prefix}-${Date.now()}`
       const { data, error } = await supabase.storage
         .from('resident-docs')
@@ -120,6 +120,14 @@ export async function POST(req: Request, ctx: { params: Promise<{ token: string 
       const emergencyPhone = str(body.emergency_contact_phone, 20)
       if (!emergencyName || !emergencyPhone) {
         return NextResponse.json({ error: 'Emergency contact details are required.' }, { status: 400 })
+      }
+      const institution = str(body.institution)
+      if (!institution) {
+        return NextResponse.json({ error: 'Institution / company is required.' }, { status: 400 })
+      }
+      const affiliationProofPath = docPath(body.affiliation_proof_path)
+      if (!affiliationProofPath) {
+        return NextResponse.json({ error: 'Please upload proof of affiliation (joining letter, admission slip, employee ID, etc.) before submitting.' }, { status: 400 })
       }
       // Deliberately not collecting the Aadhaar number itself here, only the
       // front/back photos - the UIDAI Aadhaar Act restricts private entities
@@ -148,10 +156,11 @@ export async function POST(req: Request, ctx: { params: Promise<{ token: string 
           emergency_contact_phone: emergencyPhone,
           emergency_contact_number: emergencyPhone,
           hometown: str(body.hometown),
-          institution: str(body.institution),
+          institution,
           occupation: str(body.occupation, 50),
           aadhaar_front_url: docPath(body.aadhaar_front_path),
           aadhaar_back_url: docPath(body.aadhaar_back_path),
+          affiliation_proof_path: affiliationProofPath,
           signature_path: signaturePath,
           agreement_signed_at: new Date().toISOString(),
           agreement_ip: ip,

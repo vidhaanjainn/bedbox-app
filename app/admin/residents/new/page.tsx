@@ -96,9 +96,17 @@ export default function NewResidentPage() {
 
       if (residentError) throw residentError
 
-      // Mark bed as reserved (not occupied - resident hasn't moved in yet)
+      // Mark bed as reserved (not occupied - resident hasn't moved in yet).
+      // The rent entered here is the new source of truth for this bed's
+      // rate, overriding whatever fixed rate was set when the bed was
+      // created - so the next resident onboarded into this same bed (and
+      // every other screen that shows this bed's rate) sees the current
+      // real number, not a stale one.
       if (form.bed_id) {
-        await supabase.from('beds').update({ status: 'reserved' }).eq('id', form.bed_id)
+        await supabase.from('beds').update({
+          status: 'reserved',
+          ...(form.rent_amount ? { rate_monthly: parseFloat(form.rent_amount) } : {}),
+        }).eq('id', form.bed_id)
       }
 
       // Auto-generate invite token and email it straight to the resident -
@@ -178,8 +186,13 @@ export default function NewResidentPage() {
         await supabase.from('residents').update({ aadhaar_back_path: backPath }).eq('id', resident.id)
       }
 
+      // Same source-of-truth override as the Quick Invite path: the rent
+      // entered here for this room now wins over any previously-set rate.
       if (form.bed_id) {
-        await supabase.from('beds').update({ status: 'occupied' }).eq('id', form.bed_id)
+        await supabase.from('beds').update({
+          status: 'occupied',
+          rate_monthly: parseFloat(form.rent_amount),
+        }).eq('id', form.bed_id)
       }
 
       const now = new Date()
