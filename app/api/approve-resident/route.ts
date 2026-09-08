@@ -30,7 +30,7 @@ export async function POST(req: Request) {
 
   const { data: resident, error: fetchError } = await admin
     .from('residents')
-    .select('id, name, email, mobile, bed_id')
+    .select('id, name, email, mobile, bed_id, rent_amount')
     .eq('id', residentId)
     .single()
   if (fetchError || !resident) return NextResponse.json({ error: 'Resident not found.' }, { status: 404 })
@@ -52,6 +52,35 @@ export async function POST(req: Request) {
   // as long as a resident sat approved without this one update firing.
   if (resident.bed_id) {
     await admin.from('beds').update({ status: 'occupied' }).eq('id', resident.bed_id)
+  }
+
+  // The daily cron creates each active resident's current-month invoice,
+  // but it only runs once a day (3am) - a resident approved any time after
+  // that has no rent_payments row until tomorrow's run, which meant an
+  // admin trying to log a payment for someone approved today had nothing
+  // to log it against at all: they simply didn't appear anywhere rent gets
+  // tracked. Created right here instead, the moment they're approved.
+  const now = new Date()
+  const { data: existingPayment } = await admin
+    .from('rent_payments')
+    .select('id')
+    .eq('resident_id', residentId)
+    .eq('month', now.getUTCMonth() + 1)
+    .eq('year', now.getUTCFullYear())
+    .maybeSingle()
+  if (!existingPayment) {
+    const rent = Number(resident.rent_amount) || 0
+    await admin.from('rent_payments').insert({
+      resident_id: residentId,
+      month: now.getUTCMonth() + 1,
+      year: now.getUTCFullYear(),
+      rent_amount: rent,
+      electricity_amount: 0,
+      late_fee: 0,
+      total_amount: rent,
+      amount_paid: 0,
+      status: 'pending',
+    })
   }
 
   if (resident.email) {

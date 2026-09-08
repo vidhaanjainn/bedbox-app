@@ -48,8 +48,10 @@ export default function ResidentDetailPage() {
   const [depositAmountInput, setDepositAmountInput] = useState('')
   const [editingDeposit, setEditingDeposit] = useState(false)
   const [savingDeposit, setSavingDeposit] = useState(false)
-  const [editingRefundStatus, setEditingRefundStatus] = useState(false)
-  const [refundStatusInput, setRefundStatusInput] = useState('')
+  const [showSettleModal, setShowSettleModal] = useState(false)
+  const [settleAmountInput, setSettleAmountInput] = useState('')
+  const [settleNotesInput, setSettleNotesInput] = useState('')
+  const [settling, setSettling] = useState(false)
   const supabase = createClient()
   const isMobile = useIsMobile()
 
@@ -241,15 +243,42 @@ export default function ResidentDetailPage() {
     setSavingDeposit(false)
   }
 
-  // The archive flow only ever sets this once, at the moment a resident is
-  // marked vacated - but the whole point of the move-out checklist is to
-  // let the admin come back and finalize it afterward, once the resident's
-  // actually cleared their end. Editable any time from here.
-  const saveRefundStatus = async () => {
-    if (!refundStatusInput) return
-    await supabase.from('residents').update({ deposit_refund_status: refundStatusInput }).eq('id', id)
-    setResident((r: any) => ({ ...r, deposit_refund_status: refundStatusInput }))
-    setEditingRefundStatus(false)
+  const openSettleModal = () => {
+    setSettleAmountInput(resident.security_deposit_refund_amount != null ? String(resident.security_deposit_refund_amount) : String(resident.security_deposit || ''))
+    setSettleNotesInput(resident.security_deposit_refund_notes || '')
+    setShowSettleModal(true)
+  }
+
+  // This is the actual close-out step the whole move-out flow builds up to:
+  // a real refunded amount, not just a status label. The status itself is
+  // derived from the amount rather than picked separately, so the two can
+  // never disagree with each other (e.g. "Returned in full" selected next
+  // to a refund amount that's actually less than the deposit). This amount
+  // is also what makes a vacated resident's settlement show up in the
+  // Outflows report for whatever month it's recorded in - refunding a
+  // deposit is real money leaving the business, same as a staff payout.
+  const settleDeposit = async () => {
+    const amount = parseFloat(settleAmountInput)
+    if (!Number.isFinite(amount) || amount < 0) return
+    setSettling(true)
+    const deposit = Number(resident.security_deposit || 0)
+    const status = amount >= deposit ? 'returned_full' : amount > 0 ? 'partial_deduction' : 'fully_deducted'
+    const nowIso = new Date().toISOString()
+    await supabase.from('residents').update({
+      security_deposit_refund_amount: amount,
+      security_deposit_refund_at: nowIso,
+      security_deposit_refund_notes: settleNotesInput || null,
+      deposit_refund_status: status,
+    }).eq('id', id)
+    setResident((r: any) => ({
+      ...r,
+      security_deposit_refund_amount: amount,
+      security_deposit_refund_at: nowIso,
+      security_deposit_refund_notes: settleNotesInput || null,
+      deposit_refund_status: status,
+    }))
+    setShowSettleModal(false)
+    setSettling(false)
   }
 
   const handleGenerateInvite = async () => {
@@ -410,26 +439,16 @@ export default function ResidentDetailPage() {
             )}
             <div>
               <span style={{ color: 'var(--text-muted)' }}>Deposit: </span>
-              {editingRefundStatus ? (
-                <span style={{ display: 'inline-flex', gap: 6, alignItems: 'center' }}>
-                  <select className="bb-input" value={refundStatusInput} onChange={e => setRefundStatusInput(e.target.value)} style={{ fontSize: 12, padding: '4px 8px', width: 'auto' }}>
-                    <option value="">Select status</option>
-                    <option value="returned_full">Returned in full</option>
-                    <option value="partial_deduction">Partial deduction</option>
-                    <option value="fully_deducted">Fully deducted</option>
-                    <option value="pending">Pending</option>
-                  </select>
-                  <button onClick={saveRefundStatus} className="bb-btn-primary" style={{ fontSize: 11, padding: '4px 8px' }}>Save</button>
-                  <button onClick={() => setEditingRefundStatus(false)} style={{ fontSize: 11, color: 'var(--text-muted)', background: 'none', border: 'none', cursor: 'pointer' }}>Cancel</button>
+              {resident.security_deposit_refund_at ? (
+                <span>
+                  <span style={{ color: 'var(--text-primary)', fontWeight: 600 }}>{formatCurrency(resident.security_deposit_refund_amount)} refunded</span>
+                  <span style={{ color: 'var(--text-muted)' }}> on {formatDate(resident.security_deposit_refund_at)}</span>
+                  {' '}<button onClick={openSettleModal} style={{ fontSize: 11, color: 'var(--teal-500)', background: 'none', border: 'none', cursor: 'pointer', padding: 0 }}>(edit)</button>
                 </span>
               ) : (
-                <span
-                  onClick={() => { setEditingRefundStatus(true); setRefundStatusInput(resident.deposit_refund_status || '') }}
-                  style={{ color: 'var(--text-primary)', textTransform: 'capitalize', cursor: 'pointer', borderBottom: '1px dashed var(--text-muted)' }}
-                  title="Click to update"
-                >
-                  {resident.deposit_refund_status ? resident.deposit_refund_status.replace(/_/g, ' ') : 'Not set - click to update'}
-                </span>
+                <button onClick={openSettleModal} style={{ fontSize: 12, fontWeight: 600, color: '#fbbf24', background: 'rgba(251,191,36,0.1)', border: 'none', borderRadius: 999, padding: '3px 10px', cursor: 'pointer' }}>
+                  Not settled - click to settle
+                </button>
               )}
             </div>
             {resident.would_readmit !== null && resident.would_readmit !== undefined && (
@@ -1001,6 +1020,32 @@ export default function ResidentDetailPage() {
           <button onClick={confirmRenewal} disabled={renewing || !renewRent || !renewEndDate} className="bb-btn-primary" style={{ width: '100%', justifyContent: 'center' }}>
             {renewing ? <Loader2 size={14} style={{ animation: 'spin 1s linear infinite' }} /> : <RefreshCw size={14} />}
             Confirm Renewal
+          </button>
+        </Modal>
+      )}
+
+      {/* Settle Deposit - the actual close-out step for a vacated resident.
+          A real refunded amount, not just a status label, so it can feed
+          the Outflows report for whatever month it's recorded in - the
+          refund itself is real money leaving the business, same as a
+          staff payout, and needed there for outflows to add up correctly. */}
+      {showSettleModal && (
+        <Modal title="Settle Security Deposit" onClose={() => setShowSettleModal(false)} maxWidth="420px">
+          <div style={{ padding: '12px 16px', borderRadius: '10px', background: 'var(--surface-2)', marginBottom: '20px', fontSize: '13px', color: 'var(--text-secondary)' }}>
+            Deposit agreed: <strong style={{ color: 'var(--text-primary)' }}>{formatCurrency(resident.security_deposit)}</strong>
+            {resident.security_deposit_received_amount > 0 && <> · Received at move-in: <strong style={{ color: 'var(--text-primary)' }}>{formatCurrency(resident.security_deposit_received_amount)}</strong></>}
+          </div>
+          <div style={{ marginBottom: '16px' }}>
+            <label style={{ display: 'block', fontSize: '12px', fontWeight: '600', letterSpacing: '0.06em', textTransform: 'uppercase', color: 'var(--text-muted)', marginBottom: '8px' }}>Amount Being Refunded (₹) *</label>
+            <input className="bb-input" type="number" value={settleAmountInput} onChange={e => setSettleAmountInput(e.target.value)} />
+            <div style={{ fontSize: 11, color: 'var(--text-muted)', marginTop: 6 }}>Enter what's actually being returned, after any deductions - 0 if fully forfeited.</div>
+          </div>
+          <div style={{ marginBottom: '20px' }}>
+            <label style={{ display: 'block', fontSize: '12px', fontWeight: '600', letterSpacing: '0.06em', textTransform: 'uppercase', color: 'var(--text-muted)', marginBottom: '8px' }}>Deduction Notes (optional)</label>
+            <textarea className="bb-input" placeholder="e.g. Rs. 500 deducted for wall damage" style={{ height: 64, resize: 'vertical' }} value={settleNotesInput} onChange={e => setSettleNotesInput(e.target.value)} />
+          </div>
+          <button onClick={settleDeposit} className="bb-btn-primary" style={{ width: '100%', justifyContent: 'center' }} disabled={settling || !settleAmountInput}>
+            {settling ? <Loader2 size={14} style={{ animation: 'spin 1s linear infinite' }} /> : <CheckCircle size={14} />} Confirm Settlement
           </button>
         </Modal>
       )}

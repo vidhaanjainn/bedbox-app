@@ -25,6 +25,7 @@ interface DashboardData {
   openMaintenanceList: any[]
   unpaidRent: any[]
   pendingApprovals: any[]
+  pendingSettlements: any[]
 }
 
 export default function DashboardPage() {
@@ -44,23 +45,46 @@ export default function DashboardPage() {
         { data: maintenance },
         { data: rentPayments },
         { data: pendingApprovals },
+        { data: pendingSettlements },
       ] = await Promise.all([
         supabase.from('beds').select('*, room:rooms(room_number)'),
         supabase.from('residents').select('*, bed:beds(bed_number, room:rooms(room_number))').eq('status', 'active').order('created_at', { ascending: false }).limit(5),
         supabase.from('notice_periods').select('*, resident:residents(name, room_number)').eq('status', 'active'),
         supabase.from('maintenance_requests').select('*, resident:residents(name)').in('status', ['open', 'in_progress']).order('created_at', { ascending: false }).limit(5),
-        supabase.from('rent_payments').select('*, resident:residents(name, room_number, is_test_account)'),
+        supabase.from('rent_payments').select('*, resident:residents(name, room_number, is_test_account, status)'),
         supabase.from('residents').select('id, name, room_number, agreement_signed_at').eq('onboarding_status', 'submitted').order('agreement_signed_at', { ascending: true }),
+        // Every vacated resident who hasn't had their deposit settled yet -
+        // this is the "close it out" step that used to have nowhere to
+        // surface at all once the initial archive click was done, so it was
+        // easy to just... forget about, indefinitely.
+        supabase.from('residents').select('id, name, room_number, vacated_at, move_out_ready_notified_at').eq('status', 'vacated').is('security_deposit_refund_at', null).order('vacated_at', { ascending: true }),
       ])
 
       const totalBeds = beds?.length || 0
       const occupiedBeds = beds?.filter(b => b.status === 'occupied').length || 0
 
-      // The review/test resident account should never skew real financial
-      // totals - excluded from every rent-derived number on this page.
-      const realRentPayments = (rentPayments || []).filter((r: any) => !r.resident?.is_test_account)
+      const now = new Date()
+      const currentMonth = now.getMonth() + 1
+      const currentYear = now.getFullYear()
 
-      const monthlyIncome = realRentPayments.filter(r => r.status === 'paid').reduce((sum: number, r: any) => sum + r.amount_paid, 0)
+      // The review/test resident account should never skew real financial
+      // totals - excluded from every rent-derived number on this page. A
+      // vacated resident's stale unpaid row is excluded too: their balance
+      // is a final-dues figure the move-out settlement flow owns, not
+      // something that should keep counting as "outstanding rent to chase"
+      // or showing up in the Rent Due list indefinitely after they've left.
+      const realRentPayments = (rentPayments || []).filter((r: any) => !r.resident?.is_test_account && r.resident?.status !== 'vacated')
+
+      // "Monthly Income Collected" means this month, not every payment ever
+      // made - the previous version summed every 'paid' row across all of
+      // history, which happened to still include this month's collections
+      // (so it never looked obviously wrong) but wasn't actually what the
+      // label said. Counts partial payments too - money received this
+      // month is money received this month, whether or not the invoice is
+      // fully settled yet.
+      const monthlyIncome = realRentPayments
+        .filter((r: any) => r.month === currentMonth && r.year === currentYear)
+        .reduce((sum: number, r: any) => sum + Number(r.amount_paid || 0), 0)
 
       // Only rows with an actual outstanding balance count as "pending" -
       // the raw rentPayments array includes fully-paid rows too, which
@@ -85,6 +109,7 @@ export default function DashboardPage() {
         openMaintenanceList: maintenance || [],
         unpaidRent,
         pendingApprovals: pendingApprovals || [],
+        pendingSettlements: pendingSettlements || [],
       })
     } catch (err) {
       console.error(err)
@@ -152,6 +177,33 @@ export default function DashboardPage() {
           </div>
           <Link href={`/admin/residents/${data!.pendingApprovals[0].id}`} className="bb-btn-primary" style={{ fontSize: '13px' }}>
             Review Now <ChevronRight size={14} />
+          </Link>
+        </div>
+      )}
+
+      {/* Pending settlements - a vacated resident with no deposit refund
+          recorded yet. This used to have nowhere to surface once the
+          initial "mark vacated" click was done - now it stays visible here
+          until someone actually closes it out. */}
+      {data!.pendingSettlements.length > 0 && (
+        <div style={{
+          display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: '12px',
+          padding: '16px 20px', borderRadius: '14px', marginBottom: '24px',
+          background: 'rgba(251,191,36,0.06)', border: '1px solid rgba(251,191,36,0.25)',
+        }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
+            <AlertCircle size={20} color="#fbbf24" />
+            <div>
+              <div style={{ fontSize: '14px', fontWeight: '700', color: '#fbbf24' }}>
+                {data!.pendingSettlements.length} vacated resident{data!.pendingSettlements.length > 1 ? 's' : ''} awaiting deposit settlement
+              </div>
+              <div style={{ fontSize: '12px', color: 'var(--text-muted)', marginTop: '2px' }}>
+                {data!.pendingSettlements.slice(0, 3).map((r: any) => `${r.name}${r.move_out_ready_notified_at ? ' (ready)' : ''}`).join(', ')}{data!.pendingSettlements.length > 3 ? ` +${data!.pendingSettlements.length - 3} more` : ''}
+              </div>
+            </div>
+          </div>
+          <Link href={`/admin/residents/${data!.pendingSettlements[0].id}`} className="bb-btn-secondary" style={{ fontSize: '13px' }}>
+            Settle Now <ChevronRight size={14} />
           </Link>
         </div>
       )}

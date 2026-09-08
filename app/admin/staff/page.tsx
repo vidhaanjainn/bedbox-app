@@ -3,16 +3,17 @@
 import { useEffect, useState } from 'react'
 import { createClient } from '@/lib/supabase/client'
 import { formatCurrency } from '@/lib/utils'
-import { Users, Wallet, Plus, X, Loader2, CheckCircle, Receipt, Pencil } from 'lucide-react'
+import { Users, Wallet, Plus, X, Loader2, CheckCircle, Receipt, Pencil, ArrowDownLeft } from 'lucide-react'
 import { useIsMobile } from '@/lib/useIsMobile'
 
 export default function StaffPage() {
   const supabase = createClient()
   const isMobile = useIsMobile()
-  const [tab, setTab] = useState<'staff' | 'expenses'>('staff')
+  const [tab, setTab] = useState<'staff' | 'expenses' | 'refunds'>('staff')
   const [staff, setStaff] = useState<any[]>([])
   const [payouts, setPayouts] = useState<any[]>([])
   const [expenses, setExpenses] = useState<any[]>([])
+  const [depositRefunds, setDepositRefunds] = useState<any[]>([])
   const [loading, setLoading] = useState(true)
   const [monthFilter, setMonthFilter] = useState(new Date().getMonth() + 1)
   const [yearFilter, setYearFilter] = useState(new Date().getFullYear())
@@ -34,14 +35,26 @@ export default function StaffPage() {
 
   const fetchAll = async () => {
     setLoading(true)
-    const [{ data: staffData }, { data: payoutData }, { data: expenseData }] = await Promise.all([
+    // Deposit refunds are dated by security_deposit_refund_at (a real
+    // timestamp, not month/year columns like everything else here), so
+    // this month's window is computed as a plain date range instead.
+    const monthStart = `${yearFilter}-${String(monthFilter).padStart(2, '0')}-01`
+    const nextMonth = monthFilter === 12 ? 1 : monthFilter + 1
+    const nextYear = monthFilter === 12 ? yearFilter + 1 : yearFilter
+    const monthEnd = `${nextYear}-${String(nextMonth).padStart(2, '0')}-01`
+
+    const [{ data: staffData }, { data: payoutData }, { data: expenseData }, { data: refundData }] = await Promise.all([
       supabase.from('staff').select('*').order('is_active', { ascending: false }).order('name'),
       supabase.from('staff_payouts').select('*, staff(name)').eq('month', monthFilter).eq('year', yearFilter),
       supabase.from('expenses').select('*').eq('month', monthFilter).eq('year', yearFilter).order('expense_date', { ascending: false }),
+      supabase.from('residents').select('id, name, room_number, security_deposit, security_deposit_refund_amount, security_deposit_refund_at, security_deposit_refund_notes')
+        .gte('security_deposit_refund_at', monthStart).lt('security_deposit_refund_at', monthEnd)
+        .order('security_deposit_refund_at', { ascending: false }),
     ])
     setStaff(staffData || [])
     setPayouts(payoutData || [])
     setExpenses(expenseData || [])
+    setDepositRefunds(refundData || [])
     setLoading(false)
   }
 
@@ -113,6 +126,13 @@ export default function StaffPage() {
   const totalSalaryDue = activeStaff.reduce((sum, s) => sum + Number(s.monthly_salary || 0), 0)
   const totalPaidOut = payouts.filter(p => p.status === 'paid').reduce((sum, p) => sum + Number(p.amount), 0)
   const totalExpenses = expenses.reduce((sum, e) => sum + Number(e.amount), 0)
+  const totalDepositRefunds = depositRefunds.reduce((sum, r) => sum + Number(r.security_deposit_refund_amount || 0), 0)
+  // Every category of real money leaving the business this month, in one
+  // figure - staff payouts, other expenses, and deposit refunds (a refund
+  // is real cash out, same as any other outflow, even though it's not an
+  // "expense" in the accounting sense - it's returning money that was
+  // never revenue to begin with).
+  const totalOutflows = totalPaidOut + totalExpenses + totalDepositRefunds
   const pendingStaffCount = activeStaff.filter(s => !payoutFor(s.id) || payoutFor(s.id)?.status !== 'paid').length
   const isPaid = (s: any) => payoutFor(s.id)?.status === 'paid'
   const filteredStaff = staff.filter(s => payoutFilter === 'all' || (payoutFilter === 'paid' ? isPaid(s) : !isPaid(s)))
@@ -122,10 +142,10 @@ export default function StaffPage() {
       <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', marginBottom: '24px', flexWrap: 'wrap', gap: '16px' }}>
         <div>
           <h1 style={{ fontFamily: 'Syne, sans-serif', fontSize: '26px', fontWeight: '700', color: 'var(--text-primary)', margin: '0 0 6px' }}>Staff & Expenses</h1>
-          <p style={{ color: 'var(--text-muted)', fontSize: '14px', margin: 0 }}>Payouts, salaries, and monthly operating costs</p>
+          <p style={{ color: 'var(--text-muted)', fontSize: '14px', margin: 0 }}>Every outflow this month - payouts, expenses, and deposit refunds</p>
         </div>
         <div style={{ display: 'flex', gap: '4px', background: 'var(--surface-1)', border: '1px solid var(--border)', borderRadius: '10px', padding: '4px' }}>
-          {(['staff', 'expenses'] as const).map(t => (
+          {(['staff', 'expenses', 'refunds'] as const).map(t => (
             <button key={t} onClick={() => setTab(t)} style={{ padding: '7px 16px', borderRadius: '6px', border: 'none', fontSize: '13px', fontWeight: '600', cursor: 'pointer', textTransform: 'capitalize', background: tab === t ? 'var(--teal-500)' : 'transparent', color: tab === t ? 'var(--navy-900)' : 'var(--text-muted)' }}>{t}</button>
           ))}
         </div>
@@ -146,10 +166,12 @@ export default function StaffPage() {
       {/* Stats */}
       <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(150px, 1fr))', gap: '12px', marginBottom: '24px' }}>
         {[
+          { label: 'Total Outflows This Month', value: formatCurrency(totalOutflows), color: '#f87171' },
           { label: 'Monthly Salary Total', value: formatCurrency(totalSalaryDue), color: '#00d4c8' },
           { label: 'Paid Out', value: formatCurrency(totalPaidOut), color: '#34d399' },
           { label: 'Payouts Pending', value: `${pendingStaffCount} staff`, color: pendingStaffCount > 0 ? '#f87171' : '#34d399' },
           { label: 'Expenses This Month', value: formatCurrency(totalExpenses), color: '#fbbf24' },
+          { label: 'Deposit Refunds This Month', value: formatCurrency(totalDepositRefunds), color: '#a78bfa' },
         ].map(s => (
           <div key={s.label} className="stat-card" style={{ padding: '16px' }}>
             <div style={{ fontSize: '18px', fontWeight: '700', color: s.color, fontFamily: 'Syne, sans-serif' }}>{s.value}</div>
@@ -253,7 +275,7 @@ export default function StaffPage() {
           </div>
           )}
         </>
-      ) : (
+      ) : tab === 'expenses' ? (
         <>
           <div style={{ display: 'flex', justifyContent: 'flex-end', marginBottom: '16px' }}>
             <button onClick={() => setShowExpenseModal(true)} className="bb-btn-secondary"><Plus size={14} /> Log Expense</button>
@@ -298,6 +320,56 @@ export default function StaffPage() {
                 {expenses.length === 0 && <div style={{ padding: '60px', textAlign: 'center', color: 'var(--text-muted)', fontSize: '14px' }}>No expenses logged for this month.</div>}
               </div>
           </div>
+          )}
+        </>
+      ) : (
+        // Read-only here on purpose - settling a deposit happens on the
+        // resident's own page (where the checklist and full context live),
+        // this is just where it shows up once it's done, alongside every
+        // other outflow for the month.
+        <>
+          {loading ? (
+            <div className="glass-card" style={{ padding: '60px', textAlign: 'center', color: 'var(--text-muted)' }}>Loading...</div>
+          ) : depositRefunds.length === 0 ? (
+            <div className="glass-card" style={{ padding: '60px', textAlign: 'center', color: 'var(--text-muted)', fontSize: '14px' }}>No deposit refunds recorded this month.</div>
+          ) : isMobile ? (
+            <div>
+              {depositRefunds.map(r => (
+                <div key={r.id} className="bb-row-card">
+                  <div className="bb-row-card-top">
+                    <div>
+                      <div className="bb-row-card-title">{r.name}{r.room_number ? ` · Room ${r.room_number}` : ''}</div>
+                      <div className="bb-row-card-sub">Deposit was {formatCurrency(r.security_deposit)}</div>
+                    </div>
+                  </div>
+                  <div className="bb-row-card-amount">
+                    <span className="bb-row-card-amount-value">{formatCurrency(r.security_deposit_refund_amount)}</span>
+                    <span className="bb-row-card-amount-label">{new Date(r.security_deposit_refund_at).toLocaleDateString('en-IN', { day: 'numeric', month: 'short' })}</span>
+                  </div>
+                  {r.security_deposit_refund_notes && <div style={{ fontSize: 12, color: 'var(--text-muted)', marginTop: 8, fontStyle: 'italic' }}>{r.security_deposit_refund_notes}</div>}
+                </div>
+              ))}
+            </div>
+          ) : (
+            <div className="glass-card" style={{ overflow: 'hidden' }}>
+              <div style={{ overflowX: 'auto' }}>
+                <table className="bb-table">
+                  <thead><tr><th>Resident</th><th>Room</th><th>Deposit Agreed</th><th>Refunded</th><th>Date</th><th>Notes</th></tr></thead>
+                  <tbody>
+                    {depositRefunds.map(r => (
+                      <tr key={r.id}>
+                        <td style={{ fontWeight: '600', color: 'var(--text-primary)' }}>{r.name}</td>
+                        <td>{r.room_number || '-'}</td>
+                        <td>{formatCurrency(r.security_deposit)}</td>
+                        <td style={{ fontWeight: '700', color: '#a78bfa' }}>{formatCurrency(r.security_deposit_refund_amount)}</td>
+                        <td>{new Date(r.security_deposit_refund_at).toLocaleDateString('en-IN', { day: 'numeric', month: 'short' })}</td>
+                        <td style={{ fontSize: '12px', color: 'var(--text-muted)' }}>{r.security_deposit_refund_notes || '-'}</td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            </div>
           )}
         </>
       )}

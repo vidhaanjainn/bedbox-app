@@ -105,8 +105,12 @@ async function accrueLateFees(supabase: ReturnType<typeof adminClient>, dryRun: 
     // A resident who has already vacated shouldn't keep accumulating a
     // per-day penalty for a month they're no longer living through - their
     // unpaid balance is a fixed final-dues figure to settle at move-out,
-    // not a growing late fee. Only ever accrues for a currently active resident.
-    if (row.residents?.status !== 'active') continue
+    // not a growing late fee. Only "vacated" is excluded here - "notice"
+    // is still a resident actually living there under the agreement, still
+    // fully liable for a late payment same as "active" (an earlier version
+    // of this check wrongly used !== 'active', which would have silently
+    // exempted anyone on notice from ever being charged a late fee at all).
+    if (row.residents?.status === 'vacated') continue
     const days = lateFeeDaysForRow(row.month, row.year, now)
     const newLateFee = days * LATE_FEE_PER_DAY
     if (newLateFee === Number(row.late_fee || 0)) continue // no change, no write
@@ -122,7 +126,7 @@ async function accrueLateFees(supabase: ReturnType<typeof adminClient>, dryRun: 
 async function sendReminders(supabase: ReturnType<typeof adminClient>, dryRun: boolean) {
   const { data: rows, error } = await supabase
     .from('rent_payments')
-    .select('id, resident_id, total_amount, amount_paid, status, reminder_count, last_reminded_at, created_at, late_fee, late_fee_forgiven_at, residents(name, email, date_of_joining, room_number)')
+    .select('id, resident_id, total_amount, amount_paid, status, reminder_count, last_reminded_at, created_at, late_fee, late_fee_forgiven_at, residents(name, email, date_of_joining, room_number, status)')
     .in('status', ['pending', 'partial'])
   if (error || !rows) return { sent: 0, error }
 
@@ -132,6 +136,11 @@ async function sendReminders(supabase: ReturnType<typeof adminClient>, dryRun: b
   for (const row of rows as any[]) {
     const resident = row.residents
     if (!resident?.email) continue
+    // A resident who has already vacated has moved past "chase them for
+    // rent" - their balance is a final-dues figure the move-out checklist
+    // and settlement flow handles, not something to keep emailing "your
+    // rent is overdue" about after they've left.
+    if (resident.status === 'vacated') continue
     if ((row.reminder_count || 0) >= 4) continue
 
     const dueDay = dueDayFor(resident.date_of_joining)
@@ -223,14 +232,17 @@ async function sendAdminMonthlyDigest(supabase: ReturnType<typeof adminClient>, 
 
   const [{ data: admins }, { data: rentRows }, { data: staffRows }, { data: payouts }] = await Promise.all([
     supabase.from('admins').select('email, name').eq('is_active', true).not('email', 'is', null),
-    supabase.from('rent_payments').select('status, total_amount, amount_paid, residents(is_test_account)').eq('month', month).eq('year', year),
+    supabase.from('rent_payments').select('status, total_amount, amount_paid, residents(is_test_account, status)').eq('month', month).eq('year', year),
     supabase.from('staff').select('id, name, monthly_salary').eq('is_active', true),
     supabase.from('staff_payouts').select('staff_id, status').eq('month', month).eq('year', year),
   ])
   if (!admins?.length) return { sent: 0, error: 'no active admin emails on file' }
 
-  // The review/test resident account never counts toward real collection totals.
-  const realRentRows = (rentRows || []).filter((r: any) => !r.residents?.is_test_account)
+  // The review/test resident account never counts toward real collection
+  // totals, and neither does a vacated resident's stale row - this digest
+  // is "chase current tenants for rent," not a place a departed resident's
+  // final-dues balance should keep inflating "outstanding" forever.
+  const realRentRows = (rentRows || []).filter((r: any) => !r.residents?.is_test_account && r.residents?.status !== 'vacated')
   const paidCount = realRentRows.filter(r => r.status === 'paid').length
   const totalCount = realRentRows.length
   const outstanding = realRentRows.reduce((s, r) => s + Math.max(0, Number(r.total_amount) - Number(r.amount_paid || 0)), 0)
@@ -379,7 +391,7 @@ async function sendElectricityPaymentReminders(supabase: ReturnType<typeof admin
 
   const { data: rows, error } = await supabase
     .from('rent_payments')
-    .select('id, resident_id, rent_amount, late_fee, electricity_amount, total_amount, amount_paid, electricity_payment_reminded_at, residents(name, email, room_number, is_test_account)')
+    .select('id, resident_id, rent_amount, late_fee, electricity_amount, total_amount, amount_paid, electricity_payment_reminded_at, residents(name, email, room_number, is_test_account, status)')
     .eq('month', month).eq('year', year)
     .eq('status', 'partial')
     .not('electricity_logged_at', 'is', null)
@@ -391,6 +403,7 @@ async function sendElectricityPaymentReminders(supabase: ReturnType<typeof admin
   for (const row of rows as any[]) {
     const resident = row.residents
     if (!resident || resident.is_test_account) continue
+    if (resident.status === 'vacated') continue
 
     const rentAndLateFee = Number(row.rent_amount) + Number(row.late_fee || 0)
     const outstanding = Number(row.total_amount) - Number(row.amount_paid || 0)
