@@ -24,7 +24,7 @@ export default function RentPage() {
   const [yearFilter, setYearFilter] = useState(new Date().getFullYear())
   const [showLogModal, setShowLogModal] = useState(false)
   const [selectedPayment, setSelectedPayment] = useState<any>(null)
-  const [logForm, setLogForm] = useState({ amount: '', payment_mode: 'upi', notes: '', collected_by: '', electricity: '' })
+  const [logForm, setLogForm] = useState({ amount: '', payment_mode: 'upi', notes: '', collected_by: '', electricity: '', deposit: '' })
   const [logLoading, setLogLoading] = useState(false)
   const [screenshot, setScreenshot] = useState<File | null>(null)
   const [syncing, setSyncing] = useState(false)
@@ -50,7 +50,7 @@ export default function RentPage() {
     setLoading(true)
     const { data } = await supabase
       .from('rent_payments')
-      .select('*, resident:residents(name, room_number, mobile, is_test_account, status), collected_admin:admins!rent_payments_collected_by_fkey(name)')
+      .select('*, resident:residents(id, name, room_number, mobile, is_test_account, status, security_deposit, security_deposit_received_at), collected_admin:admins!rent_payments_collected_by_fkey(name)')
       .eq('month', monthFilter)
       .eq('year', yearFilter)
       .order('status')
@@ -114,8 +114,24 @@ export default function RentPage() {
     const electricityAmount = electricityProvided ? parseFloat(logForm.electricity) || 0 : selectedPayment.electricity_amount
     const totalAmount = Number(selectedPayment.rent_amount) + electricityAmount + Number(selectedPayment.late_fee || 0)
 
-    const newPaid = selectedPayment.amount_paid + parseFloat(logForm.amount)
+    // A move-in payment is very often rent + security deposit handed over
+    // together in one transfer - without this, the whole amount was
+    // treated as rent, which both wildly overstated "amount_paid" against
+    // the invoice and never actually recorded the deposit anywhere. The
+    // deposit portion is split off here before anything touches the rent
+    // ledger, and recorded as its own received-deposit event instead.
+    const depositAmount = parseFloat(logForm.deposit) || 0
+    const rentLedgerAmount = Math.max(parseFloat(logForm.amount) - depositAmount, 0)
+
+    const newPaid = selectedPayment.amount_paid + rentLedgerAmount
     const isFullyPaid = newPaid >= totalAmount
+
+    if (depositAmount > 0) {
+      await supabase.from('residents').update({
+        security_deposit_received_amount: depositAmount,
+        security_deposit_received_at: new Date().toISOString(),
+      }).eq('id', selectedPayment.resident_id)
+    }
 
     // Re-categorize the running total fresh each time (rent, then
     // electricity, then late fee) rather than just adding this payment's
@@ -144,7 +160,7 @@ export default function RentPage() {
 
     setShowLogModal(false)
     setSelectedPayment(null)
-    setLogForm({ amount: '', payment_mode: 'upi', notes: '', collected_by: currentAdmin?.id || '', electricity: '' })
+    setLogForm({ amount: '', payment_mode: 'upi', notes: '', collected_by: currentAdmin?.id || '', electricity: '', deposit: '' })
     setScreenshot(null)
     setLogLoading(false)
     fetchPayments()
@@ -282,7 +298,7 @@ export default function RentPage() {
       )}
       {p.status !== 'paid' && (
         <button
-          onClick={() => { setSelectedPayment(p); setShowLogModal(true); setLogForm({ amount: String(p.resident_reported_amount || (p.total_amount - p.amount_paid)), payment_mode: p.payment_mode || 'upi', notes: '', collected_by: currentAdmin?.id || '', electricity: p.electricity_logged_at ? String(p.electricity_amount) : '' }) }}
+          onClick={() => { setSelectedPayment(p); setShowLogModal(true); setLogForm({ amount: String(p.resident_reported_amount || (p.total_amount - p.amount_paid)), payment_mode: p.payment_mode || 'upi', notes: '', collected_by: currentAdmin?.id || '', electricity: p.electricity_logged_at ? String(p.electricity_amount) : '', deposit: '' }) }}
           style={{
             padding: '4px 10px', borderRadius: '6px', border: '1px solid rgba(0,212,200,0.3)',
             background: 'rgba(0,212,200,0.08)', color: 'var(--teal-500)',
@@ -554,12 +570,32 @@ export default function RentPage() {
               )}
             </div>
 
+            {/* Only surfaced when there's an actual reason to ask - a real
+                agreed deposit that hasn't been marked received yet. A move-in
+                payment is very often rent + deposit handed over together in
+                one transfer; without this, the whole amount got treated as
+                rent, wildly overstating what was owed and never recording
+                the deposit anywhere at all. */}
+            {Number(selectedPayment?.resident?.security_deposit || 0) > 0 && !selectedPayment?.resident?.security_deposit_received_at && (
+              <div style={{ marginBottom: '16px', padding: '12px 14px', borderRadius: '10px', background: 'rgba(167,139,250,0.06)', border: '1px solid rgba(167,139,250,0.2)' }}>
+                <label style={{ display: 'block', fontSize: '12px', fontWeight: '600', letterSpacing: '0.06em', textTransform: 'uppercase', color: '#a78bfa', marginBottom: '8px' }}>
+                  Security deposit received with this? (₹)
+                </label>
+                <input className="bb-input" type="number" placeholder={`Agreed: ${formatCurrency(selectedPayment.resident.security_deposit)} - leave blank if not this time`}
+                  value={logForm.deposit} onChange={e => setLogForm(f => ({ ...f, deposit: e.target.value }))} />
+                <div style={{ fontSize: 11, color: 'var(--text-muted)', marginTop: 6 }}>
+                  Not yet marked received for this resident - if this payment includes it, enter it here so it's kept separate from rent.
+                </div>
+              </div>
+            )}
+
             {logForm.amount && parseFloat(logForm.amount) > 0 && (() => {
               // Live confirmation of exactly how this payment will be
               // categorized before it's saved - the "ask me for confirmation"
               // this is standing in for, computed rather than hand-entered so
               // it's zero extra taps for the common case.
-              const amountNow = parseFloat(logForm.amount) || 0
+              const depositNow = parseFloat(logForm.deposit) || 0
+              const amountNow = Math.max((parseFloat(logForm.amount) || 0) - depositNow, 0)
               const priorPaid = Number(selectedPayment.amount_paid || 0)
               const newPaidPreview = priorPaid + amountNow
               const rentAmt = Number(selectedPayment.rent_amount)
@@ -575,6 +611,7 @@ export default function RentPage() {
                 { label: 'Rent', amount: newRent - priorRent },
                 { label: 'Electricity', amount: newElec - priorElec },
                 { label: 'Late Fee', amount: newLateFee - priorLateFee },
+                { label: 'Security Deposit (separate from rent)', amount: depositNow },
               ].filter(r => r.amount > 0)
               const totalDue = rentAmt + elecAmt + lateFeeAmt
               const overpaid = newPaidPreview - totalDue

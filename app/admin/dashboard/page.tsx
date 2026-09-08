@@ -26,6 +26,7 @@ interface DashboardData {
   unpaidRent: any[]
   pendingApprovals: any[]
   pendingSettlements: any[]
+  missingDeposits: any[]
 }
 
 export default function DashboardPage() {
@@ -46,6 +47,7 @@ export default function DashboardPage() {
         { data: rentPayments },
         { data: pendingApprovals },
         { data: pendingSettlements },
+        { data: missingDeposits },
       ] = await Promise.all([
         supabase.from('beds').select('*, room:rooms(room_number)'),
         supabase.from('residents').select('*, bed:beds(bed_number, room:rooms(room_number))').eq('status', 'active').order('created_at', { ascending: false }).limit(5),
@@ -58,6 +60,12 @@ export default function DashboardPage() {
         // surface at all once the initial archive click was done, so it was
         // easy to just... forget about, indefinitely.
         supabase.from('residents').select('id, name, room_number, vacated_at, move_out_ready_notified_at').eq('status', 'vacated').is('security_deposit_refund_at', null).order('vacated_at', { ascending: true }),
+        // The other end of the same problem, at move-in instead of move-out -
+        // an active resident with an actual agreed deposit that's never
+        // been marked as received. This is exactly what let Dhanendra's
+        // deposit go unrecorded: nothing ever asked, and nothing ever
+        // surfaced that it hadn't been answered.
+        supabase.from('residents').select('id, name, room_number, security_deposit').eq('status', 'active').gt('security_deposit', 0).is('security_deposit_received_at', null),
       ])
 
       const totalBeds = beds?.length || 0
@@ -110,6 +118,7 @@ export default function DashboardPage() {
         unpaidRent,
         pendingApprovals: pendingApprovals || [],
         pendingSettlements: pendingSettlements || [],
+        missingDeposits: missingDeposits || [],
       })
     } catch (err) {
       console.error(err)
@@ -204,6 +213,34 @@ export default function DashboardPage() {
           </div>
           <Link href={`/admin/residents/${data!.pendingSettlements[0].id}`} className="bb-btn-secondary" style={{ fontSize: '13px' }}>
             Settle Now <ChevronRight size={14} />
+          </Link>
+        </div>
+      )}
+
+      {/* The move-in mirror of the settlement banner above - an active
+          resident with a real agreed deposit that's never been marked
+          received. Nothing used to ask about this at all, so it was
+          entirely possible to onboard someone, collect their deposit in
+          person, and have the system never know. */}
+      {data!.missingDeposits.length > 0 && (
+        <div style={{
+          display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: '12px',
+          padding: '16px 20px', borderRadius: '14px', marginBottom: '24px',
+          background: 'rgba(167,139,250,0.06)', border: '1px solid rgba(167,139,250,0.25)',
+        }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
+            <AlertCircle size={20} color="#a78bfa" />
+            <div>
+              <div style={{ fontSize: '14px', fontWeight: '700', color: '#a78bfa' }}>
+                {data!.missingDeposits.length} resident{data!.missingDeposits.length > 1 ? 's' : ''} with no security deposit recorded
+              </div>
+              <div style={{ fontSize: '12px', color: 'var(--text-muted)', marginTop: '2px' }}>
+                {data!.missingDeposits.slice(0, 3).map((r: any) => r.name).join(', ')}{data!.missingDeposits.length > 3 ? ` +${data!.missingDeposits.length - 3} more` : ''}
+              </div>
+            </div>
+          </div>
+          <Link href={`/admin/residents/${data!.missingDeposits[0].id}`} className="bb-btn-secondary" style={{ fontSize: '13px' }}>
+            Review <ChevronRight size={14} />
           </Link>
         </div>
       )}
