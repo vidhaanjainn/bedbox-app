@@ -3,10 +3,26 @@
 import { useEffect, useState } from 'react'
 import { createClient } from '@/lib/supabase/client'
 import { formatCurrency, formatDate, getNoticeDaysRemaining, getNoticeTargetDate } from '@/lib/utils'
-import { Users, Plus, Search, Eye, Mail, Phone, CheckCircle, Download, Smartphone } from 'lucide-react'
+import { Users, Plus, Search, Eye, Mail, Phone, CheckCircle, Download, Smartphone, FileWarning } from 'lucide-react'
 import Link from 'next/link'
 import { useRouter } from 'next/navigation'
 import { useIsMobile } from '@/lib/useIsMobile'
+import { missingOnboardingFields } from '@/lib/onboardingCompleteness'
+
+// "101" sorts before "102" before ... before "307" numerically, not as
+// strings (which would put "2" before "10"); anything without a leading
+// number (a stray "TEST" room, or none assigned at all) sorts last instead
+// of scattering alphabetically through the real rooms.
+function roomSortKey(room: string | null | undefined): [number, string] {
+  if (!room) return [Infinity, '']
+  const match = room.match(/^(\d+)/)
+  return [match ? parseInt(match[1], 10) : Infinity, room]
+}
+function compareRooms(a: string | null | undefined, b: string | null | undefined): number {
+  const [an, as] = roomSortKey(a)
+  const [bn, bs] = roomSortKey(b)
+  return an !== bn ? an - bn : as.localeCompare(bs)
+}
 
 export default function ResidentsPage() {
   const router = useRouter()
@@ -15,6 +31,10 @@ export default function ResidentsPage() {
   const [loading, setLoading] = useState(true)
   const [search, setSearch] = useState('')
   const [statusFilter, setStatusFilter] = useState('all')
+  // Room-ascending (101 -> 307) is the default view - the one the owner
+  // actually wants most of the time - with the rest offered as options
+  // rather than the only way to look at this list.
+  const [sortBy, setSortBy] = useState<'room_asc' | 'room_desc' | 'joined_asc' | 'joined_desc' | 'name_asc' | 'rent_desc' | 'rent_asc'>('room_asc')
   const supabase = createClient()
   const isMobile = useIsMobile()
 
@@ -90,13 +110,29 @@ export default function ResidentsPage() {
   // them; only active/notice residents have ever been able to log in.
   const hasPortalAccess = (r: any) => r.status === 'active' || r.status === 'notice'
   const notInstalled = residents.filter(r => hasPortalAccess(r) && !r.pwa_installed_at)
+  // Onboarded before Aadhaar/signature/affiliation proof were required (or
+  // missing a mobile number entirely) - see lib/onboardingCompleteness.ts
+  // and the "Send Link to Complete" panel on their own page.
+  const incompleteDocs = residents.filter(r => r.onboarding_status === 'active' && missingOnboardingFields(r).length > 0)
 
   const filtered = residents.filter(r => {
     const matchesSearch = r.name.toLowerCase().includes(search.toLowerCase()) || r.mobile.includes(search) || r.room_number?.includes(search)
     if (statusFilter === 'submitted') return r.onboarding_status === 'submitted' && matchesSearch
     if (statusFilter === 'not_installed') return hasPortalAccess(r) && !r.pwa_installed_at && matchesSearch
+    if (statusFilter === 'incomplete_docs') return r.onboarding_status === 'active' && missingOnboardingFields(r).length > 0 && matchesSearch
     const matchesStatus = statusFilter === 'all' || r.status === statusFilter
     return matchesSearch && matchesStatus
+  }).sort((a, b) => {
+    switch (sortBy) {
+      case 'room_asc': return compareRooms(a.room_number, b.room_number)
+      case 'room_desc': return compareRooms(b.room_number, a.room_number)
+      case 'joined_asc': return (a.date_of_joining || '').localeCompare(b.date_of_joining || '')
+      case 'joined_desc': return (b.date_of_joining || '').localeCompare(a.date_of_joining || '')
+      case 'name_asc': return a.name.localeCompare(b.name)
+      case 'rent_desc': return Number(b.rent_amount || 0) - Number(a.rent_amount || 0)
+      case 'rent_asc': return Number(a.rent_amount || 0) - Number(b.rent_amount || 0)
+      default: return 0
+    }
   })
 
   const counts: Record<string, number> = {
@@ -107,6 +143,7 @@ export default function ResidentsPage() {
     vacated: residents.filter(r => r.status === 'vacated').length,
     submitted: pendingApprovals.length,
     not_installed: notInstalled.length,
+    incomplete_docs: incompleteDocs.length,
   }
 
   const statusStyle = (status: string): any => {
@@ -124,7 +161,7 @@ export default function ResidentsPage() {
       <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '24px' }}>
         <div>
           <h1 style={{ fontFamily: 'Syne, sans-serif', fontSize: '26px', fontWeight: '700', color: 'var(--text-primary)', margin: '0 0 6px' }}>Residents</h1>
-          <p style={{ color: 'var(--text-muted)', fontSize: '14px', margin: 0 }}>{counts.active} active · {counts.notice} on notice · {counts.pending} pending · {counts.not_installed} haven't installed the app</p>
+          <p style={{ color: 'var(--text-muted)', fontSize: '14px', margin: 0 }}>{counts.active} active · {counts.notice} on notice · {counts.pending} pending · {counts.not_installed} haven't installed the app · {counts.incomplete_docs} missing onboarding docs</p>
         </div>
         <div style={{ display: 'flex', gap: '10px' }}>
           <button onClick={exportCsv} className="bb-btn-secondary"><Download size={16} />Export CSV</button>
@@ -152,10 +189,19 @@ export default function ResidentsPage() {
           <Search size={16} color="var(--text-muted)" style={{ position: 'absolute', left: '12px', top: '50%', transform: 'translateY(-50%)' }} />
           <input className="bb-input" style={{ paddingLeft: '38px' }} placeholder="Search by name, phone, room..." value={search} onChange={e => setSearch(e.target.value)} />
         </div>
-        <div style={{ display: 'flex', gap: '6px', background: 'var(--surface-1)', border: '1px solid var(--border)', borderRadius: '10px', padding: '4px' }}>
-          {(['all', 'active', 'pending', 'notice', 'vacated', 'submitted', 'not_installed'] as const).map(s => (
+        <select className="bb-input" style={{ width: 'auto', fontSize: '12px' }} value={sortBy} onChange={e => setSortBy(e.target.value as typeof sortBy)}>
+          <option value="room_asc">Room: 101 → 307</option>
+          <option value="room_desc">Room: 307 → 101</option>
+          <option value="joined_asc">Date Joined: Oldest first</option>
+          <option value="joined_desc">Date Joined: Newest first</option>
+          <option value="name_asc">Name: A → Z</option>
+          <option value="rent_desc">Rent: High → Low</option>
+          <option value="rent_asc">Rent: Low → High</option>
+        </select>
+        <div style={{ display: 'flex', gap: '6px', background: 'var(--surface-1)', border: '1px solid var(--border)', borderRadius: '10px', padding: '4px', flexWrap: 'wrap' }}>
+          {(['all', 'active', 'pending', 'notice', 'vacated', 'submitted', 'not_installed', 'incomplete_docs'] as const).map(s => (
             <button key={s} onClick={() => setStatusFilter(s)} style={{ padding: '6px 12px', borderRadius: '7px', border: 'none', fontSize: '12px', fontWeight: '600', cursor: 'pointer', textTransform: 'capitalize', whiteSpace: 'nowrap', transition: 'all 0.15s', background: statusFilter === s ? 'var(--teal-500)' : 'transparent', color: statusFilter === s ? 'var(--navy-900)' : s === 'submitted' && counts.submitted > 0 ? '#34d399' : 'var(--text-muted)' }}>
-              {s === 'submitted' ? `✓ Approvals` : s === 'not_installed' ? 'App Not Installed' : s}{counts[s] > 0 ? ` (${counts[s]})` : ''}
+              {s === 'submitted' ? `✓ Approvals` : s === 'not_installed' ? 'App Not Installed' : s === 'incomplete_docs' ? 'Docs Incomplete' : s}{counts[s] > 0 ? ` (${counts[s]})` : ''}
             </button>
           ))}
         </div>
@@ -195,6 +241,11 @@ export default function ResidentsPage() {
                   {hasPortalAccess(r) && (
                     <span title={r.pwa_installed_at ? `App installed ${formatDate(r.pwa_installed_at)}` : 'Has not installed the app'} style={{ marginLeft: '6px', display: 'inline-flex', alignItems: 'center', gap: '3px', fontSize: '11px', fontWeight: '600', color: r.pwa_installed_at ? '#34d399' : 'var(--text-muted)' }}>
                       <Smartphone size={11} />{r.pwa_installed_at ? 'Installed' : 'Not installed'}
+                    </span>
+                  )}
+                  {r.onboarding_status === 'active' && missingOnboardingFields(r).length > 0 && (
+                    <span title={`Missing: ${missingOnboardingFields(r).join(', ')}`} style={{ marginLeft: '6px', display: 'inline-flex', alignItems: 'center', gap: '3px', fontSize: '11px', fontWeight: '600', color: '#38bdf8' }}>
+                      <FileWarning size={11} />Docs incomplete
                     </span>
                   )}
                   {r.status === 'notice' && daysLeftFor(r.id) && (
@@ -240,6 +291,11 @@ export default function ResidentsPage() {
                       {hasPortalAccess(r) && (
                         <div title={r.pwa_installed_at ? `App installed ${formatDate(r.pwa_installed_at)}` : 'Has not installed the app'} style={{ marginTop: '3px', display: 'flex', alignItems: 'center', gap: '3px', fontSize: '11px', fontWeight: '600', color: r.pwa_installed_at ? '#34d399' : 'var(--text-muted)' }}>
                           <Smartphone size={11} />{r.pwa_installed_at ? 'App installed' : 'App not installed'}
+                        </div>
+                      )}
+                      {r.onboarding_status === 'active' && missingOnboardingFields(r).length > 0 && (
+                        <div title={`Missing: ${missingOnboardingFields(r).join(', ')}`} style={{ marginTop: '3px', display: 'flex', alignItems: 'center', gap: '3px', fontSize: '11px', fontWeight: '600', color: '#38bdf8' }}>
+                          <FileWarning size={11} />Docs incomplete
                         </div>
                       )}
                     </td>

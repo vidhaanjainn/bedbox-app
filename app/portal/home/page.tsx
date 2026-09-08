@@ -6,6 +6,7 @@ import { createClient } from '@/lib/supabase/client'
 import Link from 'next/link'
 import { Wrench, Receipt, ClipboardList, Phone, Wifi, MapPin, Cross, Pill, ShoppingCart, UtensilsCrossed, TreePine, TrainFront, ChevronDown, Star, Upload, X, Loader2, Check, IndianRupee, Copy, Zap, Video, Users, PartyPopper, ChevronRight, Download } from 'lucide-react'
 import InstallGuideSheet from '@/components/ui/InstallGuideSheet'
+import WelcomeWalkthrough from '@/components/portal/WelcomeWalkthrough'
 
 const CATEGORY_META: Record<string, { label: string; Icon: typeof MapPin }> = {
   hospital: { label: 'Hospitals', Icon: Cross },
@@ -40,6 +41,7 @@ export default function PortalHomePage() {
   const [hasElectricityReading, setHasElectricityReading] = useState(false)
   const [whatsappGroups, setWhatsappGroups] = useState<{ name: string; link: string }[]>([])
   const [showInstallGuide, setShowInstallGuide] = useState(false)
+  const [showWelcome, setShowWelcome] = useState(false)
   const [propertyPhone, setPropertyPhone] = useState('')
   const [reviewRating, setReviewRating] = useState(0)
   const [reviewComment, setReviewComment] = useState('')
@@ -64,6 +66,10 @@ export default function PortalHomePage() {
     const { data: res } = await supabase.from('residents').select('*').eq('portal_user_id', session.user.id).single()
     if (!res) { setLoading(false); return }
     setResident(res)
+    // One-time, right after this resident's very first login - see
+    // WelcomeWalkthrough. Never shown again once completed (finished or
+    // skipped both count - see /api/portal/complete-walkthrough).
+    if (!res.onboarding_walkthrough_completed_at) setShowWelcome(true)
 
     if (res.status === 'vacated' && res.vacated_at) {
       const { data: finalReadingRows } = await supabase
@@ -152,6 +158,11 @@ export default function PortalHomePage() {
   // WhatsApp message, tapping a group invite link) - there's nothing here to
   // verify automatically, so it's a plain "I've done this" the resident
   // marks themselves, same trust level as ticking off a paper checklist.
+  const completeWelcomeWalkthrough = () => {
+    setShowWelcome(false)
+    fetch('/api/portal/complete-walkthrough', { method: 'POST' }).catch(() => {})
+  }
+
   const markRoomVideoDone = async () => {
     setResident((r: any) => ({ ...r, checklist_room_video_done_at: new Date().toISOString() }))
     await supabase.from('residents').update({ checklist_room_video_done_at: new Date().toISOString() }).eq('id', resident.id)
@@ -615,6 +626,9 @@ export default function PortalHomePage() {
           </button>
         </div>
         <InstallGuideSheet open={showInstallGuide} onClose={() => setShowInstallGuide(false)} />
+        {showWelcome && resident && (
+          <WelcomeWalkthrough residentName={resident.name} onComplete={completeWelcomeWalkthrough} />
+        )}
 
         {/* Secondary info - collapsed by default. These are reference
             material residents check occasionally, not things that deserve

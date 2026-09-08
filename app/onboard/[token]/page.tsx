@@ -4,6 +4,7 @@ import { useEffect, useRef, useState } from 'react'
 import { useParams } from 'next/navigation'
 import { createClient } from '@/lib/supabase/client'
 import { AGREEMENT_VERSION, renderAgreementClauses } from '@/lib/agreement-clauses'
+import { APP_URL } from '@/lib/config'
 import { AlertTriangle, Check, Lock, Paperclip, Eraser, MessageCircle, ExternalLink } from 'lucide-react'
 
 type Step = 'loading' | 'error' | 'welcome' | 'details' | 'docs' | 'agreement' | 'done'
@@ -31,6 +32,10 @@ export default function OnboardPage() {
   })
   const [signatureDataUrl, setSignatureDataUrl] = useState<string | null>(null)
   const [submitError, setSubmitError] = useState('')
+  // True when this link was reissued to a resident who was already active
+  // (filling in missing paperwork), not a brand-new onboarding - the "done"
+  // screen tells a very different story in that case: nothing to wait on.
+  const [wasAlreadyActive, setWasAlreadyActive] = useState(false)
   const [whatsappGroups, setWhatsappGroups] = useState<{ name: string; link: string }[]>([])
 
   useEffect(() => {
@@ -125,6 +130,7 @@ export default function OnboardPage() {
       // Admin notification now happens server-side, inside the submit route
       // itself - reliable regardless of what happens to this tab next.
 
+      setWasAlreadyActive(!!result.wasAlreadyActive)
       // Go to done FIRST before anything else can interfere
       setStep('done')
     } catch (err: any) {
@@ -168,17 +174,27 @@ export default function OnboardPage() {
         <div style={{ width: 72, height: 72, borderRadius: '50%', background: 'linear-gradient(135deg,#00d4c8,#0099ff)', display: 'flex', alignItems: 'center', justifyContent: 'center', margin: '0 auto 24px' }}><Check size={32} color="#070d1a" strokeWidth={3} /></div>
         <h1 style={{ fontFamily: "'Syne',sans-serif", fontWeight: 700, fontSize: 26, margin: '0 0 12px' }}>You're all done!</h1>
         <p style={{ color: 'rgba(255,255,255,0.5)', fontSize: 15, lineHeight: 1.7, maxWidth: 320, margin: '0 auto 32px' }}>
-          Your onboarding has been submitted to TheBedBox. You'll hear back once it's approved - usually within a few hours.
+          {wasAlreadyActive
+            ? "Your details are saved. Your portal access was already active and hasn't changed - there's nothing else to wait on."
+            : "Your onboarding has been submitted to TheBedBox. You'll hear back once it's approved - usually within a few hours."}
         </p>
-        <div style={{ background: 'rgba(0,212,200,0.06)', border: '1px solid rgba(0,212,200,0.15)', borderRadius: 12, padding: 20, textAlign: 'left', maxWidth: 320, margin: '0 auto' }}>
-          <div style={{ fontSize: 12, color: '#00d4c8', marginBottom: 12, fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.05em' }}>What's next</div>
-          {['TheBedBox reviews your details', 'You receive approval via call/message', 'Portal login link sent to your email'].map((t, i) => (
-            <div key={i} style={{ display: 'flex', gap: 10, padding: '6px 0', fontSize: 13, color: 'rgba(255,255,255,0.6)' }}>
-              <span style={{ color: '#00d4c8', fontWeight: 700, fontSize: 11, minWidth: 20 }}>{String(i + 1).padStart(2, '0')}</span>
-              <span>{t}</span>
+        {wasAlreadyActive ? (
+          <div style={{ background: 'rgba(0,212,200,0.06)', border: '1px solid rgba(0,212,200,0.15)', borderRadius: 12, padding: 20, textAlign: 'left', maxWidth: 320, margin: '0 auto' }}>
+            <div style={{ fontSize: 13, color: 'rgba(255,255,255,0.7)', lineHeight: 1.6 }}>
+              You can keep using your portal exactly as before - log in anytime at <strong style={{ color: '#fff' }}>{APP_URL.replace(/^https?:\/\//, '')}/portal</strong>.
             </div>
-          ))}
-        </div>
+          </div>
+        ) : (
+          <div style={{ background: 'rgba(0,212,200,0.06)', border: '1px solid rgba(0,212,200,0.15)', borderRadius: 12, padding: 20, textAlign: 'left', maxWidth: 320, margin: '0 auto' }}>
+            <div style={{ fontSize: 12, color: '#00d4c8', marginBottom: 12, fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.05em' }}>What's next</div>
+            {['TheBedBox reviews your details', 'You receive approval via call/message', 'Portal login link sent to your email'].map((t, i) => (
+              <div key={i} style={{ display: 'flex', gap: 10, padding: '6px 0', fontSize: 13, color: 'rgba(255,255,255,0.6)' }}>
+                <span style={{ color: '#00d4c8', fontWeight: 700, fontSize: 11, minWidth: 20 }}>{String(i + 1).padStart(2, '0')}</span>
+                <span>{t}</span>
+              </div>
+            ))}
+          </div>
+        )}
 
         {whatsappGroups.length > 0 && (
           <div style={{ marginTop: 20, maxWidth: 320, marginLeft: 'auto', marginRight: 'auto' }}>

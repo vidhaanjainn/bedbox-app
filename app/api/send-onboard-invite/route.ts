@@ -23,20 +23,30 @@ export async function POST(req: Request) {
   const { residentId, link } = await req.json()
   if (!residentId || !link) return NextResponse.json({ error: 'residentId and link are required.' }, { status: 400 })
 
-  const { data: resident } = await admin.from('residents').select('name, email').eq('id', residentId).single()
+  const { data: resident } = await admin.from('residents').select('name, email, status, onboarding_status').eq('id', residentId).single()
   if (!resident) return NextResponse.json({ error: 'Resident not found.' }, { status: 404 })
   if (!resident.email) return NextResponse.json({ error: 'No email on file for this resident.' }, { status: 400 })
 
+  // A resident whose onboarding_status is already 'active' is having this
+  // link reissued to fill in paperwork gaps (Aadhaar, signature, etc. that
+  // predate this wizard requiring them) - not a fresh move-in. "You're
+  // moving in!" would be simply false for someone who's been living there
+  // for months, so the email needs to say what's actually happening.
+  const isGapFill = resident.onboarding_status === 'active'
+
   const result = await sendEmail({
     to: resident.email,
-    subject: `Welcome to TheBedBox, ${resident.name.split(' ')[0]} - complete your onboarding`,
-    html: emailShell('Complete your onboarding', `
+    subject: isGapFill
+      ? `TheBedBox - a couple of details we still need from you`
+      : `Welcome to TheBedBox, ${resident.name.split(' ')[0]} - complete your onboarding`,
+    html: emailShell(isGapFill ? 'A couple of details we still need' : 'Complete your onboarding', `
       <p style="color:#475569;font-size:14px;line-height:1.6;margin:0 0 20px">
-        Hi ${resident.name.split(' ')[0]}, you're moving into TheBedBox! Please complete a short
-        onboarding form - your details, ID, and digital agreement - so we can get your room ready.
+        ${isGapFill
+          ? `Hi ${resident.name.split(' ')[0]}, we're missing a couple of onboarding details on file for you (ID proof, signature, or similar) - takes about 2 minutes to fill in. Your room and portal access are unaffected either way.`
+          : `Hi ${resident.name.split(' ')[0]}, you're moving into TheBedBox! Please complete a short onboarding form - your details, ID, and digital agreement - so we can get your room ready.`}
       </p>
       <a href="${link}" style="display:inline-block;padding:14px 28px;background:linear-gradient(135deg,#00d4c8,#0099ff);color:#070d1a;font-weight:700;text-decoration:none;border-radius:10px;font-size:15px;margin-bottom:20px">
-        Start Onboarding →
+        ${isGapFill ? 'Finish These Details' : 'Start Onboarding'} →
       </a>
       <p style="color:#94a3b8;font-size:12px;margin:0">This link expires in 7 days and can only be used once. Questions? Call +91 79995 46362.</p>
     `),

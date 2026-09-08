@@ -19,6 +19,7 @@ function adminClient(): SupabaseClient {
 type ResidentBasics = {
   id: string; name: string; email: string | null; mobile: string | null
   room_number: string | null; rent_amount: number | null; security_deposit: number | null; date_of_joining: string | null
+  status: string | null; onboarding_status: string | null
 }
 type TokenCheck =
   | { resident: ResidentBasics }
@@ -29,7 +30,7 @@ async function residentForToken(supabase: SupabaseClient, token: string): Promis
 
   const { data, error } = await supabase
     .from('residents')
-    .select('id, name, email, mobile, room_number, rent_amount, security_deposit, date_of_joining, onboard_token_used, onboard_token_expires_at')
+    .select('id, name, email, mobile, room_number, rent_amount, security_deposit, date_of_joining, status, onboarding_status, onboard_token_used, onboard_token_expires_at')
     .eq('onboard_token', token)
     .single()
 
@@ -45,6 +46,7 @@ async function residentForToken(supabase: SupabaseClient, token: string): Promis
       id: data.id, name: data.name, email: data.email, mobile: data.mobile,
       room_number: data.room_number, rent_amount: data.rent_amount,
       security_deposit: data.security_deposit, date_of_joining: data.date_of_joining,
+      status: data.status, onboarding_status: data.onboarding_status,
     },
   }
 }
@@ -106,6 +108,21 @@ export async function POST(req: Request, ctx: { params: Promise<{ token: string 
     }
 
     if (body.action === 'submit') {
+      // A brand-new resident goes pending -> submitted -> (admin approves) ->
+      // active. But this same link can now also be reissued to a resident
+      // who is ALREADY active and simply has gaps in their paperwork (an
+      // Aadhaar or signature that was never collected, from before this
+      // wizard required them) - see "Generate Link to Complete" on the
+      // resident's own admin page. For that resident, flipping
+      // onboarding_status to 'submitted' would be a real regression, not a
+      // no-op: /api/ensure-portal-user refuses to send an OTP to anyone
+      // whose onboarding_status isn't 'active', so it would lock a
+      // currently-living resident out of their own portal until an admin
+      // clicked Approve again - for paperwork that changes nothing about
+      // their tenancy. Detected from their status BEFORE this update, so
+      // the fix is to simply never move them off 'active' in the first
+      // place, not to touch that unrelated login gate.
+      const wasAlreadyActive = resident.onboarding_status === 'active'
       const str = (v: unknown, max = 200) => (typeof v === 'string' ? v.trim().slice(0, max) : '')
       const docPath = (v: unknown) => {
         const p = str(v, 300)
@@ -170,7 +187,7 @@ export async function POST(req: Request, ctx: { params: Promise<{ token: string 
           agreement_signed_at: new Date().toISOString(),
           agreement_ip: ip,
           agreement_version: str(body.agreement_version, 40) || null,
-          onboarding_status: 'submitted',
+          onboarding_status: wasAlreadyActive ? 'active' : 'submitted',
           onboard_token_used: true,
           updated_at: new Date().toISOString(),
         })
@@ -184,33 +201,40 @@ export async function POST(req: Request, ctx: { params: Promise<{ token: string 
 
       // Notify admins server-side, right here - not as a client-side
       // fire-and-forget after redirect, which could get lost if the
-      // resident closes the tab a moment too early.
+      // resident closes the tab a moment too early. Copy branches on
+      // wasAlreadyActive too - "needs your approval" is simply false for a
+      // resident whose access was never touched by this submission.
       await Promise.all([
         sendPushToAdmins({
-          title: 'New onboarding submitted',
-          body: `${resident.name} completed onboarding - needs your approval`,
-          url: '/admin/residents',
+          title: wasAlreadyActive ? 'Onboarding paperwork completed' : 'New onboarding submitted',
+          body: wasAlreadyActive
+            ? `${resident.name} filled in their missing onboarding documents`
+            : `${resident.name} completed onboarding - needs your approval`,
+          url: `/admin/residents/${resident.id}`,
         }),
         sendEmail({
           to: process.env.ADMIN_NOTIFY_EMAIL || 'thebedbox.in@gmail.com',
-          subject: `✅ ${resident.name} has completed onboarding - approval needed`,
-          html: emailShell('New onboarding submission', `
+          subject: wasAlreadyActive
+            ? `📋 ${resident.name} completed their outstanding onboarding paperwork`
+            : `✅ ${resident.name} has completed onboarding - approval needed`,
+          html: emailShell(wasAlreadyActive ? 'Onboarding paperwork completed' : 'New onboarding submission', `
             <p style="color:#475569;font-size:14px;line-height:1.6;margin:0 0 20px">
-              <strong style="color:#0f172a">${resident.name}</strong> has completed their onboarding
-              and is waiting for your approval before their portal access activates.
+              <strong style="color:#0f172a">${resident.name}</strong> ${wasAlreadyActive
+                ? 'just filled in their previously-missing onboarding documents (Aadhaar, signature, or similar). Their portal access was already active and is unaffected - nothing to approve, just worth a look at your convenience.'
+                : 'has completed their onboarding and is waiting for your approval before their portal access activates.'}
             </p>
             <div style="background:#fff;border:1px solid #e2e8f0;border-radius:12px;padding:16px;margin-bottom:20px">
               <div style="display:flex;justify-content:space-between;padding:4px 0"><span style="color:#64748b;font-size:13px">Mobile</span><span style="font-weight:600;color:#0f172a">${resident.mobile || '-'}</span></div>
               <div style="display:flex;justify-content:space-between;padding:4px 0"><span style="color:#64748b;font-size:13px">Email</span><span style="font-weight:600;color:#0f172a">${resident.email || '-'}</span></div>
             </div>
             <a href="${APP_URL}/admin/residents/${resident.id}" style="display:inline-block;padding:14px 28px;background:linear-gradient(135deg,#00d4c8,#0099ff);color:#070d1a;font-weight:700;text-decoration:none;border-radius:10px;font-size:15px">
-              Review &amp; Approve →
+              ${wasAlreadyActive ? 'View Resident' : 'Review &amp; Approve'} →
             </a>
           `),
         }),
       ])
 
-      return NextResponse.json({ success: true })
+      return NextResponse.json({ success: true, wasAlreadyActive })
     }
 
     return NextResponse.json({ error: 'Unknown action.' }, { status: 400 })

@@ -12,6 +12,7 @@ import { Modal } from '@/components/ui/Modal'
 import { useIsMobile } from '@/lib/useIsMobile'
 import { DocViewerModal, DocPreview } from '@/components/ui/DocViewerModal'
 import { APP_URL } from '@/lib/config'
+import { missingOnboardingFields } from '@/lib/onboardingCompleteness'
 
 export default function ResidentDetailPage() {
   const { id } = useParams()
@@ -338,7 +339,11 @@ export default function ResidentDetailPage() {
   const whatsappInviteUrl = () => {
     const digits = (resident?.mobile || '').replace(/\D/g, '')
     const number = digits.length === 10 ? `91${digits}` : digits
-    const msg = `Hi ${resident?.name?.split(' ')[0] || ''}! Welcome to TheBedBox. Please complete your onboarding here: ${inviteLink}\n\nThis link is one-time use and expires in 7 days.`
+    // Same distinction as the email version - an already-active resident
+    // getting this link is filling in paperwork gaps, not moving in.
+    const msg = resident?.onboarding_status === 'active'
+      ? `Hi ${resident?.name?.split(' ')[0] || ''}! We're missing a couple of onboarding details on file for you - takes about 2 minutes: ${inviteLink}\n\nThis link is one-time use and expires in 7 days.`
+      : `Hi ${resident?.name?.split(' ')[0] || ''}! Welcome to TheBedBox. Please complete your onboarding here: ${inviteLink}\n\nThis link is one-time use and expires in 7 days.`
     return `https://wa.me/${number}?text=${encodeURIComponent(msg)}`
   }
 
@@ -590,8 +595,63 @@ export default function ResidentDetailPage() {
           )}
         </div>
       ) : (
-        <div style={{ display: 'inline-flex', alignItems: 'center', gap: '8px', padding: '8px 14px', borderRadius: '8px', marginBottom: '24px', background: 'rgba(52,211,153,0.08)', border: '1px solid rgba(52,211,153,0.2)', fontSize: '13px', color: '#34d399', fontWeight: '600' }}>
-          <CheckCircle size={14} /> Portal Active · Resident can log in
+        <div style={{ marginBottom: '24px' }}>
+          <div style={{ display: 'inline-flex', alignItems: 'center', gap: '8px', padding: '8px 14px', borderRadius: '8px', background: 'rgba(52,211,153,0.08)', border: '1px solid rgba(52,211,153,0.2)', fontSize: '13px', color: '#34d399', fontWeight: '600' }}>
+            <CheckCircle size={14} /> Portal Active · Resident can log in
+          </div>
+
+          {/* An active resident onboarded before this wizard required
+              Aadhaar/signature/affiliation proof (or one who was onboarded
+              with a mobile number never collected) has nothing else in the
+              app that ever offers a way to fill those gaps in - this reuses
+              the exact same token + wizard as a brand-new invite, but the
+              API itself (see app/api/onboard/[token]/route.ts) keeps
+              onboarding_status pinned to 'active' throughout for anyone who
+              was already active, so completing this never touches their
+              portal access or anything else already assigned to them. */}
+          {missingOnboardingFields(resident).length > 0 && (
+            <div style={{ marginTop: '12px', padding: '16px 20px', borderRadius: '12px', background: 'rgba(56,189,248,0.06)', border: '1px solid rgba(56,189,248,0.2)' }}>
+              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '16px', flexWrap: 'wrap', marginBottom: inviteLink ? '14px' : '0' }}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+                  <FileText size={18} color="#38bdf8" />
+                  <div>
+                    <div style={{ fontSize: '14px', fontWeight: '600', color: 'var(--text-primary)' }}>Onboarding paperwork incomplete</div>
+                    <div style={{ fontSize: '12px', color: 'var(--text-muted)', marginTop: '2px' }}>
+                      Missing: {missingOnboardingFields(resident).join(', ')}
+                    </div>
+                  </div>
+                </div>
+                <button onClick={handleGenerateInvite} disabled={inviteLoading} className="bb-btn-secondary" style={{ fontSize: '13px' }}>
+                  <Link2 size={14} />{inviteLoading ? 'Generating...' : 'Send Link to Complete'}
+                </button>
+              </div>
+              {inviteLink && (
+                <>
+                  {inviteEmailStatus && (
+                    <div style={{ fontSize: '12px', fontWeight: '600', marginBottom: '10px', color: inviteEmailStatus.startsWith('✓') ? '#34d399' : '#fbbf24' }}>
+                      {inviteEmailStatus}
+                    </div>
+                  )}
+                  <div style={{ display: 'flex', gap: '8px', alignItems: 'center' }}>
+                    <div style={{ flex: 1, padding: '10px 14px', borderRadius: '8px', fontSize: '12px', fontFamily: 'monospace', wordBreak: 'break-all', color: '#38bdf8', background: 'var(--surface-2)', border: '1px solid var(--border)' }}>
+                      {inviteLink}
+                    </div>
+                    <button onClick={handleCopy} className="bb-btn-secondary" style={{ fontSize: '12px', whiteSpace: 'nowrap', flexShrink: 0 }}>
+                      <Copy size={13} />{copied ? '✓ Copied!' : 'Copy'}
+                    </button>
+                    {resident.mobile && (
+                      <a href={whatsappInviteUrl()} target="_blank" rel="noopener noreferrer" className="bb-btn-secondary" style={{ fontSize: '12px', whiteSpace: 'nowrap', flexShrink: 0, color: '#34d399', borderColor: 'rgba(52,211,153,0.3)' }}>
+                        <MessageCircle size={13} /> WhatsApp
+                      </a>
+                    )}
+                  </div>
+                  <div style={{ fontSize: '11px', color: 'var(--text-muted)', marginTop: '8px' }}>
+                    Their room, rent, deposit, and status stay exactly as assigned - this only fills in the missing paperwork. Expires in 7 days · One-time use
+                  </div>
+                </>
+              )}
+            </div>
+          )}
         </div>
       )}
 
