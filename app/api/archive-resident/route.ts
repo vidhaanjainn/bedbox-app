@@ -29,12 +29,23 @@ export async function POST(request: Request) {
       return NextResponse.json({ error: 'Resident not found.' }, { status: 404 })
     }
 
-    // 1. Archive the resident
+    // 1. Archive the resident - this exit-interview data (reason, notes,
+    // deposit status, re-admit call) used to be collected carefully in the
+    // admin UI and then discarded entirely, never written anywhere except
+    // the (disabled) Google Sheets block below. Persisted properly now, and
+    // vacated_at anchors both the 7-day extended portal window and the
+    // post-vacate portal view.
+    const nowIso = new Date().toISOString()
     const { error: updateError } = await supabase
       .from('residents')
       .update({
         status: 'vacated',
         onboarding_status: 'archived',
+        vacated_at: nowIso,
+        vacate_reason: reason || null,
+        vacate_reason_notes: reasonNotes || null,
+        deposit_refund_status: depositStatus || null,
+        would_readmit: wouldReAdmit,
       })
       .eq('id', residentId)
 

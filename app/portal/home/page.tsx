@@ -39,6 +39,9 @@ export default function PortalHomePage() {
   const [hasElectricityReading, setHasElectricityReading] = useState(false)
   const [whatsappGroups, setWhatsappGroups] = useState<{ name: string; link: string }[]>([])
   const [propertyPhone, setPropertyPhone] = useState('')
+  const [reviewRating, setReviewRating] = useState(0)
+  const [reviewComment, setReviewComment] = useState('')
+  const [submittingReview, setSubmittingReview] = useState(false)
 
   const [showPayModal, setShowPayModal] = useState(false)
   const [payAmount, setPayAmount] = useState('')
@@ -148,6 +151,19 @@ export default function PortalHomePage() {
     return `https://wa.me/${number}?text=${encodeURIComponent(msg)}`
   }
 
+  const submitReview = async () => {
+    if (!reviewRating || !resident) return
+    setSubmittingReview(true)
+    const nowIso = new Date().toISOString()
+    await supabase.from('residents').update({
+      exit_review_rating: reviewRating,
+      exit_review_comment: reviewComment || null,
+      exit_review_submitted_at: nowIso,
+    }).eq('id', resident.id)
+    setResident((r: any) => ({ ...r, exit_review_rating: reviewRating, exit_review_comment: reviewComment, exit_review_submitted_at: nowIso }))
+    setSubmittingReview(false)
+  }
+
   const copyUpiId = async () => {
     try {
       await navigator.clipboard.writeText(upiId)
@@ -205,6 +221,97 @@ export default function PortalHomePage() {
   const currentMonthLabel = `${MONTH_NAMES[currentMonth - 1]} ${currentYear}`
 
   const upiLink = upiId ? `upi://pay?pa=${encodeURIComponent(upiId)}&pn=${encodeURIComponent(upiPayeeName)}&am=${outstanding}&cu=INR&tn=${encodeURIComponent('Rent ' + currentMonthLabel)}` : ''
+
+  // A vacated resident's dashboard has nothing in common with an active
+  // one's - no upcoming rent to track, no house info to check, no "report an
+  // issue" that makes sense anymore. It's a closing-out screen: whatever's
+  // still owed, where their deposit stands, how long this view stays
+  // reachable, and a chance to leave a review - not the everyday app.
+  if (resident?.status === 'vacated') {
+    const daysSinceVacate = resident.vacated_at ? (Date.now() - new Date(resident.vacated_at).getTime()) / 86400000 : 0
+    const daysLeft = Math.max(0, Math.ceil(7 - daysSinceVacate))
+    const totalOwed = pastArrears + outstanding
+    const depositLabels: Record<string, { label: string; color: string }> = {
+      returned_full: { label: 'Returned in full', color: '#34d399' },
+      partial_deduction: { label: 'Partially returned (deductions applied)', color: '#fbbf24' },
+      fully_deducted: { label: 'Fully deducted', color: '#f87171' },
+      pending: { label: 'Not yet settled', color: '#fbbf24' },
+    }
+    const depositInfo = resident.deposit_refund_status ? depositLabels[resident.deposit_refund_status] : null
+
+    return (
+      <div style={{ padding: '28px 20px 40px' }}>
+        <div style={{ fontSize: 40, marginBottom: 8 }}>👋</div>
+        <h1 style={{ fontFamily: "'Syne',sans-serif", fontWeight: 700, fontSize: 22, margin: '0 0 6px' }}>Thanks for staying with us, {resident?.name?.split(' ')[0]}</h1>
+        <p style={{ color: 'rgba(255,255,255,0.4)', fontSize: 13, lineHeight: 1.6, margin: '0 0 24px' }}>
+          This portal stays open for {daysLeft} more day{daysLeft === 1 ? '' : 's'} so you can wrap up anything left - after that it closes for good.
+        </p>
+
+        {totalOwed > 0 ? (
+          <div style={{ background: 'rgba(255,100,100,0.06)', border: '1px solid rgba(255,100,100,0.2)', borderRadius: 16, padding: 20, marginBottom: 16 }}>
+            <div style={{ fontSize: 11, color: 'rgba(255,255,255,0.4)', textTransform: 'uppercase', letterSpacing: '0.08em', marginBottom: 4 }}>Still Owed</div>
+            <div style={{ fontFamily: "'Syne',sans-serif", fontWeight: 700, fontSize: 28, marginBottom: 14 }}>₹{totalOwed.toLocaleString('en-IN')}</div>
+            <div style={{ display: 'flex', gap: 8 }}>
+              {upiId && (
+                <a href={upiLink} style={{ flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 6, padding: '12px', borderRadius: 12, background: 'linear-gradient(135deg,#00d4c8,#0099ff)', color: '#070d1a', fontSize: 13, fontWeight: 700, textDecoration: 'none' }}>
+                  <IndianRupee size={14} /> Pay via UPI
+                </a>
+              )}
+              <button onClick={() => openPayModal(totalOwed)} style={{ flex: 1, padding: '12px', borderRadius: 12, background: 'rgba(255,255,255,0.06)', border: '1px solid rgba(255,255,255,0.12)', color: '#fff', fontSize: 13, fontWeight: 600, cursor: 'pointer' }}>
+                I've Paid
+              </button>
+            </div>
+          </div>
+        ) : (
+          <div style={{ background: 'rgba(0,212,200,0.06)', border: '1px solid rgba(0,212,200,0.15)', borderRadius: 16, padding: 20, marginBottom: 16, display: 'flex', alignItems: 'center', gap: 10 }}>
+            <Check size={18} color="#00d4c8" />
+            <span style={{ fontSize: 13, color: 'rgba(255,255,255,0.8)' }}>All settled - nothing owed on your account.</span>
+          </div>
+        )}
+
+        <div style={{ background: 'rgba(255,255,255,0.04)', border: '1px solid rgba(255,255,255,0.07)', borderRadius: 16, padding: 20, marginBottom: 24 }}>
+          <div style={{ fontSize: 11, color: 'rgba(255,255,255,0.4)', textTransform: 'uppercase', letterSpacing: '0.08em', marginBottom: 8 }}>Security Deposit</div>
+          <div style={{ fontSize: 20, fontWeight: 700, fontFamily: "'Syne',sans-serif", marginBottom: 6 }}>₹{Number(resident.security_deposit || 0).toLocaleString('en-IN')}</div>
+          {depositInfo ? (
+            <span style={{ display: 'inline-block', fontSize: 12, fontWeight: 600, color: depositInfo.color, padding: '3px 10px', borderRadius: 999, background: 'rgba(255,255,255,0.06)' }}>{depositInfo.label}</span>
+          ) : (
+            <span style={{ fontSize: 12, color: 'rgba(255,255,255,0.4)' }}>Status not recorded yet - check with TheBedBox.</span>
+          )}
+        </div>
+
+        <div style={{ background: 'rgba(255,255,255,0.04)', border: '1px solid rgba(255,255,255,0.07)', borderRadius: 16, padding: 20, marginBottom: 24 }}>
+          <div style={{ fontSize: 14, fontWeight: 700, marginBottom: 4 }}>How was your stay?</div>
+          {resident.exit_review_submitted_at ? (
+            <div style={{ fontSize: 13, color: 'rgba(255,255,255,0.5)', marginTop: 8 }}>✓ Thanks for your feedback - it's been recorded.</div>
+          ) : (
+            <>
+              <div style={{ fontSize: 12, color: 'rgba(255,255,255,0.4)', marginBottom: 14 }}>Your honest rating helps us improve for the next resident.</div>
+              <div style={{ display: 'flex', gap: 8, marginBottom: 14 }}>
+                {[1, 2, 3, 4, 5].map(n => (
+                  <button key={n} onClick={() => setReviewRating(n)} style={{ background: 'none', border: 'none', cursor: 'pointer', padding: 0 }}>
+                    <Star size={28} fill={n <= reviewRating ? '#fbbf24' : 'none'} color={n <= reviewRating ? '#fbbf24' : 'rgba(255,255,255,0.25)'} />
+                  </button>
+                ))}
+              </div>
+              <textarea value={reviewComment} onChange={e => setReviewComment(e.target.value)} placeholder="Anything you'd like to share (optional)" rows={3}
+                style={{ width: '100%', padding: 12, borderRadius: 10, background: 'rgba(0,0,0,0.2)', border: '1px solid rgba(255,255,255,0.1)', color: '#fff', outline: 'none', resize: 'vertical', boxSizing: 'border-box', fontFamily: "'DM Sans',sans-serif", fontSize: 13, marginBottom: 12 }} />
+              <button onClick={submitReview} disabled={!reviewRating || submittingReview}
+                style={{ width: '100%', padding: 12, borderRadius: 12, fontSize: 14, fontWeight: 700, background: !reviewRating || submittingReview ? 'rgba(255,255,255,0.08)' : 'linear-gradient(135deg,#00d4c8,#0099ff)', color: !reviewRating || submittingReview ? 'rgba(255,255,255,0.3)' : '#070d1a', border: 'none', cursor: 'pointer' }}>
+                {submittingReview ? 'Submitting...' : 'Submit Review'}
+              </button>
+            </>
+          )}
+        </div>
+
+        <Link href="/portal/receipt" style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8, padding: 14, borderRadius: 12, background: 'rgba(255,255,255,0.04)', border: '1px solid rgba(255,255,255,0.07)', color: 'rgba(255,255,255,0.7)', fontSize: 13, fontWeight: 500, textDecoration: 'none', marginBottom: 10 }}>
+          <Receipt size={16} color="#00d4c8" /> Get a past receipt
+        </Link>
+        <a href="tel:+917999546362" style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8, padding: 14, borderRadius: 12, background: 'rgba(255,255,255,0.04)', border: '1px solid rgba(255,255,255,0.07)', color: 'rgba(255,255,255,0.7)', fontSize: 13, fontWeight: 500, textDecoration: 'none' }}>
+          <Phone size={16} color="#00d4c8" /> Call TheBedBox
+        </a>
+      </div>
+    )
+  }
 
   const groupedPlaces = CATEGORY_ORDER
     .map(cat => ({ cat, items: places.filter(p => p.category === cat) }))

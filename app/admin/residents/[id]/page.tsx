@@ -362,8 +362,48 @@ export default function ResidentDetailPage() {
         </div>
       )}
 
-      {/* PORTAL INVITE BANNER - top, always visible */}
-      {resident.onboarding_status !== 'active' ? (
+      {/* PORTAL INVITE BANNER - top, always visible. Vacated is checked first
+          and separately - onboarding_status is 'archived' for a vacated
+          resident, which used to fall through into the "generate an invite
+          link" branch below (nonsensical for someone who's already left),
+          and status alone never got a distinct display at all. */}
+      {resident.status === 'vacated' ? (
+        <div style={{ padding: '20px 24px', borderRadius: '14px', marginBottom: '24px', background: 'rgba(100,116,139,0.06)', border: '1px solid rgba(100,116,139,0.2)' }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: '12px', marginBottom: '14px' }}>
+            <CheckCircle size={20} color="#94a3b8" />
+            <div>
+              <div style={{ fontSize: '14px', fontWeight: '700', color: '#94a3b8' }}>Vacated{resident.vacated_at ? ` on ${formatDate(resident.vacated_at)}` : ''}</div>
+              <div style={{ fontSize: '12px', color: 'var(--text-muted)', marginTop: '2px' }}>
+                Portal access stays open for 7 days from vacate date, then closes automatically.
+              </div>
+            </div>
+          </div>
+          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '12px', fontSize: '13px' }}>
+            {resident.vacate_reason && (
+              <div><span style={{ color: 'var(--text-muted)' }}>Reason: </span><span style={{ color: 'var(--text-primary)', textTransform: 'capitalize' }}>{resident.vacate_reason.replace(/_/g, ' ')}</span></div>
+            )}
+            {resident.deposit_refund_status && (
+              <div><span style={{ color: 'var(--text-muted)' }}>Deposit: </span><span style={{ color: 'var(--text-primary)', textTransform: 'capitalize' }}>{resident.deposit_refund_status.replace(/_/g, ' ')}</span></div>
+            )}
+            {resident.would_readmit !== null && resident.would_readmit !== undefined && (
+              <div><span style={{ color: 'var(--text-muted)' }}>Would re-admit: </span><span style={{ color: resident.would_readmit ? '#34d399' : '#f87171', fontWeight: 600 }}>{resident.would_readmit ? 'Yes' : 'No'}</span></div>
+            )}
+            {resident.exit_review_rating && (
+              <div><span style={{ color: 'var(--text-muted)' }}>Their review: </span><span style={{ color: '#fbbf24', fontWeight: 600 }}>{'★'.repeat(resident.exit_review_rating)}{'☆'.repeat(5 - resident.exit_review_rating)}</span></div>
+            )}
+          </div>
+          {resident.vacate_reason_notes && (
+            <div style={{ marginTop: '12px', paddingTop: '12px', borderTop: '1px solid rgba(255,255,255,0.06)', fontSize: '13px', color: 'var(--text-secondary)' }}>
+              <span style={{ color: 'var(--text-muted)' }}>Notes: </span>{resident.vacate_reason_notes}
+            </div>
+          )}
+          {resident.exit_review_comment && (
+            <div style={{ marginTop: '10px', fontSize: '13px', color: 'var(--text-secondary)', fontStyle: 'italic' }}>
+              "{resident.exit_review_comment}"
+            </div>
+          )}
+        </div>
+      ) : resident.onboarding_status !== 'active' ? (
         <div style={{ padding: '20px 24px', borderRadius: '14px', marginBottom: '24px', background: resident.onboarding_status === 'submitted' ? 'rgba(52,211,153,0.06)' : 'rgba(0,212,200,0.04)', border: `1px solid ${resident.onboarding_status === 'submitted' ? 'rgba(52,211,153,0.25)' : 'rgba(0,212,200,0.15)'}` }}>
           {resident.onboarding_status === 'submitted' ? (
             <div>
