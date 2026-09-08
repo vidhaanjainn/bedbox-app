@@ -18,6 +18,7 @@ export default function OnboardPage() {
   const [submitting, setSubmitting] = useState(false)
   const [uploadProgress, setUploadProgress] = useState('')
   const [form, setForm] = useState({
+    mobile: '',
     emergency_contact_name: '',
     emergency_contact_phone: '',
     hometown: '',
@@ -43,6 +44,12 @@ export default function OnboardPage() {
           return
         }
         setResident(data.resident)
+        // Admins can (and often do, since it's optional at invite time) skip
+        // entering the resident's own mobile number - this is the resident's
+        // one chance to supply or correct it themselves. Prefilled if it's
+        // already on file so nobody has to retype a number that's already
+        // correct.
+        if (data.resident?.mobile) setForm(f => ({ ...f, mobile: data.resident.mobile }))
         setWhatsappGroups(data.whatsappGroups || [])
         setStep('welcome')
       })
@@ -98,6 +105,7 @@ export default function OnboardPage() {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           action: 'submit',
+          mobile: form.mobile,
           emergency_contact_name: form.emergency_contact_name,
           emergency_contact_phone: form.emergency_contact_phone,
           hometown: form.hometown,
@@ -127,7 +135,7 @@ export default function OnboardPage() {
     }
   }
 
-  const canStep1 = () => form.emergency_contact_name.trim() && form.emergency_contact_phone.trim() && form.hometown.trim() && form.occupation.trim() && form.institution.trim()
+  const canStep1 = () => form.mobile.trim().length === 10 && form.emergency_contact_name.trim() && form.emergency_contact_phone.trim() && form.hometown.trim() && form.occupation.trim() && form.institution.trim()
   const canStep2 = () => !!form.aadhaar_front && !!form.aadhaar_back && !!form.affiliation_proof
 
   const stepIndex = { welcome: 0, details: 1, docs: 2, agreement: 3, done: 4 }
@@ -231,6 +239,8 @@ export default function OnboardPage() {
         <div style={{ animation: 'fadeIn 0.3s ease' }}>
           <h2 style={{ fontFamily: "'Syne',sans-serif", fontWeight: 700, fontSize: 24, margin: '0 0 6px' }}>Your details</h2>
           <p style={{ color: 'rgba(255,255,255,0.4)', fontSize: 14, margin: '0 0 24px' }}>We need a few things from you</p>
+          <SectionLabel>Your contact</SectionLabel>
+          <Field label="Your mobile number" value={form.mobile} onChange={v => setForm(f => ({ ...f, mobile: v.replace(/\D/g, '').slice(0, 10) }))} placeholder="10-digit mobile number" type="tel" required />
           <SectionLabel>Emergency contact</SectionLabel>
           <Field label="Contact person name" value={form.emergency_contact_name} onChange={v => setForm(f => ({ ...f, emergency_contact_name: v }))} placeholder="Parent / sibling / friend" />
           <Field label="Their mobile number" value={form.emergency_contact_phone} onChange={v => setForm(f => ({ ...f, emergency_contact_phone: v }))} placeholder="+91 98765 43210" type="tel" />

@@ -116,6 +116,10 @@ export async function POST(req: Request, ctx: { params: Promise<{ token: string 
       if (body.agreement_agreed !== true) {
         return NextResponse.json({ error: 'You must accept the agreement to continue.' }, { status: 400 })
       }
+      const mobile = str(body.mobile, 30).replace(/\D/g, '').slice(-10)
+      if (mobile.length !== 10) {
+        return NextResponse.json({ error: 'A valid 10-digit mobile number is required.' }, { status: 400 })
+      }
       const emergencyName = str(body.emergency_contact_name)
       const emergencyPhone = str(body.emergency_contact_phone, 20)
       if (!emergencyName || !emergencyPhone) {
@@ -149,6 +153,7 @@ export async function POST(req: Request, ctx: { params: Promise<{ token: string 
       const { error: updateError } = await supabase
         .from('residents')
         .update({
+          mobile,
           emergency_contact_name: emergencyName,
           // Both columns exist in the schema and different parts of the app
           // read one or the other - keep them in sync, same as the admin's
