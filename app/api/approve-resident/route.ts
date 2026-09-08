@@ -139,6 +139,9 @@ export async function POST(req: Request) {
                 4. Enter the code and you're in
               </div>
             </div>
+            <div style="background: rgba(0,212,200,0.08); border: 1px solid rgba(0,212,200,0.2); border-radius: 10px; padding: 14px 16px; margin-bottom: 24px;">
+              <div style="font-size: 13px; color: rgba(255,255,255,0.8); line-height: 1.6;">📲 Once you're in, we'll help you add TheBedBox to your home screen - one tap for your rent, complaints, and receipts, no browser needed.</div>
+            </div>
             <p style="color: rgba(255,255,255,0.3); font-size: 12px; margin: 0;">Questions? Call us on <a href="tel:+917999546362" style="color: #00d4c8;">+91 79995 46362</a></p>
           </div>
         `,

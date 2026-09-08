@@ -4,6 +4,7 @@ import { sendEmail, emailShell, moneyINR } from '@/lib/notify'
 import { syncNoticeFormSubmissions } from '@/lib/notice-form-sync'
 import { sendPushToAdmins, sendPushToResident } from '@/lib/push'
 import { computeTotalAmount } from '@/lib/prorata'
+import { APP_URL } from '@/lib/config'
 
 // AUTO-01 + AUTO-02 + AUTO-03 (daily): runs once a day via Vercel Cron (see vercel.json).
 //   1. Ensures every active resident has a rent_payments row for the current month.
@@ -144,7 +145,7 @@ async function accrueLateFees(supabase: ReturnType<typeof adminClient>, dryRun: 
 async function sendReminders(supabase: ReturnType<typeof adminClient>, dryRun: boolean) {
   const { data: rows, error } = await supabase
     .from('rent_payments')
-    .select('id, resident_id, total_amount, amount_paid, status, reminder_count, last_reminded_at, created_at, late_fee, late_fee_forgiven_at, residents(name, email, date_of_joining, room_number, status)')
+    .select('id, resident_id, total_amount, amount_paid, status, reminder_count, last_reminded_at, created_at, late_fee, late_fee_forgiven_at, residents(name, email, date_of_joining, room_number, status, pwa_installed_at)')
     .in('status', ['pending', 'partial'])
   if (error || !rows) return { sent: 0, error }
 
@@ -185,6 +186,15 @@ async function sendReminders(supabase: ReturnType<typeof adminClient>, dryRun: b
     const lateFeeActive = today.getUTCDate() > 5 && lateFee > 0 && !row.late_fee_forgiven_at
     const lateFeeLine = lateFeeActive ? ` This includes ${moneyINR(lateFee)} in late fees (Rs. 200/day past the 5th) - still growing until paid.` : ''
 
+    // A resident who hasn't installed the app yet gets a chance to every
+    // single time this fires (up to 4x/month) - a repeated, low-noise
+    // nudge, not a one-shot banner they can dismiss and never see again.
+    // Skipped entirely the moment pwa_installed_at is set, so nobody who's
+    // already installed keeps seeing it.
+    const installNudge = !resident.pwa_installed_at
+      ? `<div style="background:#f0fdfa;border:1px solid #99f6e4;border-radius:10px;padding:12px 14px;margin-bottom:20px"><span style="font-size:13px;color:#0f766e">📲 Haven't installed the app yet? <a href="${APP_URL}/portal" style="color:#0d9488;font-weight:700;text-decoration:none">Log in here</a> and add it to your home screen for one-tap access.</span></div>`
+      : ''
+
     if (dryRun) {
       console.log(`[DRY RUN] would remind ${resident.email} - ${tone} - ${moneyINR(outstanding)}${lateFeeActive ? ' (late fee accruing)' : ''}`)
       sent++
@@ -214,6 +224,7 @@ async function sendReminders(supabase: ReturnType<typeof adminClient>, dryRun: b
             <div style="display:flex;justify-content:space-between;padding:4px 0"><span style="color:#64748b;font-size:13px">Outstanding</span><span style="font-weight:700;color:#0f172a">${moneyINR(outstanding)}</span></div>
             ${lateFeeActive ? `<div style="display:flex;justify-content:space-between;padding:4px 0"><span style="color:#ef4444;font-size:13px">Late fee (growing daily)</span><span style="font-weight:700;color:#ef4444">${moneyINR(lateFee)}</span></div>` : ''}
           </div>
+          ${installNudge}
           <p style="color:#94a3b8;font-size:12px;margin:0">Already paid? Please ignore this and let TheBedBox know so we can update your record.</p>
         `),
       }),

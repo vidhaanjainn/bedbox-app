@@ -4,8 +4,9 @@ import { useEffect, useRef, useState } from 'react'
 import { useParams } from 'next/navigation'
 import { createClient } from '@/lib/supabase/client'
 import { AGREEMENT_VERSION, renderAgreementClauses } from '@/lib/agreement-clauses'
-import { APP_URL } from '@/lib/config'
-import { AlertTriangle, Check, Lock, Paperclip, Eraser, MessageCircle, ExternalLink } from 'lucide-react'
+import { AlertTriangle, Check, Lock, Paperclip, Eraser, MessageCircle, ExternalLink, Download, ArrowRight } from 'lucide-react'
+import { useInstallPlatform } from '@/lib/useInstallPlatform'
+import InstallGuideSheet from '@/components/ui/InstallGuideSheet'
 
 type Step = 'loading' | 'error' | 'welcome' | 'details' | 'docs' | 'agreement' | 'done'
 
@@ -37,6 +38,13 @@ export default function OnboardPage() {
   // screen tells a very different story in that case: nothing to wait on.
   const [wasAlreadyActive, setWasAlreadyActive] = useState(false)
   const [whatsappGroups, setWhatsappGroups] = useState<{ name: string; link: string }[]>([])
+  const [showInstallGuide, setShowInstallGuide] = useState(false)
+  // Installing the app doesn't require being logged in at all - the PWA
+  // manifest's start_url is /portal regardless - so this is checked and
+  // offered right here on the done screen, the one moment we know for
+  // certain this resident is paying attention, rather than hoping they
+  // come back to a banner later.
+  const { platform: installPlatform, triggerNativeInstall } = useInstallPlatform(step === 'done')
 
   useEffect(() => {
     if (!token) { setStep('error'); setErrorMsg('Invalid link.'); return }
@@ -60,6 +68,11 @@ export default function OnboardPage() {
       })
       .catch(() => { setErrorMsg('Could not verify your link. Check your connection and try again.'); setStep('error') })
   }, [token])
+
+  const handleInstallClick = async () => {
+    if (installPlatform === 'chromium') { await triggerNativeInstall(); return }
+    setShowInstallGuide(true)
+  }
 
   // Uploads go to a server-issued signed URL - the token authorizes, no open bucket policy needed
   const uploadDoc = async (side: 'front' | 'back' | 'signature' | 'affiliation_proof', file: File | Blob) => {
@@ -178,16 +191,38 @@ export default function OnboardPage() {
             ? "Your details are saved. Your portal access was already active and hasn't changed - there's nothing else to wait on."
             : "Your onboarding has been submitted to TheBedBox. You'll hear back once it's approved - usually within a few hours."}
         </p>
+        {/* This is the single highest-attention moment in the entire
+            resident lifecycle - they've just finished proving who they are
+            and are staring at this exact screen. Installing the app needs
+            no login at all (the manifest's start_url is /portal regardless
+            of auth state), so it's offered right here, not left to a
+            banner they may never come back to see. */}
+        {installPlatform !== 'installed' && installPlatform !== 'checking' && (
+          <div style={{ background: 'rgba(0,212,200,0.08)', border: '1px solid rgba(0,212,200,0.25)', borderRadius: 14, padding: 22, textAlign: 'center', maxWidth: 320, margin: '0 auto 14px' }}>
+            <Download size={22} color="#00d4c8" style={{ marginBottom: 8 }} />
+            <div style={{ fontSize: 15, fontWeight: 700, color: '#fff', marginBottom: 4 }}>Get the app</div>
+            <div style={{ fontSize: 12, color: 'rgba(255,255,255,0.5)', lineHeight: 1.6, marginBottom: 14 }}>
+              {wasAlreadyActive
+                ? 'One tap to check your rent, log a complaint, or find your receipts - no browser needed.'
+                : "Add it now so it's already on your home screen the moment you're approved."}
+            </div>
+            <Btn onClick={handleInstallClick}>Install the App</Btn>
+          </div>
+        )}
+
         {wasAlreadyActive ? (
           <div style={{ background: 'rgba(0,212,200,0.06)', border: '1px solid rgba(0,212,200,0.15)', borderRadius: 12, padding: 20, textAlign: 'left', maxWidth: 320, margin: '0 auto' }}>
-            <div style={{ fontSize: 13, color: 'rgba(255,255,255,0.7)', lineHeight: 1.6 }}>
-              You can keep using your portal exactly as before - log in anytime at <strong style={{ color: '#fff' }}>{APP_URL.replace(/^https?:\/\//, '')}/portal</strong>.
+            <div style={{ fontSize: 13, color: 'rgba(255,255,255,0.7)', lineHeight: 1.6, marginBottom: 14 }}>
+              {installPlatform === 'installed' ? '✓ App installed. ' : ''}You can keep using your portal exactly as before - it's all still there.
             </div>
+            <a href="/portal" style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8, padding: '13px 20px', borderRadius: 10, fontSize: 14, fontWeight: 700, background: 'rgba(255,255,255,0.06)', color: '#fff', textDecoration: 'none', border: '1px solid rgba(255,255,255,0.15)' }}>
+              Log In to Your Portal <ArrowRight size={15} />
+            </a>
           </div>
         ) : (
           <div style={{ background: 'rgba(0,212,200,0.06)', border: '1px solid rgba(0,212,200,0.15)', borderRadius: 12, padding: 20, textAlign: 'left', maxWidth: 320, margin: '0 auto' }}>
             <div style={{ fontSize: 12, color: '#00d4c8', marginBottom: 12, fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.05em' }}>What's next</div>
-            {['TheBedBox reviews your details', 'You receive approval via call/message', 'Portal login link sent to your email'].map((t, i) => (
+            {['TheBedBox reviews your details', 'You receive approval via call/message', 'Log in from the app you just installed (or the link we send)'].map((t, i) => (
               <div key={i} style={{ display: 'flex', gap: 10, padding: '6px 0', fontSize: 13, color: 'rgba(255,255,255,0.6)' }}>
                 <span style={{ color: '#00d4c8', fontWeight: 700, fontSize: 11, minWidth: 20 }}>{String(i + 1).padStart(2, '0')}</span>
                 <span>{t}</span>
@@ -214,6 +249,7 @@ export default function OnboardPage() {
           </div>
         )}
       </div>
+      <InstallGuideSheet open={showInstallGuide} onClose={() => setShowInstallGuide(false)} />
     </Shell>
   )
 
