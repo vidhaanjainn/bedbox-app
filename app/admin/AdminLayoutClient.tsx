@@ -9,7 +9,7 @@ import InstallPrompt from '@/components/ui/InstallPrompt'
 import {
   LayoutDashboard, Users, BookOpen, Hotel, Bed,
   CreditCard, Zap, Bell, Wrench, BarChart3,
-  Receipt, Settings, LogOut, Menu, X, Building2, ChevronRight, Wallet
+  Receipt, Settings, LogOut, Menu, X, Building2, ChevronRight, Wallet, Star
 } from 'lucide-react'
 
 const navItems = [
@@ -23,6 +23,7 @@ const navItems = [
   { href: '/admin/electricity', label: 'Electricity', icon: Zap },
   { href: '/admin/notices', label: 'Notice Periods', icon: Bell },
   { href: '/admin/maintenance', label: 'Maintenance', icon: Wrench },
+  { href: '/admin/reviews', label: 'Reviews', icon: Star },
   { href: '/admin/reports', label: 'Reports', icon: BarChart3 },
   { href: '/admin/receipts', label: 'Receipts', icon: Receipt },
   { href: '/admin/settings', label: 'Settings', icon: Settings },

@@ -356,13 +356,13 @@ export default function PortalHomePage() {
           )
         })()}
 
-        <div style={{ background: 'rgba(255,255,255,0.04)', border: '1px solid rgba(255,255,255,0.07)', borderRadius: 16, padding: 20, marginBottom: 24 }}>
+        <div style={{ background: 'rgba(255,255,255,0.04)', border: '1px solid rgba(255,255,255,0.07)', borderRadius: 16, padding: 20, marginBottom: resident.exit_review_submitted_at && resident.exit_review_rating >= 4 ? 16 : 24 }}>
           <div style={{ fontSize: 14, fontWeight: 700, marginBottom: 4 }}>How was your stay?</div>
           {resident.exit_review_submitted_at ? (
             <div style={{ fontSize: 13, color: 'rgba(255,255,255,0.5)', marginTop: 8 }}>✓ Thanks for your feedback - it's been recorded.</div>
           ) : (
             <>
-              <div style={{ fontSize: 12, color: 'rgba(255,255,255,0.4)', marginBottom: 14 }}>Your honest rating helps us improve for the next resident.</div>
+              <div style={{ fontSize: 12, color: 'rgba(255,255,255,0.4)', marginBottom: 14 }}>Just a rating - takes five seconds.</div>
               <div style={{ display: 'flex', gap: 8, marginBottom: 14 }}>
                 {[1, 2, 3, 4, 5].map(n => (
                   <button key={n} onClick={() => setReviewRating(n)} style={{ background: 'none', border: 'none', cursor: 'pointer', padding: 0 }}>
@@ -370,15 +370,43 @@ export default function PortalHomePage() {
                   </button>
                 ))}
               </div>
-              <textarea value={reviewComment} onChange={e => setReviewComment(e.target.value)} placeholder="Anything you'd like to share (optional)" rows={3}
-                style={{ width: '100%', padding: 12, borderRadius: 10, background: 'rgba(0,0,0,0.2)', border: '1px solid rgba(255,255,255,0.1)', color: '#fff', outline: 'none', resize: 'vertical', boxSizing: 'border-box', fontFamily: "'DM Sans',sans-serif", fontSize: 13, marginBottom: 12 }} />
+              {reviewRating > 0 && (
+                <textarea value={reviewComment} onChange={e => setReviewComment(e.target.value)} placeholder="Anything you'd like to add? (optional)" rows={2}
+                  style={{ width: '100%', padding: 12, borderRadius: 10, background: 'rgba(0,0,0,0.2)', border: '1px solid rgba(255,255,255,0.1)', color: '#fff', outline: 'none', resize: 'vertical', boxSizing: 'border-box', fontFamily: "'DM Sans',sans-serif", fontSize: 13, marginBottom: 12 }} />
+              )}
               <button onClick={submitReview} disabled={!reviewRating || submittingReview}
                 style={{ width: '100%', padding: 12, borderRadius: 12, fontSize: 14, fontWeight: 700, background: !reviewRating || submittingReview ? 'rgba(255,255,255,0.08)' : 'linear-gradient(135deg,#00d4c8,#0099ff)', color: !reviewRating || submittingReview ? 'rgba(255,255,255,0.3)' : '#070d1a', border: 'none', cursor: 'pointer' }}>
-                {submittingReview ? 'Submitting...' : 'Submit Review'}
+                {submittingReview ? 'Submitting...' : 'Submit'}
               </button>
             </>
           )}
         </div>
+
+        {/* Only surfaced after a genuinely good internal rating - nobody
+            having a bad experience gets funneled toward leaving a public
+            review, and nobody's asked before they've actually told us how
+            it went. Neither Google nor JustDial exposes any way to post a
+            review on someone's behalf - this is a real link to their own
+            write-a-review page, which only they can actually submit. */}
+        {resident.exit_review_submitted_at && resident.exit_review_rating >= 4 && (
+          <div style={{ background: 'rgba(251,191,36,0.06)', border: '1px solid rgba(251,191,36,0.2)', borderRadius: 16, padding: 20, marginBottom: 24 }}>
+            <div style={{ fontSize: 20, marginBottom: 6 }}>🎉</div>
+            <div style={{ fontSize: 14, fontWeight: 700, marginBottom: 6 }}>So glad you had a good stay!</div>
+            <p style={{ fontSize: 12, color: 'rgba(255,255,255,0.5)', lineHeight: 1.6, margin: '0 0 16px' }}>
+              Your review helps other students and professionals find us. If you have a minute, it'd mean a lot 🙏
+            </p>
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+              <a href="http://search.google.com/local/writereview?placeid=ChIJL7FpPCRDfDkR3rurcqWij2w" target="_blank" rel="noopener noreferrer"
+                style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8, padding: 13, borderRadius: 12, background: 'linear-gradient(135deg,#00d4c8,#0099ff)', color: '#070d1a', fontSize: 13, fontWeight: 700, textDecoration: 'none' }}>
+                <Star size={15} fill="#070d1a" /> Rate us on Google
+              </a>
+              <a href="https://t.justdial.com/Bhopal/The-Bedbox-Hostel-Near-Mansarovar-Public-School-and-Petrol-Pump-Kolar-Road/0755PX755-X755-190320005505-V2J8_BZDET?catid=&checkin=&checkout=&vpfs=&stxt=The%2520Bedbox%2520Hostel&stype=&search=The-Bedbox-Hostel&area=NearMansarovarPublicSchoolandPetrolPumpKolarRoad&type=PayingGuestAccommodations&totalJdReviews=undefined&bdmsgtype=&bdcaptiontype=&bdText=" target="_blank" rel="noopener noreferrer"
+                style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8, padding: 13, borderRadius: 12, background: 'rgba(255,255,255,0.06)', border: '1px solid rgba(255,255,255,0.15)', color: '#fff', fontSize: 13, fontWeight: 700, textDecoration: 'none' }}>
+                Rate us on JustDial
+              </a>
+            </div>
+          </div>
+        )}
 
         <Link href="/portal/receipt" style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8, padding: 14, borderRadius: 12, background: 'rgba(255,255,255,0.04)', border: '1px solid rgba(255,255,255,0.07)', color: 'rgba(255,255,255,0.7)', fontSize: 13, fontWeight: 500, textDecoration: 'none', marginBottom: 10 }}>
           <Receipt size={16} color="#00d4c8" /> Get a past receipt
