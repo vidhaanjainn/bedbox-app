@@ -1,11 +1,13 @@
 'use client'
 
 import { useEffect, useState } from 'react'
+import { useRouter } from 'next/navigation'
 import { createClient } from '@/lib/supabase/client'
 import { formatCurrency } from '@/lib/utils'
-import { Bed, Plus, X, Loader2, Home } from 'lucide-react'
+import { Bed, Plus, X, Loader2, Home, ChevronRight } from 'lucide-react'
 
 export default function RoomsPage() {
+  const router = useRouter()
   const [rooms, setRooms] = useState<any[]>([])
   const [notices, setNotices] = useState<Record<string, string>>({})
   const [loading, setLoading] = useState(true)
@@ -133,24 +135,29 @@ export default function RoomsPage() {
                 <div style={{ display: 'flex', flexDirection: 'column', gap: '8px', marginBottom: '16px' }}>
                   {beds.map((bed: any) => {
                     const bc = bedStatusColors[bed.status] || bedStatusColors.available
+                    // bed.resident comes from residents.bed_id, which archiving
+                    // now clears - this status check is the second line of
+                    // defense against that same stale-join bug ever showing a
+                    // departed resident as still living in a bed again.
+                    const occupant = bed.resident && bed.resident.status !== 'vacated' ? bed.resident : null
                     return (
-                      <div key={bed.id} style={{
-                        display: 'flex', alignItems: 'center', justifyContent: 'space-between',
-                        padding: '10px 12px', borderRadius: '8px',
-                        background: bc.bg, border: `1px solid ${bc.border}`
-                      }}>
+                      <div key={bed.id}
+                        onClick={occupant ? () => router.push(`/admin/residents/${occupant.id}`) : undefined}
+                        title={occupant ? `Open ${occupant.name}'s page to amend their details` : undefined}
+                        style={{
+                          display: 'flex', alignItems: 'center', justifyContent: 'space-between',
+                          padding: '10px 12px', borderRadius: '8px',
+                          background: bc.bg, border: `1px solid ${bc.border}`,
+                          cursor: occupant ? 'pointer' : 'default',
+                        }}>
                         <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
                           <Bed size={14} color={bc.color} />
                           <div>
                             <div style={{ fontSize: '13px', fontWeight: '600', color: 'var(--text-primary)' }}>
                               Bed {bed.bed_number}
                             </div>
-                            {/* bed.resident comes from residents.bed_id, which archiving
-                                now clears - this status check is the second line of
-                                defense against that same stale-join bug ever showing a
-                                departed resident as still living in a bed again. */}
-                            {bed.resident && bed.resident.status !== 'vacated' && (
-                              <div style={{ fontSize: '11px', color: 'var(--text-muted)' }}>{bed.resident.name}</div>
+                            {occupant && (
+                              <div style={{ fontSize: '11px', color: 'var(--text-muted)' }}>{occupant.name}</div>
                             )}
                             {bed.resident?.status === 'notice' && availableFrom(bed.resident.id) && (
                               <div style={{ fontSize: '10px', color: '#f97316', fontWeight: '600', marginTop: '2px' }}>
@@ -159,15 +166,18 @@ export default function RoomsPage() {
                             )}
                           </div>
                         </div>
-                        <div style={{ textAlign: 'right' }}>
-                          <div style={{ fontSize: '12px', fontWeight: '600', color: bc.color, textTransform: 'capitalize' }}>
-                            {bed.status}
-                          </div>
-                          {bed.rate_monthly > 0 && (
-                            <div style={{ fontSize: '11px', color: 'var(--text-muted)' }}>
-                              {formatCurrency(bed.rate_monthly)}/mo
+                        <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+                          <div style={{ textAlign: 'right' }}>
+                            <div style={{ fontSize: '12px', fontWeight: '600', color: bc.color, textTransform: 'capitalize' }}>
+                              {bed.status}
                             </div>
-                          )}
+                            {bed.rate_monthly > 0 && (
+                              <div style={{ fontSize: '11px', color: 'var(--text-muted)' }}>
+                                {formatCurrency(bed.rate_monthly)}/mo
+                              </div>
+                            )}
+                          </div>
+                          {occupant && <ChevronRight size={14} color="var(--text-muted)" />}
                         </div>
                       </div>
                     )

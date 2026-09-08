@@ -25,12 +25,12 @@ export async function POST(req: Request) {
   const { data: callerAdmin } = await admin.from('admins').select('id, name').eq('user_id', user.id).eq('is_active', true).maybeSingle()
   if (!callerAdmin) return NextResponse.json({ error: 'Admin access required.' }, { status: 403 })
 
-  const { residentId } = await req.json()
+  const { residentId, rentCollected, depositCollected } = await req.json()
   if (!residentId) return NextResponse.json({ error: 'residentId is required.' }, { status: 400 })
 
   const { data: resident, error: fetchError } = await admin
     .from('residents')
-    .select('id, name, email, mobile, bed_id, rent_amount')
+    .select('id, name, email, mobile, bed_id, rent_amount, security_deposit, security_deposit_received_at')
     .eq('id', residentId)
     .single()
   if (fetchError || !resident) return NextResponse.json({ error: 'Resident not found.' }, { status: 404 })
@@ -41,6 +41,14 @@ export async function POST(req: Request) {
     status: 'active',
     onboarded_by: callerAdmin.id,
     onboarded_at: nowIso,
+    // Ticking "security deposit collected" on the approval screen is the
+    // one chance to record it here - this is the same field the dashboard's
+    // unrecorded-deposit banner and this resident's own deposit widget both
+    // read, so it disappears from "missing" everywhere the moment it's set.
+    ...(depositCollected && Number(resident.security_deposit) > 0 && !resident.security_deposit_received_at ? {
+      security_deposit_received_amount: Number(resident.security_deposit),
+      security_deposit_received_at: nowIso,
+    } : {}),
   }).eq('id', residentId)
   if (updateError) return NextResponse.json({ error: 'Could not activate resident.' }, { status: 500 })
 
@@ -68,8 +76,13 @@ export async function POST(req: Request) {
     .eq('month', now.getUTCMonth() + 1)
     .eq('year', now.getUTCFullYear())
     .maybeSingle()
+  // Ticking "rent collected" on the approval screen is what makes this row
+  // (and every dashboard total that sums amount_paid) reflect money that
+  // actually changed hands at approval, instead of creating yet another
+  // silently-pending invoice for rent the admin already has in hand -
+  // exactly the gap that left Nikhil's numbers not showing up anywhere.
+  const rent = Number(resident.rent_amount) || 0
   if (!existingPayment) {
-    const rent = Number(resident.rent_amount) || 0
     await admin.from('rent_payments').insert({
       resident_id: residentId,
       month: now.getUTCMonth() + 1,
@@ -78,9 +91,14 @@ export async function POST(req: Request) {
       electricity_amount: 0,
       late_fee: 0,
       total_amount: rent,
-      amount_paid: 0,
-      status: 'pending',
+      amount_paid: rentCollected ? rent : 0,
+      status: rentCollected ? 'paid' : 'pending',
     })
+  } else if (rentCollected) {
+    await admin.from('rent_payments').update({
+      amount_paid: rent,
+      status: 'paid',
+    }).eq('id', existingPayment.id)
   }
 
   if (resident.email) {

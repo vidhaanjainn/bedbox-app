@@ -32,6 +32,8 @@ export default function ResidentDetailPage() {
   const [copied, setCopied] = useState(false)
   const [approving, setApproving] = useState(false)
   const [reviewedForApproval, setReviewedForApproval] = useState(false)
+  const [approveRentCollected, setApproveRentCollected] = useState(false)
+  const [approveDepositCollected, setApproveDepositCollected] = useState(false)
   const [showArchiveModal, setShowArchiveModal] = useState(false)
   const [archiving, setArchiving] = useState(false)
   const [archiveReason, setArchiveReason] = useState('')
@@ -346,7 +348,11 @@ export default function ResidentDetailPage() {
       const res = await fetch('/api/approve-resident', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ residentId: id }),
+        body: JSON.stringify({
+          residentId: id,
+          rentCollected: approveRentCollected,
+          depositCollected: approveDepositCollected,
+        }),
       })
       const data = await res.json()
       if (!res.ok) { alert(data.error || 'Could not approve this resident.'); setApproving(false); return }
@@ -519,6 +525,21 @@ export default function ResidentDetailPage() {
                 <input type="checkbox" checked={reviewedForApproval} onChange={e => setReviewedForApproval(e.target.checked)} style={{ marginTop: '2px' }} />
                 I've checked their Aadhaar, signature, and details above
               </label>
+
+              <div style={{ display: 'flex', flexDirection: 'column', gap: '10px', padding: '14px 16px', borderRadius: '10px', background: 'rgba(0,212,200,0.06)', border: '1px solid rgba(0,212,200,0.15)', marginBottom: '14px' }}>
+                <div style={{ fontSize: '12px', fontWeight: 700, color: 'var(--teal-500)', textTransform: 'uppercase', letterSpacing: '0.05em' }}>Payments collected</div>
+                <label style={{ display: 'flex', alignItems: 'center', gap: '8px', fontSize: '13px', color: 'var(--text-primary)', cursor: 'pointer' }}>
+                  <input type="checkbox" checked={approveRentCollected} onChange={e => setApproveRentCollected(e.target.checked)} />
+                  Rent collected ({formatCurrency(resident.rent_amount)} for this month)
+                </label>
+                {Number(resident.security_deposit || 0) > 0 && !resident.security_deposit_received_at && (
+                  <label style={{ display: 'flex', alignItems: 'center', gap: '8px', fontSize: '13px', color: 'var(--text-primary)', cursor: 'pointer' }}>
+                    <input type="checkbox" checked={approveDepositCollected} onChange={e => setApproveDepositCollected(e.target.checked)} />
+                    Security deposit collected ({formatCurrency(resident.security_deposit)})
+                  </label>
+                )}
+                <div style={{ fontSize: '11px', color: 'var(--text-muted)' }}>Leave unticked if either is still pending - you can log it later from the Rent page.</div>
+              </div>
 
               <button onClick={handleApprove} disabled={approving || !reviewedForApproval} className="bb-btn-primary" style={{ fontSize: '13px' }}>
                 <CheckCircle size={14} />{approving ? 'Activating...' : 'Approve & Activate'}

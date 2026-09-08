@@ -37,6 +37,8 @@ export default function NewResidentPage() {
   const [aadhaarFront, setAadhaarFront] = useState<File | null>(null)
   const [aadhaarBack, setAadhaarBack] = useState<File | null>(null)
   const [tcAgreed, setTcAgreed] = useState(false)
+  const [rentCollectedNow, setRentCollectedNow] = useState(false)
+  const [depositCollectedNow, setDepositCollectedNow] = useState(false)
 
   useEffect(() => { fetchAvailableBeds() }, [])
 
@@ -171,6 +173,16 @@ export default function NewResidentPage() {
           agreement_version: AGREEMENT_VERSION,
           status: 'active',
           onboarding_status: 'active',
+          // Ticking "collected at signing" here is the only chance to record
+          // it - once this page moves on, the resident and their deposit
+          // disappear into the same "who actually paid" black hole that made
+          // Nikhil's numbers never show up. Recorded straight onto the
+          // resident record, same field the dashboard's deposit banner and
+          // the resident page's own deposit widget both already read.
+          ...(depositCollectedNow && parseFloat(form.security_deposit || '0') > 0 ? {
+            security_deposit_received_amount: parseFloat(form.security_deposit),
+            security_deposit_received_at: new Date().toISOString(),
+          } : {}),
         })
         .select()
         .single()
@@ -196,13 +208,21 @@ export default function NewResidentPage() {
       }
 
       const now = new Date()
+      const rentAmount = parseFloat(form.rent_amount)
+      // Same logic the Rent page's Log Payment modal uses: amount_paid
+      // covering total_amount means paid. Ticking "rent collected now"
+      // above is what makes this row (and every dashboard total that sums
+      // amount_paid) reflect a signing where cash actually changed hands,
+      // instead of silently creating a "pending" invoice for money that
+      // was already handed over.
       await supabase.from('rent_payments').insert({
         resident_id: resident.id,
         month: now.getMonth() + 1,
         year: now.getFullYear(),
-        rent_amount: parseFloat(form.rent_amount),
-        total_amount: parseFloat(form.rent_amount),
-        status: 'pending',
+        rent_amount: rentAmount,
+        total_amount: rentAmount,
+        amount_paid: rentCollectedNow ? rentAmount : 0,
+        status: rentCollectedNow ? 'paid' : 'pending',
       })
 
       // Stamp who onboarded them and send the same "you're in, here's how to
@@ -486,6 +506,20 @@ export default function NewResidentPage() {
                   <div>
                     <label style={labelStyle}>Security Deposit (₹)</label>
                     <input className="bb-input" placeholder="10000" type="number" value={form.security_deposit} onChange={e => setForm(f => ({ ...f, security_deposit: e.target.value }))} />
+                  </div>
+                  <div style={{ gridColumn: '1/-1', display: 'flex', flexDirection: 'column', gap: '10px', padding: '14px 16px', borderRadius: '10px', background: 'rgba(0,212,200,0.04)', border: '1px solid rgba(0,212,200,0.15)' }}>
+                    <div style={{ fontSize: '12px', fontWeight: 700, color: 'var(--teal-500)', textTransform: 'uppercase', letterSpacing: '0.05em' }}>Payments collected at signing</div>
+                    <label style={{ display: 'flex', alignItems: 'center', gap: '8px', fontSize: '13px', color: 'var(--text-primary)', cursor: 'pointer' }}>
+                      <input type="checkbox" checked={rentCollectedNow} onChange={e => setRentCollectedNow(e.target.checked)} />
+                      Rent collected now (₹{form.rent_amount || '0'})
+                    </label>
+                    {Number(form.security_deposit || 0) > 0 && (
+                      <label style={{ display: 'flex', alignItems: 'center', gap: '8px', fontSize: '13px', color: 'var(--text-primary)', cursor: 'pointer' }}>
+                        <input type="checkbox" checked={depositCollectedNow} onChange={e => setDepositCollectedNow(e.target.checked)} />
+                        Security deposit collected now (₹{form.security_deposit})
+                      </label>
+                    )}
+                    <div style={{ fontSize: '11px', color: 'var(--text-muted)' }}>Leave unticked if this will be collected later - it stays visible as pending until you log it from the Rent page.</div>
                   </div>
                   <div>
                     <label style={labelStyle}>Date of Joining *</label>
