@@ -45,6 +45,9 @@ export default function ResidentDetailPage() {
   const [renewRent, setRenewRent] = useState('')
   const [renewEndDate, setRenewEndDate] = useState('')
   const [renewing, setRenewing] = useState(false)
+  const [depositAmountInput, setDepositAmountInput] = useState('')
+  const [editingDeposit, setEditingDeposit] = useState(false)
+  const [savingDeposit, setSavingDeposit] = useState(false)
   const supabase = createClient()
   const isMobile = useIsMobile()
 
@@ -215,6 +218,25 @@ export default function ResidentDetailPage() {
   const updateStatus = async (status: string) => {
     await supabase.from('residents').update({ status }).eq('id', id)
     setResident((r: any) => ({ ...r, status }))
+  }
+
+  // Tracked entirely separately from the monthly rent ledger - a security
+  // deposit is money held in trust, refundable at move-out, not revenue, so
+  // it never touches rent_payments or the "Collected" figures on the Rent
+  // Tracker. Whatever's marked received here is exactly what a move-out
+  // settlement should be checked against later.
+  const markDepositReceived = async () => {
+    const amount = parseFloat(depositAmountInput)
+    if (!Number.isFinite(amount) || amount <= 0) return
+    setSavingDeposit(true)
+    const nowIso = new Date().toISOString()
+    await supabase.from('residents').update({
+      security_deposit_received_amount: amount,
+      security_deposit_received_at: nowIso,
+    }).eq('id', id)
+    setResident((r: any) => ({ ...r, security_deposit_received_amount: amount, security_deposit_received_at: nowIso }))
+    setEditingDeposit(false)
+    setSavingDeposit(false)
   }
 
   const handleGenerateInvite = async () => {
@@ -521,7 +543,32 @@ export default function ResidentDetailPage() {
             <InfoRow icon={<Calendar size={14} />} label="Joined" value={formatDate(resident.date_of_joining)} />
             <InfoRow icon={<Calendar size={14} />} label="Duration" value={resident.expected_duration || '-'} />
             <InfoRow icon={<CreditCard size={14} />} label="Monthly Rent" value={formatCurrency(resident.rent_amount)} highlight />
-            <InfoRow icon={<Shield size={14} />} label="Security Deposit" value={formatCurrency(resident.security_deposit)} />
+            <div>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+                <div style={{ color: 'var(--text-muted)', flexShrink: 0 }}><Shield size={14} /></div>
+                <div style={{ display: 'flex', justifyContent: 'space-between', flex: 1, alignItems: 'center' }}>
+                  <span style={{ fontSize: '12px', color: 'var(--text-muted)' }}>Security Deposit</span>
+                  <span style={{ fontSize: '14px', fontWeight: '500', color: 'var(--text-primary)' }}>{formatCurrency(resident.security_deposit)} agreed</span>
+                </div>
+              </div>
+              <div style={{ marginLeft: '24px', marginTop: '6px' }}>
+                {resident.security_deposit_received_at ? (
+                  <span style={{ display: 'inline-flex', alignItems: 'center', gap: 4, fontSize: 11, fontWeight: 600, color: '#34d399', padding: '3px 8px', borderRadius: 999, background: 'rgba(52,211,153,0.1)' }}>
+                    <CheckCircle size={10} /> {formatCurrency(resident.security_deposit_received_amount)} received {formatDate(resident.security_deposit_received_at)}
+                  </span>
+                ) : editingDeposit ? (
+                  <div style={{ display: 'flex', gap: 6, alignItems: 'center' }}>
+                    <input className="bb-input" type="number" placeholder="Amount received" value={depositAmountInput} onChange={e => setDepositAmountInput(e.target.value)} style={{ fontSize: 12, padding: '6px 10px', width: 130 }} />
+                    <button onClick={markDepositReceived} disabled={savingDeposit || !depositAmountInput} className="bb-btn-primary" style={{ fontSize: 11, padding: '6px 10px' }}>Save</button>
+                    <button onClick={() => setEditingDeposit(false)} style={{ fontSize: 11, color: 'var(--text-muted)', background: 'none', border: 'none', cursor: 'pointer' }}>Cancel</button>
+                  </div>
+                ) : (
+                  <button onClick={() => { setEditingDeposit(true); setDepositAmountInput(String(resident.security_deposit || '')) }} style={{ fontSize: 11, fontWeight: 600, color: '#fbbf24', background: 'rgba(251,191,36,0.1)', border: 'none', borderRadius: 999, padding: '4px 10px', cursor: 'pointer' }}>
+                    Not marked received - tap to log
+                  </button>
+                )}
+              </div>
+            </div>
             <InfoRow icon={<Zap size={14} />} label="Initial Electricity" value={`${resident.initial_electricity_reading} units`} />
             {resident.lease_end_date && (
               <InfoRow icon={<RefreshCw size={14} />} label="Lease Term Ends" value={`${formatDate(resident.lease_end_date)} (admin-only, not shown to resident)`} />

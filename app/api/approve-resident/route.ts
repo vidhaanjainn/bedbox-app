@@ -30,7 +30,7 @@ export async function POST(req: Request) {
 
   const { data: resident, error: fetchError } = await admin
     .from('residents')
-    .select('id, name, email, mobile')
+    .select('id, name, email, mobile, bed_id')
     .eq('id', residentId)
     .single()
   if (fetchError || !resident) return NextResponse.json({ error: 'Resident not found.' }, { status: 404 })
@@ -43,6 +43,16 @@ export async function POST(req: Request) {
     onboarded_at: nowIso,
   }).eq('id', residentId)
   if (updateError) return NextResponse.json({ error: 'Could not activate resident.' }, { status: 500 })
+
+  // The Quick Invite flow marks the bed 'reserved' the moment an admin picks
+  // it for an invite - not yet occupied, since the resident hasn't actually
+  // moved in. This was the only place that was ever supposed to flip it to
+  // 'occupied', and it never ran: the dashboard's occupancy count, "beds
+  // available", and every other bed-status-derived number stayed wrong for
+  // as long as a resident sat approved without this one update firing.
+  if (resident.bed_id) {
+    await admin.from('beds').update({ status: 'occupied' }).eq('id', resident.bed_id)
+  }
 
   if (resident.email) {
     try {

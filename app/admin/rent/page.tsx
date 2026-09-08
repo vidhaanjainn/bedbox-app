@@ -33,6 +33,7 @@ export default function RentPage() {
   const [admins, setAdmins] = useState<{ id: string; name: string }[]>([])
   const [previewDoc, setPreviewDoc] = useState<DocPreview | null>(null)
   const [loadingDoc, setLoadingDoc] = useState<string | null>(null)
+  const [showCollectedBreakdown, setShowCollectedBreakdown] = useState(false)
   const supabase = createClient()
   const isMobile = useIsMobile()
 
@@ -112,6 +113,15 @@ export default function RentPage() {
     const newPaid = selectedPayment.amount_paid + parseFloat(logForm.amount)
     const isFullyPaid = newPaid >= totalAmount
 
+    // Re-categorize the running total fresh each time (rent, then
+    // electricity, then late fee) rather than just adding this payment's
+    // amount to a bucket - keeps the three always summing exactly to
+    // amount_paid with no drift, the same rule the one-time backfill used
+    // for every payment logged before this feature existed.
+    const rentPaid = Math.min(newPaid, Number(selectedPayment.rent_amount))
+    const electricityPaid = Math.max(Math.min(newPaid - Number(selectedPayment.rent_amount), electricityAmount), 0)
+    const lateFeePaid = Math.max(Math.min(newPaid - Number(selectedPayment.rent_amount) - electricityAmount, Number(selectedPayment.late_fee || 0)), 0)
+
     await supabase.from('rent_payments').update({
       amount_paid: newPaid,
       payment_mode: logForm.payment_mode,
@@ -122,6 +132,9 @@ export default function RentPage() {
       collected_by: logForm.collected_by || currentAdmin?.id || null,
       electricity_amount: electricityAmount,
       total_amount: totalAmount,
+      rent_paid: rentPaid,
+      electricity_paid: electricityPaid,
+      late_fee_paid: lateFeePaid,
       ...(electricityProvided ? { electricity_logged_at: new Date().toISOString() } : {}),
     }).eq('id', selectedPayment.id)
 
@@ -185,8 +198,13 @@ export default function RentPage() {
     paid: payments.filter(p => p.status === 'paid').length,
     pending: payments.filter(p => p.status === 'pending').length,
     partial: payments.filter(p => p.status === 'partial').length,
-    totalCollected: payments.filter(p => p.status === 'paid').reduce((s, p) => s + p.amount_paid, 0),
+    // Money actually in hand, whether or not the invoice is fully settled yet -
+    // a partial payment is still real money collected, not zero.
+    totalCollected: payments.reduce((s, p) => s + Number(p.amount_paid || 0), 0),
     totalOutstanding: payments.filter(p => p.status !== 'paid').reduce((s, p) => s + (p.total_amount - p.amount_paid), 0),
+    rentCollected: payments.reduce((s, p) => s + Number(p.rent_paid || 0), 0),
+    electricityCollected: payments.reduce((s, p) => s + Number(p.electricity_paid || 0), 0),
+    lateFeeCollected: payments.reduce((s, p) => s + Number(p.late_fee_paid || 0), 0),
   }
 
   const months = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec']
@@ -304,15 +322,15 @@ export default function RentPage() {
       {/* Stats */}
       <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(150px, 1fr))', gap: '12px', marginBottom: '24px' }}>
         {[
-          { label: 'Collected', value: formatCurrency(stats.totalCollected), color: '#34d399' },
+          { label: 'Collected', value: formatCurrency(stats.totalCollected), color: '#34d399', clickable: true },
           { label: 'Outstanding', value: formatCurrency(stats.totalOutstanding), color: '#fbbf24' },
           { label: 'Paid', value: `${stats.paid} residents`, color: '#34d399' },
           { label: 'Pending', value: `${stats.pending} residents`, color: '#f87171' },
           { label: 'Partial', value: `${stats.partial} residents`, color: '#fbbf24' },
         ].map(s => (
-          <div key={s.label} className="stat-card" style={{ padding: '16px' }}>
+          <div key={s.label} className="stat-card" onClick={s.clickable ? () => setShowCollectedBreakdown(true) : undefined} style={{ padding: '16px', cursor: s.clickable ? 'pointer' : 'default' }}>
             <div style={{ fontSize: '20px', fontWeight: '700', color: s.color, fontFamily: 'Syne, sans-serif' }}>{s.value}</div>
-            <div style={{ fontSize: '12px', color: 'var(--text-muted)', marginTop: '4px' }}>{s.label}</div>
+            <div style={{ fontSize: '12px', color: 'var(--text-muted)', marginTop: '4px', display: 'flex', alignItems: 'center', gap: 4 }}>{s.label}{s.clickable && <span style={{ color: 'var(--teal-500)', fontSize: 11 }}>· breakdown</span>}</div>
           </div>
         ))}
       </div>
@@ -498,6 +516,47 @@ export default function RentPage() {
               )}
             </div>
 
+            {logForm.amount && parseFloat(logForm.amount) > 0 && (() => {
+              // Live confirmation of exactly how this payment will be
+              // categorized before it's saved - the "ask me for confirmation"
+              // this is standing in for, computed rather than hand-entered so
+              // it's zero extra taps for the common case.
+              const amountNow = parseFloat(logForm.amount) || 0
+              const priorPaid = Number(selectedPayment.amount_paid || 0)
+              const newPaidPreview = priorPaid + amountNow
+              const rentAmt = Number(selectedPayment.rent_amount)
+              const lateFeeAmt = Number(selectedPayment.late_fee || 0)
+              const elecAmt = logForm.electricity.trim() !== '' ? (parseFloat(logForm.electricity) || 0) : Number(selectedPayment.electricity_amount || 0)
+              const priorRent = Math.min(priorPaid, rentAmt)
+              const priorElec = Math.max(Math.min(priorPaid - rentAmt, elecAmt), 0)
+              const priorLateFee = Math.max(Math.min(priorPaid - rentAmt - elecAmt, lateFeeAmt), 0)
+              const newRent = Math.min(newPaidPreview, rentAmt)
+              const newElec = Math.max(Math.min(newPaidPreview - rentAmt, elecAmt), 0)
+              const newLateFee = Math.max(Math.min(newPaidPreview - rentAmt - elecAmt, lateFeeAmt), 0)
+              const rows = [
+                { label: 'Rent', amount: newRent - priorRent },
+                { label: 'Electricity', amount: newElec - priorElec },
+                { label: 'Late Fee', amount: newLateFee - priorLateFee },
+              ].filter(r => r.amount > 0)
+              const totalDue = rentAmt + elecAmt + lateFeeAmt
+              const overpaid = newPaidPreview - totalDue
+              return (
+                <div style={{ marginBottom: '16px', padding: '12px 14px', borderRadius: '10px', background: 'rgba(0,212,200,0.05)', border: '1px solid rgba(0,212,200,0.15)' }}>
+                  <div style={{ fontSize: '11px', fontWeight: '600', letterSpacing: '0.04em', textTransform: 'uppercase', color: 'var(--teal-500)', marginBottom: '8px' }}>This payment covers</div>
+                  {rows.length === 0 ? (
+                    <div style={{ fontSize: '13px', color: 'var(--text-muted)' }}>Nothing left owed - this would be a credit.</div>
+                  ) : rows.map(r => (
+                    <div key={r.label} style={{ display: 'flex', justifyContent: 'space-between', fontSize: '13px', color: 'var(--text-secondary)', padding: '2px 0' }}>
+                      <span>{r.label}</span><span style={{ fontWeight: '600', color: 'var(--text-primary)' }}>{formatCurrency(r.amount)}</span>
+                    </div>
+                  ))}
+                  {overpaid > 0 && (
+                    <div style={{ fontSize: '11px', color: '#fbbf24', marginTop: '6px' }}>⚠ {formatCurrency(overpaid)} more than what's owed this month - double check the amount.</div>
+                  )}
+                </div>
+              )
+            })()}
+
             <div style={{ marginBottom: '16px' }}>
               <label style={{ display: 'block', fontSize: '12px', fontWeight: '600', letterSpacing: '0.06em', textTransform: 'uppercase', color: 'var(--text-muted)', marginBottom: '8px' }}>
                 Received By
@@ -542,6 +601,41 @@ export default function RentPage() {
                 {logLoading ? <Loader2 size={14} style={{ animation: 'spin 1s linear infinite' }} /> : <CheckCircle size={14} />}
                 Confirm Payment
               </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Collected breakdown - rent, electricity, and late fees are real
+          revenue and belong here. Security deposits deliberately do not
+          appear anywhere in this figure or this breakdown - a deposit is
+          money held in trust for the resident, refundable at move-out, not
+          income, and folding it into "collected" would misstate revenue.
+          It's tracked and shown entirely on the resident's own page instead. */}
+      {showCollectedBreakdown && (
+        <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.7)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 100, padding: '24px' }} onClick={() => setShowCollectedBreakdown(false)}>
+          <div className="glass-card" style={{ width: '100%', maxWidth: '380px', padding: '28px' }} onClick={e => e.stopPropagation()}>
+            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '4px' }}>
+              <h3 style={{ fontFamily: 'Syne, sans-serif', fontSize: '17px', fontWeight: '600', color: 'var(--text-primary)', margin: 0 }}>Collected Breakdown</h3>
+              <button onClick={() => setShowCollectedBreakdown(false)} style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--text-muted)' }}><X size={18} /></button>
+            </div>
+            <div style={{ fontSize: '12px', color: 'var(--text-muted)', marginBottom: '20px' }}>{months[monthFilter - 1]} {yearFilter}</div>
+            {[
+              { label: 'Rent', amount: stats.rentCollected, color: '#34d399' },
+              { label: 'Electricity', amount: stats.electricityCollected, color: '#38bdf8' },
+              { label: 'Late Fees', amount: stats.lateFeeCollected, color: '#fbbf24' },
+            ].map(row => (
+              <div key={row.label} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '12px 0', borderBottom: '1px solid rgba(255,255,255,0.06)' }}>
+                <span style={{ fontSize: '14px', color: 'var(--text-secondary)' }}>{row.label}</span>
+                <span style={{ fontSize: '15px', fontWeight: '700', color: row.color, fontFamily: 'Syne, sans-serif' }}>{formatCurrency(row.amount)}</span>
+              </div>
+            ))}
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '14px 0 4px' }}>
+              <span style={{ fontSize: '14px', fontWeight: '600', color: 'var(--text-primary)' }}>Total Collected</span>
+              <span style={{ fontSize: '18px', fontWeight: '700', color: '#34d399', fontFamily: 'Syne, sans-serif' }}>{formatCurrency(stats.totalCollected)}</span>
+            </div>
+            <div style={{ fontSize: '11px', color: 'var(--text-muted)', marginTop: '16px', lineHeight: 1.5 }}>
+              Security deposits aren't included here - they're refundable, not income. See each resident's own page for deposit status.
             </div>
           </div>
         </div>
