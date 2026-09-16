@@ -62,9 +62,8 @@ export default function AdminLayoutClient({ children }: { children: React.ReactN
     })
   }, [])
 
-  useEffect(() => {
-    if ('serviceWorker' in navigator) { navigator.serviceWorker.register('/sw.js').catch(() => {}) }
-  }, [])
+  // Service worker registration now happens once, site-wide, in
+  // PwaInstallCapture (root layout) - no need to duplicate it here.
 
   const handleLogout = async () => {
     await supabase.auth.signOut()

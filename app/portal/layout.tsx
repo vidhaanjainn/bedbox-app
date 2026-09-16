@@ -23,10 +23,8 @@ export default function PortalLayout({ children }: { children: React.ReactNode }
   const [accessClosed, setAccessClosed] = useState(false)
   const [isVacated, setIsVacated] = useState(false)
 
-  useEffect(() => {
-    if ('serviceWorker' in navigator) { navigator.serviceWorker.register('/sw.js').catch(()=>{}) }
-  }, [])
-
+  // Service worker registration now happens once, site-wide, in
+  // PwaInstallCapture (root layout) - no need to duplicate it here.
   useEffect(() => initPwaInstallTracking(), [])
 
   useEffect(() => {
