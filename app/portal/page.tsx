@@ -88,7 +88,7 @@ export default function PortalLoginPage() {
         }}>
           {step==='email'&&<div>
             <h1 style={{fontFamily:"'Syne',sans-serif",fontWeight:700,fontSize:26,margin:'0 0 8px',letterSpacing:'-0.01em'}}>Welcome back</h1>
-            <p style={{color:'rgba(255,255,255,0.4)',fontSize:14,margin:'0 0 32px',lineHeight:1.5}}>Enter your registered email - we'll send a 6-digit code to sign you in</p>
+            <p style={{color:'rgba(255,255,255,0.4)',fontSize:14,margin:'0 0 32px',lineHeight:1.5}}>Enter your registered email - we'll send an 8-digit code to sign you in</p>
             <label style={{display:'block',fontSize:11,fontWeight:600,letterSpacing:'0.06em',textTransform:'uppercase',color:'rgba(255,255,255,0.35)',marginBottom:9}}>Email address</label>
             <input type="email" value={email} onChange={e=>setEmail(e.target.value)} placeholder="you@example.com" onKeyDown={e=>e.key==='Enter'&&handleSendOTP()}
               style={{width:'100%',padding:'14px',fontSize:15,background:'rgba(0,0,0,0.3)',border:'1px solid rgba(255,255,255,0.08)',borderRadius:12,color:'#fff',outline:'none',fontFamily:"'DM Sans',sans-serif",boxSizing:'border-box',marginBottom:8}}
@@ -127,13 +127,13 @@ export default function PortalLoginPage() {
             <p style={{color:'rgba(255,255,255,0.4)',fontSize:14,margin:'0 0 4px'}}>Code sent to</p>
             <p style={{color:'#00d4c8',fontSize:14,fontWeight:600,margin:'0 0 8px'}}>{masked}</p>
             <p style={{color:'rgba(255,255,255,0.3)',fontSize:12,margin:'0 0 28px',lineHeight:1.5}}>Not in your inbox within a minute? Check spam/junk - it comes from Supabase, not TheBedBox.</p>
-            <label style={{display:'block',fontSize:11,fontWeight:600,letterSpacing:'0.06em',textTransform:'uppercase',color:'rgba(255,255,255,0.35)',marginBottom:9}}>Enter 6-digit OTP</label>
-            <input type="number" value={otp} onChange={e=>setOtp(e.target.value.slice(0,6))} placeholder="- - - - - -" onKeyDown={e=>e.key==='Enter'&&handleVerifyOTP()}
+            <label style={{display:'block',fontSize:11,fontWeight:600,letterSpacing:'0.06em',textTransform:'uppercase',color:'rgba(255,255,255,0.35)',marginBottom:9}}>Enter 8-digit OTP</label>
+            <input type="number" value={otp} onChange={e=>setOtp(e.target.value.slice(0,8))} placeholder="- - - - - - - -" onKeyDown={e=>e.key==='Enter'&&handleVerifyOTP()}
               style={{width:'100%',padding:'16px',fontSize:24,letterSpacing:'0.3em',textAlign:'center',background:'rgba(0,0,0,0.3)',border:'1px solid rgba(255,255,255,0.08)',borderRadius:12,color:'#fff',outline:'none',marginBottom:8,boxSizing:'border-box',fontFamily:"'DM Sans',sans-serif"}}
               onFocus={e=>{e.target.style.borderColor='#00d4c8';e.target.style.boxShadow='0 0 0 3px rgba(0,212,200,0.12)'}} onBlur={e=>{e.target.style.borderColor='rgba(255,255,255,0.08)';e.target.style.boxShadow='none'}}/>
             {error&&<div style={{fontSize:13,color:'#ff6b6b',marginBottom:16,padding:'10px 12px',background:'rgba(255,107,107,0.08)',borderRadius:10}}>{error}</div>}
-            <button onClick={handleVerifyOTP} disabled={otp.length<6||loading}
-              style={{width:'100%',padding:'14px',borderRadius:12,fontSize:15,fontWeight:700,display:'flex',alignItems:'center',justifyContent:'center',gap:8,background:otp.length<6||loading?'rgba(255,255,255,0.08)':'linear-gradient(135deg,#00d4c8,#0099ff)',color:otp.length<6||loading?'rgba(255,255,255,0.3)':'#070d1a',border:'none',cursor:'pointer',fontFamily:"'DM Sans',sans-serif",marginTop:20,marginBottom:18,boxShadow:otp.length<6||loading?'none':'0 10px 28px -10px rgba(0,212,200,0.45)',transition:'box-shadow 0.2s ease'}}>
+            <button onClick={handleVerifyOTP} disabled={otp.length<8||loading}
+              style={{width:'100%',padding:'14px',borderRadius:12,fontSize:15,fontWeight:700,display:'flex',alignItems:'center',justifyContent:'center',gap:8,background:otp.length<8||loading?'rgba(255,255,255,0.08)':'linear-gradient(135deg,#00d4c8,#0099ff)',color:otp.length<8||loading?'rgba(255,255,255,0.3)':'#070d1a',border:'none',cursor:'pointer',fontFamily:"'DM Sans',sans-serif",marginTop:20,marginBottom:18,boxShadow:otp.length<8||loading?'none':'0 10px 28px -10px rgba(0,212,200,0.45)',transition:'box-shadow 0.2s ease'}}>
               {loading?'Verifying...':<>Verify & Continue <ArrowRight size={16} /></>}
             </button>
             <div style={{textAlign:'center'}}>
