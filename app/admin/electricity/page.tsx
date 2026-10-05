@@ -19,10 +19,22 @@ export default function ElectricityPage() {
   const [form, setForm] = useState({ resident_id: '', current_reading: '', month: new Date().getMonth() + 1, year: new Date().getFullYear() })
   const [previewDoc, setPreviewDoc] = useState<DocPreview | null>(null)
   const [loadingDoc, setLoadingDoc] = useState<string | null>(null)
+  const [modalPrevReading, setModalPrevReading] = useState<number | null>(null)
   const supabase = createClient()
   const isMobile = useIsMobile()
 
   useEffect(() => { fetchAll() }, [monthFilter, yearFilter])
+
+  // Keeps the modal's bill preview in sync with the resident actually
+  // selected, using the same "most recent logged reading, or none yet"
+  // lookup handleAdd uses - it used to always preview against
+  // initial_electricity_reading regardless of any reading already on file.
+  useEffect(() => {
+    if (!form.resident_id) { setModalPrevReading(null); return }
+    let cancelled = false
+    getPreviousReading(form.resident_id).then(v => { if (!cancelled) setModalPrevReading(v) })
+    return () => { cancelled = true }
+  }, [form.resident_id])
 
   const fetchAll = async () => {
     setLoading(true)
@@ -36,19 +48,20 @@ export default function ElectricityPage() {
     setLoading(false)
   }
 
-  const getPreviousReading = async (residentId: string): Promise<number> => {
-    const now = new Date(yearFilter, monthFilter - 2)
-    const prevMonth = now.getMonth() + 1
-    const prevYear = now.getFullYear()
-
+  // Most recently logged reading for this resident, regardless of which
+  // month that was in - a skipped month shouldn't fall back to the
+  // move-in baseline and overcharge for everything since. Returns null
+  // when this resident has no reading on file at all, which the caller
+  // treats as "this submission is the first one ever" - it just sets the
+  // baseline (zero units, zero bill) instead of being billed against
+  // initial_electricity_reading, which is almost never filled in
+  // accurately at onboarding (defaults to 0).
+  const getPreviousReading = async (residentId: string): Promise<number | null> => {
     const { data } = await supabase.from('electricity_readings')
       .select('current_reading').eq('resident_id', residentId)
-      .eq('month', prevMonth).eq('year', prevYear).maybeSingle()
-
-    if (data) return data.current_reading
-
-    const resident = residents.find(r => r.id === residentId)
-    return resident?.initial_electricity_reading || 0
+      .order('year', { ascending: false }).order('month', { ascending: false })
+      .limit(1).maybeSingle()
+    return data ? data.current_reading : null
   }
 
   const handleAdd = async () => {
@@ -56,8 +69,9 @@ export default function ElectricityPage() {
     setSaving(true)
 
     const resident = residents.find(r => r.id === form.resident_id)
-    const previousReading = await getPreviousReading(form.resident_id)
     const currentReading = parseFloat(form.current_reading)
+    const prevReading = await getPreviousReading(form.resident_id)
+    const previousReading = prevReading ?? currentReading
 
     if (currentReading < previousReading) {
       alert(`Current reading (${currentReading}) cannot be less than previous reading (${previousReading})`)
@@ -337,9 +351,13 @@ export default function ElectricityPage() {
               <div style={{ padding: '14px', borderRadius: '10px', background: 'rgba(0,212,200,0.05)', border: '1px solid rgba(0,212,200,0.15)', marginBottom: '20px' }}>
                 <div style={{ fontSize: '13px', color: 'var(--text-muted)', marginBottom: '4px' }}>Bill Preview</div>
                 <div style={{ fontSize: '20px', fontWeight: '700', color: 'var(--teal-500)', fontFamily: 'Syne, sans-serif' }}>
-                  {formatCurrency(Math.max(0, parseFloat(form.current_reading || '0') - (residents.find(r => r.id === form.resident_id)?.initial_electricity_reading || 0)) * 10)}
+                  {formatCurrency(Math.max(0, parseFloat(form.current_reading || '0') - (modalPrevReading ?? parseFloat(form.current_reading || '0'))) * 10)}
                 </div>
-                <div style={{ fontSize: '12px', color: 'var(--text-muted)', marginTop: '4px' }}>Rate: ₹10/unit · Will be added to rent automatically</div>
+                <div style={{ fontSize: '12px', color: 'var(--text-muted)', marginTop: '4px' }}>
+                  {modalPrevReading === null
+                    ? "First reading on file for this resident - sets the baseline, no charge."
+                    : `vs. last reading of ${modalPrevReading} · Rate: ₹10/unit · Will be added to rent automatically`}
+                </div>
               </div>
             )}
 

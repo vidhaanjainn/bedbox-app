@@ -84,7 +84,7 @@ export async function POST(request: Request) {
     let electricityReconciliation: any = null
     const { data: allReadings } = await supabase
       .from('electricity_readings')
-      .select('month, year, current_reading, bill_amount, added_to_rent')
+      .select('month, year, previous_reading, current_reading, bill_amount, added_to_rent')
       .eq('resident_id', residentId)
       .order('year', { ascending: true })
       .order('month', { ascending: true })
@@ -92,8 +92,12 @@ export async function POST(request: Request) {
     if (finalElectricityReading != null && resident.date_of_joining) {
       const now = new Date()
       const lastRow = (allReadings || [])[((allReadings || []).length || 1) - 1]
-      const previousReading = lastRow ? Number(lastRow.current_reading) : Number(resident.initial_electricity_reading || 0)
       const finalReading = Number(finalElectricityReading)
+      // Same convention as every other reading: baseline off the last
+      // actual logged reading, or - if none was ever logged this whole
+      // stay - off itself (zero bill), not off initial_electricity_reading,
+      // which is almost never filled in accurately at onboarding.
+      const previousReading = lastRow ? Number(lastRow.current_reading) : finalReading
 
       if (finalReading >= previousReading) {
         const { data: finalRow } = await supabase.from('electricity_readings').insert({
@@ -114,8 +118,12 @@ export async function POST(request: Request) {
       const totalBilled = allReadings.reduce((s, r) => s + Number(r.bill_amount || 0), 0)
       const unbilledMonths = allReadings.filter(r => !r.added_to_rent).map(r => `${r.month}/${r.year}`)
       const finalReadingValue = allReadings[allReadings.length - 1]?.current_reading
+      // Lifetime baseline is the first logged reading's own previous_reading
+      // (its baseline-setting value), not initial_electricity_reading -
+      // every reading since has already been billed as consecutive diffs
+      // off that same chain, so this just sums to the same total.
       const totalUnitsOverStay = finalReadingValue != null
-        ? Number(finalReadingValue) - Number(resident.initial_electricity_reading || 0)
+        ? Number(finalReadingValue) - Number(allReadings[0].previous_reading || 0)
         : null
 
       electricityReconciliation = {

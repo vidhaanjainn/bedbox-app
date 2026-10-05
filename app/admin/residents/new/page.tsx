@@ -367,6 +367,9 @@ export default function NewResidentPage() {
               <label style={labelStyle}>Initial Electricity Reading</label>
               <input className="bb-input" placeholder="0" type="number"
                 value={form.initial_electricity_reading} onChange={e => setForm(f => ({ ...f, initial_electricity_reading: e.target.value }))} />
+              <p style={{ fontSize: '11px', color: 'var(--text-muted)', margin: '6px 0 0' }}>
+                Just a record - their first logged reading always sets the real billing baseline free of charge, so leaving this as 0 is safe.
+              </p>
             </div>
             <div style={{ gridColumn: '1/-1' }}>
               <label style={labelStyle}>Notes (Internal)</label>
@@ -535,6 +538,9 @@ export default function NewResidentPage() {
                   <div>
                     <label style={labelStyle}>Initial Electricity Reading (units)</label>
                     <input className="bb-input" placeholder="0" type="number" value={form.initial_electricity_reading} onChange={e => setForm(f => ({ ...f, initial_electricity_reading: e.target.value }))} />
+                    <p style={{ fontSize: '11px', color: 'var(--text-muted)', margin: '6px 0 0' }}>
+                      Just a record - their first logged reading always sets the real billing baseline free of charge, so leaving this as 0 is safe.
+                    </p>
                   </div>
                   <div>
                     <label style={labelStyle}>Stay Type</label>

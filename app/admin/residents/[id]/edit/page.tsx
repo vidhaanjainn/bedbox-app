@@ -310,6 +310,9 @@ export default function EditResidentPage() {
             <div>
               <label style={labelStyle}>Initial Electricity Reading</label>
               <input style={inputStyle} value={form.initial_electricity_reading} onChange={e => setForm(f => ({ ...f, initial_electricity_reading: e.target.value }))} placeholder="0" />
+              <p style={{ fontSize: '11px', color: 'var(--text-muted)', margin: '6px 0 0' }}>
+                Just a record - their first logged reading always sets the real billing baseline free of charge.
+              </p>
             </div>
           </div>
 

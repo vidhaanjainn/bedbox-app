@@ -42,20 +42,27 @@ export async function POST(req: Request) {
     .maybeSingle()
   if (existing) return NextResponse.json({ error: 'You have already logged a reading for this month.' }, { status: 409 })
 
-  // Previous reading = last month's current_reading, or the move-in
-  // baseline if this is their first-ever reading - same fallback the
-  // admin's own "Add Reading" flow uses.
-  const prevDate = new Date(year, month - 2)
+  // Previous reading = whatever this resident's own most recently logged
+  // reading was, regardless of which month that was in - looking only at
+  // "last calendar month" meant one skipped month fell back to the
+  // move-in baseline below and overcharged for everything since.
+  // If they have no reading on file at all, this submission IS their
+  // first one ever: it just establishes the baseline (zero units, zero
+  // bill) rather than being billed against initial_electricity_reading,
+  // which is almost never filled in accurately at onboarding (defaults
+  // to 0) and was producing bills for the resident's entire lifetime
+  // meter dial reading in one shot.
   const { data: prevRow } = await admin
     .from('electricity_readings')
     .select('current_reading')
     .eq('resident_id', resident.id)
-    .eq('month', prevDate.getMonth() + 1)
-    .eq('year', prevDate.getFullYear())
+    .order('year', { ascending: false })
+    .order('month', { ascending: false })
+    .limit(1)
     .maybeSingle()
-  const previousReading = prevRow?.current_reading ?? resident.initial_electricity_reading ?? 0
 
   const current = Number(currentReading)
+  const previousReading = prevRow ? Number(prevRow.current_reading) : current
   if (current < previousReading) {
     return NextResponse.json({ error: `Current reading can't be less than the last recorded reading (${previousReading}).` }, { status: 400 })
   }
