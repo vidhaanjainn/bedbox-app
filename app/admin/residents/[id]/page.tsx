@@ -231,6 +231,10 @@ export default function ResidentDetailPage() {
   }
 
   const updateStatus = async (status: string) => {
+    // "Vacated" must go through the Archive flow so the exit details are kept
+    // on record, vacated_at is stamped and the bed is freed - flipping only the
+    // status left the bed marked occupied and the record without a vacate date.
+    if (status === 'vacated') { setShowArchiveModal(true); return }
     await supabase.from('residents').update({ status }).eq('id', id)
     setResident((r: any) => ({ ...r, status }))
   }

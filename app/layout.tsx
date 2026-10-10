@@ -48,6 +48,18 @@ export default function RootLayout({
 }) {
   return (
     <html lang="en">
+      <head>
+        {/* Fonts used to load through a CSS @import, which blocks first paint
+            until two more requests finish. Preconnect + a plain <link> lets the
+            browser fetch them in parallel with the page; display=swap keeps
+            text visible meanwhile. */}
+        <link rel="preconnect" href="https://fonts.googleapis.com" />
+        <link rel="preconnect" href="https://fonts.gstatic.com" crossOrigin="anonymous" />
+        <link
+          rel="stylesheet"
+          href="https://fonts.googleapis.com/css2?family=Syne:wght@400;500;600;700;800&family=DM+Sans:ital,opsz,wght@0,9..40,300;0,9..40,400;0,9..40,500;0,9..40,600;1,9..40,300&display=swap"
+        />
+      </head>
       <body>
         <PwaInstallCapture />
         {children}

@@ -168,7 +168,12 @@ export default function NoticesPage() {
       furniture_fixtures_ok: checklist.furniture_fixtures_ok,
     })
     await supabase.from('notice_periods').update({ status: 'completed' }).eq('id', settlementTarget.id)
-    await supabase.from('residents').update({ status: 'vacated' }).eq('id', resident.id)
+    // Same shape the Archive flow writes: vacated_at anchors the post-vacate
+    // portal window, and clearing bed_id keeps the old resident off the bed.
+    await supabase.from('residents').update({
+      status: 'vacated', onboarding_status: 'archived',
+      vacated_at: new Date().toISOString(), bed_id: null,
+    }).eq('id', resident.id)
     if (resident.bed_id) {
       await supabase.from('beds').update({ status: 'available' }).eq('id', resident.bed_id)
       const { data: bed } = await supabase.from('beds').select('room_id').eq('id', resident.bed_id).single()

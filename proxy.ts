@@ -13,6 +13,12 @@ import { NextResponse, type NextRequest } from 'next/server'
 // because its auth cookie had been silently expired by ITP, not because the
 // underlying Supabase session (refresh token) was actually gone.
 export async function proxy(request: NextRequest) {
+  // No Supabase auth cookie means no session to refresh (public booking page,
+  // onboarding links, the login page before sign-in) - skip the network call
+  // to Supabase Auth entirely instead of paying a round trip for nothing.
+  const hasSession = request.cookies.getAll().some(c => c.name.startsWith('sb-') && c.name.includes('auth-token'))
+  if (!hasSession) return NextResponse.next({ request })
+
   let response = NextResponse.next({ request })
 
   const supabase = createServerClient(

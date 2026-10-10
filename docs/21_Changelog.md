@@ -2,6 +2,8 @@
 
 ## [Unreleased]
 ### Added
+- 2026-10-10 - Performance: functions pinned to Mumbai (bom1), proxy skips auth call when logged out, non-blocking fonts
+- 2026-10-10 - Fix: marking a resident vacated (status dropdown / notice settlement) now keeps a full record and frees the bed; room 204 opened as single
 - 2026-10-10 - Admin Rooms page: Edit Room (type, floor, bed rates, block/remove vacant beds, make single occupancy); room 204 set to single @ ₹9,000
 - 2026-07-12 - docs/ operating system (audit, roadmap, backlog, execution guide, status, logs)
 

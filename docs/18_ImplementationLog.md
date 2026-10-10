@@ -2,6 +2,23 @@
 
 Newest first.
 
+## 2026-10-10 (b) · Vacated records fixed, room 204 opened, app speed-up
+- **Room 204 available as a single:** Pradyuman (vacated via the status dropdown) was still linked
+  to Bed A, which stayed `occupied`, so the New Resident picker (available/reserved beds only) had
+  nothing to offer. Bed A freed, room 204 set `available`/`single`/1 bed.
+- **Vacated residents are kept on record** (never deleted - Residents → Vacated filter). But two
+  paths marked someone vacated *without* the full record: the resident-page status dropdown and the
+  Notices settlement (no `vacated_at`, no exit details, `bed_id` left set, bed not freed). Dropdown
+  "Vacated" now opens the Archive flow; Notices settlement now stamps `vacated_at`, sets
+  `onboarding_status='archived'` and clears `bed_id`. Live data: Pradyuman (204) and Zubin (208)
+  had `bed_id` cleared + archived. Their `vacated_at` stays NULL (true date unknown) - set it from
+  their resident page if wanted.
+- **Speed:** (1) `vercel.json` `regions: ["bom1"]` - functions + proxy were in iad1 (US) while
+  Supabase is ap-south-1 (Mumbai), so every navigation's auth refresh and every API route crossed
+  the globe. (2) `proxy.ts` skips the Supabase auth call when there is no `sb-*auth-token` cookie
+  (public booking/onboarding/login pages). (3) Fonts: removed render-blocking CSS `@import`;
+  preconnect + `<link>` in `app/layout.tsx`. No functional change.
+
 ## 2026-10-10 · Room 204 → single occupancy @ ₹9,000 + admin "Edit Room" on Rooms page
 - **Ask (owner):** room 204 is now single occupancy at ₹9,000; owner wants to amend room setup
   themselves from the admin app whenever needed.
