@@ -102,7 +102,13 @@ Gupta (103), Manshu Jaiswar (206), Taukeer khan (105) - confirm or dismiss each 
 ✅ **Room 205 resident added** - someone lives there (name still unknown, same "⚠️ Name Pending"
 treatment as Room 304), vacating ~2026-09-20 like Zubin.
 
+✅ **Room 204 now single occupancy @ ₹9,000 (2026-10-10)** + admin Rooms page has an **Edit** button
+per room (type, bed rates, block/remove vacant beds, "Make single occupancy"). See
+18_ImplementationLog.md.
+
 ## Open question for owner
+- Room 204: Bed B is blocked (maintenance), not yet deleted - remove it via Rooms → 204 → Edit →
+  Remove. Also confirm whether resident Pradyuman Garg's rent (₹5,500, on notice) should move to ₹9,000.
 - Room 205 and Room 304 both need real names from the owner when known.
 - The 5 pending Google Form submissions above need a decision (apply with a confirmed last day,
   or dismiss if already resolved/superseded).

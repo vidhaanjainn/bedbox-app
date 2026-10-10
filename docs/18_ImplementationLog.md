@@ -2,6 +2,23 @@
 
 Newest first.
 
+## 2026-10-10 · Room 204 → single occupancy @ ₹9,000 + admin "Edit Room" on Rooms page
+- **Ask (owner):** room 204 is now single occupancy at ₹9,000; owner wants to amend room setup
+  themselves from the admin app whenever needed.
+- **Admin app:** Rooms page (`app/admin/rooms/page.tsx`) now has an **Edit** button on every room.
+  Modal lets you change room type/floor, per-bed monthly + daily rate, block/unblock a vacant bed,
+  remove a vacant bed, and a one-tap **"Make single occupancy"** (sets type to single and removes
+  extra vacant beds). Saving also resyncs `rooms.total_beds` and `rooms.status` from the beds left.
+  Occupied beds can't be removed. Uses existing `is_admin()` ALL policies on `rooms`/`beds` - no
+  RLS or schema change.
+- **Live data (project `rskbrdzbbfyyhaxucmgg`):** room 204 → `type=single`, `total_beds=1`,
+  `status=full`; Bed A rate 5500 → 9000. Bed B (vacant, nothing referencing it) could not be
+  deleted via the SQL tool (DELETE hung repeatedly with no locks/triggers present), so it is set to
+  `maintenance` (blocked, not bookable) as a stopgap - remove it from Rooms → 204 → Edit → Remove.
+- **Deliberately NOT changed:** resident Pradyuman Garg's own `rent_amount` (still ₹5,500, on
+  notice) - bed rate and resident rent are separate fields; owner to confirm whether his rent
+  should also move to ₹9,000.
+
 ## 2026-09-06 · Push notifications, onboarding-flow security + friction fixes, email templates
 - **Push notification system (new):** self-hosted Web Push via VAPID (no 3rd-party account,
   works on installed PWAs incl. iOS 16.4+). New `push_subscriptions` table (RLS: each user owns
