@@ -2,6 +2,20 @@
 
 Newest first.
 
+## 2026-10-11 (b) · Onboarding "Upload failed" (Viplav, 102) - resilient uploads
+- **Symptom:** resident hit "Upload failed. Please try again." on Submit & Complete. Storage showed
+  zero objects for him (first upload, Aadhaar front, died before reaching Supabase); other residents
+  uploaded 3-4 MB photos fine the same day, so storage/bucket/RLS were healthy - the failure was
+  specific to his file or phone/network, and the UI hid the real reason.
+- **Fix (`app/onboard/[token]/page.tsx`, `app/api/onboard/[token]/route.ts`):** images are
+  compressed client-side (~1800px JPEG) before upload; each file gets 3 tries with a fresh signed
+  URL, then a last-resort `upload-direct` route through our server (≤~3 MB, same token auth);
+  already-uploaded files are skipped when Submit is tapped again; the error now names the file and
+  the reason and tells the resident to tap Back and re-pick that photo (nothing else is lost);
+  typed answers are mirrored to localStorage so a reload doesn't lose them.
+- Token was never consumed by the failed attempt (`onboard_token_used=false`, valid to 18 Oct), so
+  the same link keeps working.
+
 ## 2026-10-11 · Dashboard "Rent Outstanding" was inflated by duplicate rent rows
 - **Symptom:** dashboard showed ₹1,00,250 / 14 pending; real outstanding was ₹7,500 (Rohit
   Makwana ₹1,000 Sept partial + Hassan ₹6,500 Oct).

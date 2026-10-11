@@ -10,6 +10,35 @@ import InstallGuideSheet from '@/components/ui/InstallGuideSheet'
 
 type Step = 'loading' | 'error' | 'welcome' | 'details' | 'docs' | 'agreement' | 'done'
 
+// Phone photos of an Aadhaar are often 4-12 MB - slow and failure-prone on mobile
+// data, and the reason an upload could die before leaving the phone. Shrink images
+// to ~1800px JPEG (still very legible, typically 300-700 KB). PDFs, tiny files and
+// anything the browser can't decode are sent exactly as picked.
+async function compressImage(file: File | Blob): Promise<File | Blob> {
+  try {
+    if (!file.type.startsWith('image/') || file.size < 400 * 1024) return file
+    const bitmap = await createImageBitmap(file)
+    const scale = Math.min(1, 1800 / Math.max(bitmap.width, bitmap.height))
+    const canvas = document.createElement('canvas')
+    canvas.width = Math.round(bitmap.width * scale)
+    canvas.height = Math.round(bitmap.height * scale)
+    canvas.getContext('2d')!.drawImage(bitmap, 0, 0, canvas.width, canvas.height)
+    const blob: Blob | null = await new Promise(res => canvas.toBlob(res, 'image/jpeg', 0.85))
+    return blob && blob.size < file.size ? blob : file
+  } catch {
+    return file
+  }
+}
+
+const fileToBase64 = (blob: Blob) => new Promise<string>((resolve, reject) => {
+  const r = new FileReader()
+  r.onload = () => resolve(String(r.result).split(',')[1] || '')
+  r.onerror = () => reject(new Error('Could not read the file'))
+  r.readAsDataURL(blob)
+})
+
+const DOC_LABEL: Record<string, string> = { front: 'Aadhaar front', back: 'Aadhaar back', affiliation_proof: 'proof of affiliation', signature: 'signature' }
+
 export default function OnboardPage() {
   const { token } = useParams()
   const supabase = createClient()
@@ -32,6 +61,29 @@ export default function OnboardPage() {
     agreement_agreed: false,
   })
   const [signatureDataUrl, setSignatureDataUrl] = useState<string | null>(null)
+
+  // Typed answers are mirrored to this phone so an accidental reload / app switch /
+  // browser kill mid-way never means retyping. (Files and the signature can't be saved
+  // this way - they must be picked/drawn again if the page is reloaded.)
+  const DRAFT_KEY = `onboard-draft-${String(token)}`
+  const draftLoaded = useRef(false)
+  useEffect(() => {
+    if (!token) return
+    try {
+      const d = JSON.parse(localStorage.getItem(DRAFT_KEY) || 'null')
+      if (d) setForm(f => ({ ...f, ...Object.fromEntries(Object.entries(d).filter(([, v]) => typeof v === 'string' && v)) }))
+    } catch { /* storage unavailable */ }
+    draftLoaded.current = true
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [token])
+  useEffect(() => {
+    if (!draftLoaded.current) return
+    try {
+      const { mobile, emergency_contact_name, emergency_contact_phone, hometown, institution, occupation } = form
+      localStorage.setItem(DRAFT_KEY, JSON.stringify({ mobile, emergency_contact_name, emergency_contact_phone, hometown, institution, occupation }))
+    } catch { /* storage unavailable */ }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [form.mobile, form.emergency_contact_name, form.emergency_contact_phone, form.hometown, form.institution, form.occupation])
   const [submitError, setSubmitError] = useState('')
   // True when this link was reissued to a resident who was already active
   // (filling in missing paperwork), not a brand-new onboarding - the "done"
@@ -74,18 +126,54 @@ export default function OnboardPage() {
     setShowInstallGuide(true)
   }
 
-  // Uploads go to a server-issued signed URL - the token authorizes, no open bucket policy needed
+  // Files that already uploaded in an earlier attempt - tapping Submit again skips them
+  // instead of re-uploading (and re-failing on) everything.
+  const uploadedRef = useRef<Record<string, { file: File | Blob; path: string }>>({})
+
+  // Uploads go to a server-issued signed URL - the token authorizes, no open bucket policy needed.
+  // Each file: compressed, 3 tries direct to storage with a fresh URL each time, then a
+  // last-resort route through our own server (works even if the direct connection is the problem).
   const uploadDoc = async (side: 'front' | 'back' | 'signature' | 'affiliation_proof', file: File | Blob) => {
-    const res = await fetch(`/api/onboard/${token}`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ action: 'upload-url', side }),
-    })
-    const data = await res.json()
-    if (!res.ok || !data.path) throw new Error(data.error || 'Upload failed. Please try again.')
-    const { error } = await supabase.storage.from('resident-docs').uploadToSignedUrl(data.path, data.uploadToken, file)
-    if (error) throw new Error('Upload failed. Please try again.')
-    return data.path as string
+    const cached = uploadedRef.current[side]
+    if (side !== 'signature' && cached && cached.file === file) return cached.path
+
+    const blob = await compressImage(file)
+    let lastErr = ''
+    for (let attempt = 0; attempt < 3; attempt++) {
+      try {
+        const res = await fetch(`/api/onboard/${token}`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ action: 'upload-url', side }),
+        })
+        const data = await res.json()
+        if (!res.ok || !data.path) throw new Error(data.error || 'Could not prepare upload')
+        const { error } = await supabase.storage.from('resident-docs').uploadToSignedUrl(data.path, data.uploadToken, blob, blob.type ? { contentType: blob.type } : undefined)
+        if (error) throw new Error(error.message || 'Upload rejected')
+        uploadedRef.current[side] = { file, path: data.path }
+        return data.path as string
+      } catch (e: any) {
+        lastErr = e?.message || 'network error'
+        console.error(`onboard upload (${side}) attempt ${attempt + 1} failed:`, e)
+        await new Promise(r => setTimeout(r, 700 * (attempt + 1)))
+      }
+    }
+    try {
+      const res = await fetch(`/api/onboard/${token}`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ action: 'upload-direct', side, contentType: blob.type || 'application/octet-stream', data: await fileToBase64(blob) }),
+      })
+      const data = await res.json()
+      if (res.ok && data.path) {
+        uploadedRef.current[side] = { file, path: data.path }
+        return data.path as string
+      }
+      lastErr = data.error || lastErr
+    } catch (e: any) {
+      lastErr = e?.message || lastErr
+    }
+    throw new Error(`Couldn't upload your ${DOC_LABEL[side]} (${lastErr}). Tap Back, choose that photo again, then tap Submit - everything else you've entered is kept.`)
   }
 
   const handleSubmit = async () => {

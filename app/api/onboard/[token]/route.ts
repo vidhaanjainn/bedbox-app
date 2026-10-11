@@ -107,6 +107,28 @@ export async function POST(req: Request, ctx: { params: Promise<{ token: string 
       return NextResponse.json({ path: data.path, uploadToken: data.token })
     }
 
+    // Last-resort upload path: the browser sends the (already compressed) file through
+    // us when a direct-to-storage upload keeps failing. Same token authorization, same
+    // path scheme as the signed-URL route; capped at ~3 MB decoded.
+    if (body.action === 'upload-direct') {
+      const side = body.side === 'back' ? 'back' : body.side === 'signature' ? 'signature' : body.side === 'affiliation_proof' ? 'affiliation_proof' : 'front'
+      const prefix = side === 'signature' ? 'signature' : side === 'affiliation_proof' ? 'affiliation-proof' : `aadhaar-${side}`
+      const contentType = typeof body.contentType === 'string' ? body.contentType : ''
+      if (!/^(image\/(jpeg|png|webp|heic|heif)|application\/pdf)$/.test(contentType)) {
+        return NextResponse.json({ error: 'Unsupported file type - please upload a photo or PDF.' }, { status: 400 })
+      }
+      if (typeof body.data !== 'string' || !body.data || body.data.length > 4_200_000) {
+        return NextResponse.json({ error: 'File is too large - please choose a smaller photo.' }, { status: 413 })
+      }
+      const path = `onboarding/${resident.id}/${prefix}-${Date.now()}`
+      const { error } = await supabase.storage.from('resident-docs').upload(path, Buffer.from(body.data, 'base64'), { contentType, upsert: false })
+      if (error) {
+        console.error('onboard upload-direct error:', error)
+        return NextResponse.json({ error: 'Could not save the file. Please try again.' }, { status: 500 })
+      }
+      return NextResponse.json({ path })
+    }
+
     if (body.action === 'submit') {
       // A brand-new resident goes pending -> submitted -> (admin approves) ->
       // active. But this same link can now also be reissued to a resident
