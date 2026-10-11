@@ -74,7 +74,16 @@ export default function RentPage() {
 
     if (!activeResidents?.length) return
 
-    const existing = payments.map(p => p.resident_id)
+    // Ask the database who already has a row for this month instead of trusting
+    // the list on screen - that list can be stale, still loading or filtered,
+    // which is how every resident once got a second September row. (The DB now
+    // also enforces one row per resident per month.)
+    const { data: existingRows } = await supabase
+      .from('rent_payments')
+      .select('resident_id')
+      .eq('month', monthFilter)
+      .eq('year', yearFilter)
+    const existing = (existingRows || []).map((p: any) => p.resident_id)
     const toCreate = activeResidents.filter(r => !existing.includes(r.id))
 
     if (!toCreate.length) {

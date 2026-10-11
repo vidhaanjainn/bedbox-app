@@ -2,6 +2,22 @@
 
 Newest first.
 
+## 2026-10-11 · Dashboard "Rent Outstanding" was inflated by duplicate rent rows
+- **Symptom:** dashboard showed ₹1,00,250 / 14 pending; real outstanding was ₹7,500 (Rohit
+  Makwana ₹1,000 Sept partial + Hassan ₹6,500 Oct).
+- **Cause:** 14 residents had a second September-2026 `rent_payments` row, all created in one
+  batch at 2026-09-21 19:57:58 (₹0 paid) next to the real, paid row from early Sept. A single
+  batch insert points at the Rent page's "Generate Monthly Rent" button, which decided who was
+  missing from the on-screen list (stale/filtered) instead of the DB. Nothing in the DB prevented it.
+- **Fix:** (1) deleted the 14 duplicates (12 visible + vacated Nikhil + the review account);
+  full copies kept in `public.rent_payments_dup_backup_20261010` (RLS on, no policies).
+  (2) `UNIQUE (resident_id, month, year)` on `rent_payments`
+  (`supabase/migrations/20261010_rent_payments_unique_resident_month.sql`). (3) Generate button now
+  queries the DB for existing rows. Dashboard now reads ₹7,500 / 2 pending.
+- **Tooling note:** plain `DELETE` statements hang (60s timeout) through the Supabase SQL tool in
+  this environment; the same delete written as `with d as (delete ... returning ...) select ...` works.
+- The cron and portal insert paths already look the row up first, so the new constraint is safe for them.
+
 ## 2026-10-10 (b) · Vacated records fixed, room 204 opened, app speed-up
 - **Room 204 available as a single:** Pradyuman (vacated via the status dropdown) was still linked
   to Bed A, which stayed `occupied`, so the New Resident picker (available/reserved beds only) had
