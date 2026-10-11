@@ -433,3 +433,18 @@ remaining work.
 - **Remaining real balances:** Rohit Sept ₹1,000 (invoice ₹8,500 vs rent ₹7,500); old dues ₹4,500; close-outs:
   Taukeer ₹5,500 (Sept), Pradyuman ₹5,500 (Sept), Nikhil ₹8,800 (Oct) — all deposits already returned in full.
 - **Sync note:** this checkout was 4 commits behind origin/main (another session); fast-forwarded first, no code overlap.
+
+## 2026-10-11 · UX · Editable payments, "received by" anyone, electricity baseline shown correctly
+- **Edit any payment** (Rent Tracker row + resident Rent History): `components/admin/EditPaymentModal.tsx` - rent,
+  electricity, total received, date received, received by, mode, notes, view/replace screenshot; total/split/status
+  recomputed by new `lib/rent.ts deriveInvoice()` (also now used by Log Payment).
+- **Received by:** any admin or "Someone else…" with a name (`rent_payments.received_by_name`,
+  `old_due_payments.received_by_name`; migration `20261011_received_by_name.sql`). Shown in tracker/resident history.
+- **Log Payment bugs fixed:** a 2nd instalment wiped earlier notes + screenshot; a forgiven late fee was added back into
+  the total; no "date received" (paid_at now = chosen date).
+- **Tracker readability:** Balance column, notes visible (📝), "Received" = mode · who · date, mobile card shows balance
+  or "Paid in full" instead of a misleading "Total Due"; year picker no longer hard-coded to 2024-26.
+- **Old Dues tab:** edit a due (amount/reason), remove a mistaken payment, received by + date on payments.
+- **Electricity:** server already stored a first reading as baseline (prev = current). UI still previewed
+  dial × ₹10 on the portal (fell back to initial reading / 0). New `lib/electricity.ts` (previewBill, isBaselineReading):
+  portal + admin now show "Starting reading - no bill"; bills only = (latest − last recorded) × ₹10.

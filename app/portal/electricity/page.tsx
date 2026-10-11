@@ -1,5 +1,6 @@
 'use client'
 
+import { previewBill, ELECTRICITY_RATE } from '@/lib/electricity'
 import { useEffect, useState } from 'react'
 import { useRouter } from 'next/navigation'
 import { createClient } from '@/lib/supabase/client'
@@ -16,7 +17,7 @@ export default function ElectricityPage() {
 
   const [loading, setLoading] = useState(true)
   const [resident, setResident] = useState<any>(null)
-  const [previousReading, setPreviousReading] = useState(0)
+  const [previousReading, setPreviousReading] = useState<number | null>(null)
   const [thisMonthReading, setThisMonthReading] = useState<any>(null)
   const [history, setHistory] = useState<any[]>([])
 
@@ -43,14 +44,16 @@ export default function ElectricityPage() {
       .eq('resident_id', res.id)
       .order('year', { ascending: false })
       .order('month', { ascending: false })
-      .limit(6)
+      .limit(13)
     setHistory(rows || [])
 
     const current = (rows || []).find(r => r.month === month && r.year === year)
     setThisMonthReading(current || null)
 
     const prev = (rows || []).find(r => !(r.month === month && r.year === year))
-    setPreviousReading(current ? current.previous_reading : (prev?.current_reading ?? res.initial_electricity_reading ?? 0))
+    // No fallback to initial_electricity_reading / 0: with no earlier reading on
+    // file, the next one submitted is the baseline (no bill).
+    setPreviousReading(current ? current.previous_reading : (prev ? Number(prev.current_reading) : null))
 
     setLoading(false)
   }
@@ -95,13 +98,16 @@ export default function ElectricityPage() {
 
   if (loading) return <div style={{ padding: 28 }}>{[1, 2].map(i => <div key={i} style={{ height: 100, borderRadius: 12, marginBottom: 16, background: 'rgba(255,255,255,0.04)' }} />)}</div>
 
-  const preview = currentReading ? Math.max(0, parseFloat(currentReading) - previousReading) * 10 : null
+  const preview = currentReading ? previewBill(parseFloat(currentReading), previousReading) : null
+  const earliestId = history.length ? history[history.length - 1].id : null
+  // A row is the baseline when it's the oldest on file and nothing came before it.
+  const isBaselineRow = (h: any) => h.id === earliestId && history.length < 13 && Number(h.previous_reading) === Number(h.current_reading)
   const alreadyLogged = !!thisMonthReading
 
   return (
     <div style={{ padding: '28px 20px' }}>
       <h1 style={{ fontFamily: "'Syne',sans-serif", fontWeight: 700, fontSize: 24, margin: '0 0 6px' }}>Electricity reading</h1>
-      <p style={{ color: 'rgba(255,255,255,0.4)', fontSize: 14, margin: '0 0 28px' }}>{MONTH_NAMES[month - 1]} {year} · ₹10/unit</p>
+      <p style={{ color: 'rgba(255,255,255,0.4)', fontSize: 14, margin: '0 0 28px' }}>{MONTH_NAMES[month - 1]} {year} · ₹{ELECTRICITY_RATE}/unit on units used since your last reading</p>
 
       {alreadyLogged || done ? (
         <div style={{ background: 'rgba(0,212,200,0.06)', border: '1px solid rgba(0,212,200,0.2)', borderRadius: 16, padding: 20 }}>
@@ -111,16 +117,22 @@ export default function ElectricityPage() {
             </div>
             <div>
               <div style={{ fontSize: 14, fontWeight: 700 }}>Logged for {MONTH_NAMES[month - 1]}</div>
-              <div style={{ fontSize: 12, color: 'rgba(255,255,255,0.4)' }}>Already added to this month's rent.</div>
+              <div style={{ fontSize: 12, color: 'rgba(255,255,255,0.4)' }}>{thisMonthReading && isBaselineRow(thisMonthReading) ? 'Your starting reading is saved - nothing to pay for it.' : "Already added to this month's rent."}</div>
             </div>
           </div>
-          {thisMonthReading && (
+          {thisMonthReading && isBaselineRow(thisMonthReading) && (
             <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 13, padding: '6px 0', borderTop: '1px solid rgba(255,255,255,0.08)', marginTop: 4 }}>
-              <span style={{ color: 'rgba(255,255,255,0.5)' }}>Units consumed</span>
+              <span style={{ color: 'rgba(255,255,255,0.5)' }}>Starting reading</span>
+              <span style={{ fontWeight: 700 }}>{thisMonthReading.current_reading}</span>
+            </div>
+          )}
+          {thisMonthReading && !isBaselineRow(thisMonthReading) && (
+            <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 13, padding: '6px 0', borderTop: '1px solid rgba(255,255,255,0.08)', marginTop: 4 }}>
+              <span style={{ color: 'rgba(255,255,255,0.5)' }}>Units used ({thisMonthReading.previous_reading} → {thisMonthReading.current_reading})</span>
               <span style={{ fontWeight: 700 }}>{thisMonthReading.units_consumed}</span>
             </div>
           )}
-          {thisMonthReading && (
+          {thisMonthReading && !isBaselineRow(thisMonthReading) && (
             <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 13, padding: '6px 0' }}>
               <span style={{ color: 'rgba(255,255,255,0.5)' }}>Bill amount</span>
               <span style={{ fontWeight: 700, color: '#00d4c8' }}>₹{thisMonthReading.bill_amount}</span>
@@ -131,7 +143,7 @@ export default function ElectricityPage() {
         <>
           <div style={{ background: 'rgba(255,255,255,0.04)', border: '1px solid rgba(255,255,255,0.08)', borderRadius: 12, padding: '12px 16px', marginBottom: 20, display: 'flex', justifyContent: 'space-between', fontSize: 13 }}>
             <span style={{ color: 'rgba(255,255,255,0.5)' }}>Last recorded reading</span>
-            <span style={{ fontWeight: 700 }}>{previousReading}</span>
+            <span style={{ fontWeight: 700 }}>{previousReading ?? 'None yet - this will be your starting reading'}</span>
           </div>
 
           <div style={{ fontSize: 12, color: 'rgba(255,255,255,0.4)', fontWeight: 600, letterSpacing: '0.08em', textTransform: 'uppercase', marginBottom: 10 }}>Current meter reading</div>
@@ -158,11 +170,20 @@ export default function ElectricityPage() {
             </label>
           )}
 
-          {preview !== null && (
+          {preview && (
             <div style={{ padding: 14, borderRadius: 10, background: 'rgba(0,212,200,0.05)', border: '1px solid rgba(0,212,200,0.15)', marginBottom: 20 }}>
-              <div style={{ fontSize: 13, color: 'rgba(255,255,255,0.4)', marginBottom: 4 }}>Bill preview</div>
-              <div style={{ fontSize: 20, fontWeight: 700, color: '#00d4c8', fontFamily: "'Syne',sans-serif" }}>₹{preview.toFixed(0)}</div>
-              <div style={{ fontSize: 12, color: 'rgba(255,255,255,0.4)', marginTop: 4 }}>Will be added to this month's rent automatically.</div>
+              {preview.baseline ? (
+                <>
+                  <div style={{ fontSize: 14, fontWeight: 700, color: '#00d4c8' }}>Starting reading - no bill</div>
+                  <div style={{ fontSize: 12, color: 'rgba(255,255,255,0.45)', marginTop: 4 }}>This is your first reading, so it just sets the starting point. From your next reading you pay ₹{ELECTRICITY_RATE} for each unit used since this one.</div>
+                </>
+              ) : (
+                <>
+                  <div style={{ fontSize: 13, color: 'rgba(255,255,255,0.4)', marginBottom: 4 }}>Bill preview · {preview.units} units × ₹{ELECTRICITY_RATE}</div>
+                  <div style={{ fontSize: 20, fontWeight: 700, color: '#00d4c8', fontFamily: "'Syne',sans-serif" }}>₹{preview.amount.toFixed(0)}</div>
+                  <div style={{ fontSize: 12, color: 'rgba(255,255,255,0.4)', marginTop: 4 }}>Will be added to this month's rent automatically.</div>
+                </>
+              )}
             </div>
           )}
 
@@ -181,8 +202,8 @@ export default function ElectricityPage() {
           {history.filter(h => !(h.month === month && h.year === year)).map(h => (
             <div key={h.id} style={{ display: 'flex', justifyContent: 'space-between', padding: '10px 0', borderBottom: '1px solid rgba(255,255,255,0.06)', fontSize: 13 }}>
               <span style={{ color: 'rgba(255,255,255,0.5)' }}>{MONTH_NAMES[h.month - 1]} {h.year}</span>
-              <span>{h.units_consumed} units</span>
-              <span style={{ fontWeight: 600 }}>₹{h.bill_amount}</span>
+              <span>{isBaselineRow(h) ? `Start: ${h.current_reading}` : `${h.units_consumed} units`}</span>
+              <span style={{ fontWeight: 600 }}>{isBaselineRow(h) ? 'No bill' : `₹${h.bill_amount}`}</span>
             </div>
           ))}
         </div>

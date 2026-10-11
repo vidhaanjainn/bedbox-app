@@ -3,6 +3,7 @@
 ## [Unreleased]
 ### Added
 - 2026-10-11 - Fix: onboarding uploads are compressed, retried, have a server fallback, skip already-uploaded files on retry, and typed answers survive a reload
+- 2026-10-11 - Edit any rent payment (who received it, date, mode, amounts, notes, screenshot); electricity first reading shown as starting reading, no bill
 - 2026-10-11 - Vacated residents separated (Past residents tab, close-out with hide); one shared rule for counts; duplicate invoices never counted
 - 2026-10-10 - Old Dues tab; cash received includes old-due payments; dashboard/tracker use one definition of pending
 - 2026-10-11 - Fix: removed 14 duplicate Sept rent rows (dashboard Rent Outstanding ₹1,00,250 → ₹7,500); DB now enforces one rent row per resident per month; Generate Monthly Rent checks the DB

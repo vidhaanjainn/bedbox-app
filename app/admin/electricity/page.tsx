@@ -1,6 +1,7 @@
 'use client'
 
 import { CURRENT_STATUSES } from '@/lib/residents'
+import { previewBill, isBaselineReading, ELECTRICITY_RATE } from '@/lib/electricity'
 import { useEffect, useState } from 'react'
 import { createClient } from '@/lib/supabase/client'
 import { formatCurrency, formatDate } from '@/lib/utils'
@@ -11,6 +12,7 @@ import { computeTotalAmount } from '@/lib/prorata'
 
 export default function ElectricityPage() {
   const [readings, setReadings] = useState<any[]>([])
+  const [allReadingKeys, setAllReadingKeys] = useState<any[]>([])
   const [residents, setResidents] = useState<any[]>([])
   const [loading, setLoading] = useState(true)
   const [showModal, setShowModal] = useState(false)
@@ -39,11 +41,14 @@ export default function ElectricityPage() {
 
   const fetchAll = async () => {
     setLoading(true)
-    const [{ data: r }, { data: res }] = await Promise.all([
+    const [{ data: r }, { data: res }, { data: keys }] = await Promise.all([
       supabase.from('electricity_readings').select('*, resident:residents(name, room_number, bed_id, initial_electricity_reading)')
         .eq('month', monthFilter).eq('year', yearFilter).order('created_at', { ascending: false }),
       supabase.from('residents').select('id, name, room_number, initial_electricity_reading, bed_id').in('status', [...CURRENT_STATUSES]),
+      // Every reading's month, to tell a resident's first (baseline) reading apart.
+      supabase.from('electricity_readings').select('id, resident_id, month, year'),
     ])
+    setAllReadingKeys(keys || [])
     setReadings(r || [])
     setResidents(res || [])
     setLoading(false)
@@ -248,8 +253,8 @@ export default function ElectricityPage() {
                 </span>
               </div>
               <div className="bb-row-card-amount">
-                <span className="bb-row-card-amount-value">{formatCurrency(r.bill_amount)}</span>
-                <span className="bb-row-card-amount-label">{r.units_consumed} units used</span>
+                <span className="bb-row-card-amount-value">{isBaselineReading(r, allReadingKeys) ? 'No bill' : formatCurrency(r.bill_amount)}</span>
+                <span className="bb-row-card-amount-label">{isBaselineReading(r, allReadingKeys) ? `Starting reading ${r.current_reading}` : `${r.units_consumed} units used`}</span>
               </div>
               <details className="bb-row-card-details">
                 <summary>More details</summary>
@@ -286,13 +291,19 @@ export default function ElectricityPage() {
                   <td>{r.previous_reading}</td>
                   <td>{r.current_reading}</td>
                   <td>
-                    <span style={{ fontWeight: '700', color: 'var(--teal-500)', fontFamily: 'Syne, sans-serif', fontSize: '15px' }}>
-                      {r.units_consumed}
-                    </span>
-                    <span style={{ fontSize: '11px', color: 'var(--text-muted)', marginLeft: '4px' }}>units</span>
+                    {isBaselineReading(r, allReadingKeys) ? (
+                      <span style={{ fontSize: '11px', fontWeight: 600, padding: '3px 8px', borderRadius: 999, background: 'rgba(56,189,248,0.1)', color: '#38bdf8' }}>Starting reading</span>
+                    ) : (
+                      <>
+                        <span style={{ fontWeight: '700', color: 'var(--teal-500)', fontFamily: 'Syne, sans-serif', fontSize: '15px' }}>
+                          {r.units_consumed}
+                        </span>
+                        <span style={{ fontSize: '11px', color: 'var(--text-muted)', marginLeft: '4px' }}>units</span>
+                      </>
+                    )}
                   </td>
-                  <td style={{ fontWeight: '700', color: '#fbbf24', fontFamily: 'Syne, sans-serif' }}>
-                    {formatCurrency(r.bill_amount)}
+                  <td style={{ fontWeight: '700', color: isBaselineReading(r, allReadingKeys) ? 'var(--text-muted)' : '#fbbf24', fontFamily: 'Syne, sans-serif' }}>
+                    {isBaselineReading(r, allReadingKeys) ? 'No bill' : formatCurrency(r.bill_amount)}
                   </td>
                   <td style={{ fontSize: '13px' }}>{formatDate(r.reading_date)}</td>
                   <td>{sourceBadge(r)}</td>
@@ -350,15 +361,22 @@ export default function ElectricityPage() {
 
             {form.resident_id && form.current_reading && (
               <div style={{ padding: '14px', borderRadius: '10px', background: 'rgba(0,212,200,0.05)', border: '1px solid rgba(0,212,200,0.15)', marginBottom: '20px' }}>
-                <div style={{ fontSize: '13px', color: 'var(--text-muted)', marginBottom: '4px' }}>Bill Preview</div>
-                <div style={{ fontSize: '20px', fontWeight: '700', color: 'var(--teal-500)', fontFamily: 'Syne, sans-serif' }}>
-                  {formatCurrency(Math.max(0, parseFloat(form.current_reading || '0') - (modalPrevReading ?? parseFloat(form.current_reading || '0'))) * 10)}
-                </div>
-                <div style={{ fontSize: '12px', color: 'var(--text-muted)', marginTop: '4px' }}>
-                  {modalPrevReading === null
-                    ? "First reading on file for this resident - sets the baseline, no charge."
-                    : `vs. last reading of ${modalPrevReading} · Rate: ₹10/unit · Will be added to rent automatically`}
-                </div>
+                {(() => {
+                  const pv = previewBill(parseFloat(form.current_reading), modalPrevReading)
+                  if (!pv) return null
+                  return pv.baseline ? (
+                    <>
+                      <div style={{ fontSize: '15px', fontWeight: '700', color: 'var(--teal-500)' }}>Starting reading - no bill</div>
+                      <div style={{ fontSize: '12px', color: 'var(--text-muted)', marginTop: '4px' }}>No earlier reading on file for this resident, so this only sets the starting point. Billing starts from their next reading.</div>
+                    </>
+                  ) : (
+                    <>
+                      <div style={{ fontSize: '13px', color: 'var(--text-muted)', marginBottom: '4px' }}>Bill preview · {pv.units} units × ₹{ELECTRICITY_RATE}</div>
+                      <div style={{ fontSize: '20px', fontWeight: '700', color: 'var(--teal-500)', fontFamily: 'Syne, sans-serif' }}>{formatCurrency(pv.amount)}</div>
+                      <div style={{ fontSize: '12px', color: 'var(--text-muted)', marginTop: '4px' }}>{form.current_reading} − last reading {modalPrevReading} · added to rent automatically</div>
+                    </>
+                  )
+                })()}
               </div>
             )}
 

@@ -8,6 +8,8 @@ import { useIsMobile } from '@/lib/useIsMobile'
 import { DocViewerModal, DocPreview } from '@/components/ui/DocViewerModal'
 import { computeTotalAmount } from '@/lib/prorata'
 import { OldDuesTab } from '@/components/admin/OldDuesTab'
+import { EditPaymentModal, ReceivedByField, ReceivedBy } from '@/components/admin/EditPaymentModal'
+import { deriveInvoice, receivedByLabel, toDateInput, fromDateInput } from '@/lib/rent'
 import { OldDue, OldDuePayment, oldDueBalances, oldDueCashInMonth, invoiceBalance, isBefore, dedupeInvoices } from '@/lib/dues'
 import { CURRENT_STATUSES } from '@/lib/residents'
 import { CreditCard, Plus, Search, CheckCircle, Clock, AlertCircle, Loader2, X, Upload, MessageCircle, FileSpreadsheet } from 'lucide-react'
@@ -28,7 +30,8 @@ export default function RentPage() {
   const [yearFilter, setYearFilter] = useState(new Date().getFullYear())
   const [showLogModal, setShowLogModal] = useState(false)
   const [selectedPayment, setSelectedPayment] = useState<any>(null)
-  const [logForm, setLogForm] = useState({ amount: '', payment_mode: 'upi', notes: '', collected_by: '', electricity: '', deposit: '' })
+  const [logForm, setLogForm] = useState({ amount: '', payment_mode: 'upi', notes: '', collected_by: '', electricity: '', deposit: '', received_by_name: '', date: toDateInput() })
+  const [editPayment, setEditPayment] = useState<any>(null)
   const [logLoading, setLogLoading] = useState(false)
   const [screenshot, setScreenshot] = useState<File | null>(null)
   const [syncing, setSyncing] = useState(false)
@@ -124,7 +127,7 @@ export default function RentPage() {
     const toCreate = activeResidents.filter(r => !existing.includes(r.id))
 
     if (!toCreate.length) {
-      alert('All active residents already have rent records for this month')
+      alert('Every current resident already has a rent record for this month.')
       return
     }
 
@@ -156,6 +159,7 @@ export default function RentPage() {
 
   const handleLogPayment = async () => {
     if (!selectedPayment || !logForm.amount) return
+    if (!logForm.collected_by && !logForm.received_by_name.trim()) { alert('Who received the money?'); return }
     setLogLoading(true)
 
     let screenshotPath = null
@@ -172,7 +176,6 @@ export default function RentPage() {
     // same as "zero".
     const electricityProvided = logForm.electricity.trim() !== ''
     const electricityAmount = electricityProvided ? parseFloat(logForm.electricity) || 0 : selectedPayment.electricity_amount
-    const totalAmount = computeTotalAmount(selectedPayment.rent_amount, electricityAmount, selectedPayment.late_fee, selectedPayment.prorata_credit_applied)
 
     // A move-in payment is very often rent + security deposit handed over
     // together in one transfer - without this, the whole amount was
@@ -183,8 +186,14 @@ export default function RentPage() {
     const depositAmount = parseFloat(logForm.deposit) || 0
     const rentLedgerAmount = Math.max(parseFloat(logForm.amount) - depositAmount, 0)
 
-    const newPaid = selectedPayment.amount_paid + rentLedgerAmount
-    const isFullyPaid = newPaid >= totalAmount
+    const newPaid = Number(selectedPayment.amount_paid || 0) + rentLedgerAmount
+    // lib/rent.ts: total, split and status in one place - and a forgiven late
+    // fee stays forgiven (this used to add it straight back into the total).
+    const inv = deriveInvoice({
+      rent: Number(selectedPayment.rent_amount), electricity: Number(electricityAmount || 0),
+      lateFee: Number(selectedPayment.late_fee || 0), lateFeeForgiven: !!selectedPayment.late_fee_forgiven_at,
+      prorataCredit: Number(selectedPayment.prorata_credit_applied || 0), paid: newPaid,
+    })
 
     if (depositAmount > 0) {
       await supabase.from('residents').update({
@@ -198,29 +207,28 @@ export default function RentPage() {
     // amount to a bucket - keeps the three always summing exactly to
     // amount_paid with no drift, the same rule the one-time backfill used
     // for every payment logged before this feature existed.
-    const rentPaid = Math.min(newPaid, Number(selectedPayment.rent_amount))
-    const electricityPaid = Math.max(Math.min(newPaid - Number(selectedPayment.rent_amount), electricityAmount), 0)
-    const lateFeePaid = Math.max(Math.min(newPaid - Number(selectedPayment.rent_amount) - electricityAmount, Number(selectedPayment.late_fee || 0)), 0)
-
     await supabase.from('rent_payments').update({
-      amount_paid: newPaid,
+      amount_paid: inv.amount_paid,
       payment_mode: logForm.payment_mode,
-      payment_screenshot_path: screenshotPath,
-      notes: logForm.notes || null,
-      paid_at: isFullyPaid ? new Date().toISOString() : null,
-      status: isFullyPaid ? 'paid' : 'partial',
-      collected_by: logForm.collected_by || currentAdmin?.id || null,
+      // Keep what was already on the row unless something new was given -
+      // logging a second instalment used to wipe the earlier notes/screenshot.
+      payment_screenshot_path: screenshotPath || selectedPayment.payment_screenshot_path || null,
+      notes: [selectedPayment.notes, logForm.notes.trim()].filter(Boolean).join(' · ') || null,
+      paid_at: fromDateInput(logForm.date),
+      status: inv.status,
+      collected_by: logForm.collected_by || null,
+      received_by_name: logForm.collected_by ? null : (logForm.received_by_name.trim() || null),
       electricity_amount: electricityAmount,
-      total_amount: totalAmount,
-      rent_paid: rentPaid,
-      electricity_paid: electricityPaid,
-      late_fee_paid: lateFeePaid,
+      total_amount: inv.total_amount,
+      rent_paid: inv.rent_paid,
+      electricity_paid: inv.electricity_paid,
+      late_fee_paid: inv.late_fee_paid,
       ...(electricityProvided ? { electricity_logged_at: new Date().toISOString() } : {}),
     }).eq('id', selectedPayment.id)
 
     setShowLogModal(false)
     setSelectedPayment(null)
-    setLogForm({ amount: '', payment_mode: 'upi', notes: '', collected_by: currentAdmin?.id || '', electricity: '', deposit: '' })
+    setLogForm({ amount: '', payment_mode: 'upi', notes: '', collected_by: currentAdmin?.id || '', electricity: '', deposit: '', received_by_name: '', date: toDateInput() })
     setScreenshot(null)
     setLogLoading(false)
     fetchPayments()
@@ -342,6 +350,13 @@ export default function RentPage() {
 
   const rowActions = (p: any) => (
     <>
+      <button
+        onClick={() => setEditPayment(p)}
+        title="Edit amounts, who received it, date, mode, notes"
+        style={{ padding: '4px 10px', borderRadius: '6px', border: '1px solid var(--border)', background: 'transparent', color: 'var(--text-secondary)', fontSize: '11px', fontWeight: '600', cursor: 'pointer' }}
+      >
+        Edit
+      </button>
       {p.status !== 'paid' && p.resident?.mobile && (
         <a
           href={waReminderLink(p.resident.mobile, p.resident.name, p.resident.room_number, p.total_amount - p.amount_paid)}
@@ -369,7 +384,7 @@ export default function RentPage() {
       )}
       {p.status !== 'paid' && (
         <button
-          onClick={() => { setSelectedPayment(p); setShowLogModal(true); setLogForm({ amount: String(p.resident_reported_amount || (p.total_amount - p.amount_paid)), payment_mode: p.payment_mode || 'upi', notes: '', collected_by: currentAdmin?.id || '', electricity: p.electricity_logged_at ? String(p.electricity_amount) : '', deposit: '' }) }}
+          onClick={() => { setSelectedPayment(p); setShowLogModal(true); setLogForm({ amount: String(p.resident_reported_amount || (p.total_amount - p.amount_paid)), payment_mode: p.payment_mode || 'upi', notes: '', collected_by: currentAdmin?.id || '', electricity: p.electricity_logged_at ? String(p.electricity_amount) : '', deposit: '', received_by_name: '', date: toDateInput() }) }}
           style={{
             padding: '4px 10px', borderRadius: '6px', border: '1px solid rgba(0,212,200,0.3)',
             background: 'rgba(0,212,200,0.08)', color: 'var(--teal-500)',
@@ -435,7 +450,7 @@ export default function RentPage() {
           {months.map((m, i) => <option key={m} value={i + 1}>{m}</option>)}
         </select>
         <select className="bb-input" style={{ width: 'auto' }} value={yearFilter} onChange={e => setYearFilter(parseInt(e.target.value))}>
-          {[2024, 2025, 2026].map(y => <option key={y} value={y}>{y}</option>)}
+          {Array.from({ length: 4 }, (_, i) => new Date().getFullYear() - 2 + i).map(y => <option key={y} value={y}>{y}</option>)}
         </select>
       </div>
 
@@ -466,7 +481,7 @@ export default function RentPage() {
       {tab === 'olddues' && (
         <OldDuesTab
           dues={oldDues} payments={oldDuePayments} residents={dueResidents}
-          adminId={currentAdmin?.id} monthLabel={`${months[monthFilter - 1]} ${yearFilter}`}
+          adminId={currentAdmin?.id} admins={admins} monthLabel={`${months[monthFilter - 1]} ${yearFilter}`}
           cashThisMonth={stats.oldDuesCollected} onChanged={fetchOldDues}
         />
       )}
@@ -510,8 +525,8 @@ export default function RentPage() {
                 {statusBadge(p)}
               </div>
               <div className="bb-row-card-amount">
-                <span className="bb-row-card-amount-value">{formatCurrency(p.total_amount)}</span>
-                <span className="bb-row-card-amount-label">Total Due</span>
+                <span className="bb-row-card-amount-value">{p.total_amount - p.amount_paid > 0 ? formatCurrency(p.total_amount - p.amount_paid) : formatCurrency(p.amount_paid)}</span>
+                <span className="bb-row-card-amount-label">{p.total_amount - p.amount_paid > 0 ? `Balance of ${formatCurrency(p.total_amount)}` : 'Paid in full'}</span>
               </div>
               <details className="bb-row-card-details">
                 <summary>More details</summary>
@@ -527,8 +542,10 @@ export default function RentPage() {
                 <div className="bb-row-card-detail-row"><span>Paid</span><span>{formatCurrency(p.amount_paid)}</span></div>
                 <div className="bb-row-card-detail-row">
                   <span>Mode</span>
-                  <span style={{ textTransform: 'capitalize' }}>{p.payment_mode?.replace('_', ' ') || '-'}{p.collected_admin?.name ? ` (by ${p.collected_admin.name.split(' ')[0]})` : ''}</span>
+                  <span style={{ textTransform: 'capitalize' }}>{p.payment_mode?.replace('_', ' ') || '-'}{receivedByLabel(p) ? ` · ${receivedByLabel(p)}` : ''}</span>
                 </div>
+                {p.paid_at && <div className="bb-row-card-detail-row"><span>Received on</span><span>{formatDate(p.paid_at)}</span></div>}
+                {p.notes && <div className="bb-row-card-detail-row"><span>Notes</span><span style={{ textAlign: 'right' }}>{p.notes}</span></div>}
               </details>
               <div className="bb-row-card-actions">
                 {rowActions(p)}
@@ -548,13 +565,13 @@ export default function RentPage() {
               <thead>
                 <tr>
                   <th>Resident</th>
-                  <th>Room</th>
                   <th>Rent</th>
                   <th>Electricity</th>
                   <th>Late Fee</th>
                   <th>Total</th>
                   <th>Paid</th>
-                  <th>Mode</th>
+                  <th>Balance</th>
+                  <th>Received</th>
                   <th>Status</th>
                   <th>Actions</th>
                 </tr>
@@ -562,8 +579,11 @@ export default function RentPage() {
               <tbody>
                 {filtered.map(p => (
                   <tr key={p.id}>
-                    <td style={{ color: 'var(--text-primary)', fontWeight: '600' }}>{p.resident?.name}</td>
-                    <td>Room {p.resident?.room_number}</td>
+                    <td>
+                      <div style={{ color: 'var(--text-primary)', fontWeight: '600' }}>{p.resident?.name}</div>
+                      <div style={{ fontSize: '11px', color: 'var(--text-muted)' }}>Room {p.resident?.room_number}</div>
+                      {p.notes && <div title={p.notes} style={{ fontSize: '11px', color: 'var(--text-muted)', marginTop: 2, maxWidth: 220, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>📝 {p.notes}</div>}
+                    </td>
                     <td>{formatCurrency(p.rent_amount)}</td>
                     <td>
                       {p.electricity_logged_at ? (p.electricity_amount > 0 ? formatCurrency(p.electricity_amount) : '-') : (
@@ -585,9 +605,14 @@ export default function RentPage() {
                       {p.prorata_credit_applied > 0 && <div style={{ fontSize: 10, fontWeight: 600, color: '#38bdf8' }}>-{formatCurrency(p.prorata_credit_applied)} pro-rata</div>}
                     </td>
                     <td style={{ color: '#34d399', fontWeight: '600' }}>{formatCurrency(p.amount_paid)}</td>
+                    <td style={{ fontWeight: 600, color: p.total_amount - p.amount_paid > 0 ? '#f87171' : 'var(--text-muted)' }}>{p.total_amount - p.amount_paid > 0 ? formatCurrency(p.total_amount - p.amount_paid) : '-'}</td>
                     <td style={{ fontSize: '12px' }}>
-                      <div style={{ textTransform: 'capitalize' }}>{p.payment_mode?.replace('_', ' ') || '-'}</div>
-                      {p.collected_admin?.name && <div style={{ color: 'var(--text-muted)', marginTop: '2px' }}>by {p.collected_admin.name.split(' ')[0]}</div>}
+                      {Number(p.amount_paid) > 0 ? (
+                        <>
+                          <div style={{ textTransform: 'capitalize' }}>{p.payment_mode?.replace('_', ' ') || '-'}{receivedByLabel(p) ? ` · ${receivedByLabel(p)}` : ''}</div>
+                          {p.paid_at && <div style={{ color: 'var(--text-muted)', marginTop: '2px' }}>{formatDate(p.paid_at)}</div>}
+                        </>
+                      ) : '-'}
                     </td>
                     <td>{statusBadge(p)}</td>
                     <td>
@@ -727,15 +752,17 @@ export default function RentPage() {
               )
             })()}
 
+            <ReceivedByField
+              value={{ collected_by: logForm.collected_by, received_by_name: logForm.received_by_name }}
+              onChange={(v: ReceivedBy) => setLogForm(f => ({ ...f, ...v }))}
+              admins={admins} currentAdminId={currentAdmin?.id}
+            />
+
             <div style={{ marginBottom: '16px' }}>
               <label style={{ display: 'block', fontSize: '12px', fontWeight: '600', letterSpacing: '0.06em', textTransform: 'uppercase', color: 'var(--text-muted)', marginBottom: '8px' }}>
-                Received By
+                Date received
               </label>
-              <select className="bb-input" value={logForm.collected_by} onChange={e => setLogForm(f => ({ ...f, collected_by: e.target.value }))}>
-                {admins.map(a => (
-                  <option key={a.id} value={a.id}>{a.name}{a.id === currentAdmin?.id ? ' (you)' : ''}</option>
-                ))}
-              </select>
+              <input className="bb-input" type="date" value={logForm.date} onChange={e => setLogForm(f => ({ ...f, date: e.target.value }))} />
             </div>
 
             <div style={{ marginBottom: '16px' }}>
@@ -810,6 +837,14 @@ export default function RentPage() {
             </div>
           </div>
         </div>
+      )}
+
+      {editPayment && (
+        <EditPaymentModal
+          payment={editPayment} admins={admins} currentAdminId={currentAdmin?.id}
+          onClose={() => setEditPayment(null)}
+          onSaved={() => { setEditPayment(null); fetchPayments() }}
+        />
       )}
 
       <DocViewerModal doc={previewDoc} onClose={() => setPreviewDoc(null)} />

@@ -111,7 +111,9 @@ export async function POST(req: Request) {
   await Promise.all([
     sendPushToAdmins({
       title: 'Electricity reading logged',
-      body: `${resident.name} (${roomLabel}) logged ${reading.units_consumed} units for ${monthLabel} - ${moneyINR(reading.bill_amount)}`,
+      body: prevRow
+        ? `${resident.name} (${roomLabel}) logged ${reading.units_consumed} units for ${monthLabel} - ${moneyINR(reading.bill_amount)}`
+        : `${resident.name} (${roomLabel}) recorded their starting meter reading (${reading.current_reading}) - no bill`,
       url: '/admin/electricity',
     }),
     sendEmail({

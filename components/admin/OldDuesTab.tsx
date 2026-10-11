@@ -4,7 +4,9 @@ import { useMemo, useState } from 'react'
 import { createClient } from '@/lib/supabase/client'
 import { formatCurrency, formatDate } from '@/lib/utils'
 import { oldDueBalances, OldDue, OldDuePayment } from '@/lib/dues'
-import { Plus, X, Loader2, MessageCircle } from 'lucide-react'
+import { Plus, X, Loader2, MessageCircle, Pencil, Trash2 } from 'lucide-react'
+import { ReceivedByField, ReceivedBy } from '@/components/admin/EditPaymentModal'
+import { toDateInput, fromDateInput } from '@/lib/rent'
 
 type ResidentLite = { id: string; name: string; room_number: string; mobile?: string | null; status?: string }
 
@@ -22,12 +24,13 @@ function waLink(r: ResidentLite, balance: number) {
 // resident's own record and what was received counts as cash for the month it
 // actually came in (see lib/dues.ts).
 export function OldDuesTab({
-  dues, payments, residents, adminId, monthLabel, cashThisMonth, onChanged,
+  dues, payments, residents, adminId, admins, monthLabel, cashThisMonth, onChanged,
 }: {
   dues: OldDue[]
   payments: OldDuePayment[]
   residents: ResidentLite[]
   adminId?: string | null
+  admins: { id: string; name: string }[]
   monthLabel: string
   cashThisMonth: number
   onChanged: () => void
@@ -35,7 +38,9 @@ export function OldDuesTab({
   const supabase = createClient()
   const [showCleared, setShowCleared] = useState(false)
   const [payFor, setPayFor] = useState<any | null>(null)
-  const [payForm, setPayForm] = useState({ amount: '', mode: 'upi', notes: '' })
+  const [payForm, setPayForm] = useState({ amount: '', mode: 'upi', notes: '', date: toDateInput() })
+  const [payBy, setPayBy] = useState<ReceivedBy>({ collected_by: adminId || '', received_by_name: '' })
+  const [editDue, setEditDue] = useState<any | null>(null)
   const [showAdd, setShowAdd] = useState(false)
   const [addForm, setAddForm] = useState({ resident_id: '', amount: '', reason: '' })
   const [busy, setBusy] = useState(false)
@@ -51,14 +56,16 @@ export function OldDuesTab({
     const amount = parseFloat(payForm.amount)
     if (!payFor || !amount || amount <= 0) { setError('Enter a valid amount.'); return }
     if (amount > payFor.balance) { setError(`That's more than the ${formatCurrency(payFor.balance)} still pending.`); return }
+    if (!payBy.collected_by && !payBy.received_by_name.trim()) { setError('Who received the money?'); return }
     setBusy(true); setError('')
     const { error: err } = await supabase.from('old_due_payments').insert({
       old_due_id: payFor.id, resident_id: payFor.resident_id, amount,
-      payment_mode: payForm.mode, notes: payForm.notes || null, collected_by: adminId || null,
+      payment_mode: payForm.mode, notes: payForm.notes || null, paid_at: fromDateInput(payForm.date),
+      collected_by: payBy.collected_by || null, received_by_name: payBy.collected_by ? null : payBy.received_by_name.trim(),
     })
     setBusy(false)
     if (err) { setError('Could not save the payment.'); return }
-    setPayFor(null); setPayForm({ amount: '', mode: 'upi', notes: '' }); onChanged()
+    setPayFor(null); setPayForm({ amount: '', mode: 'upi', notes: '', date: toDateInput() }); onChanged()
   }
 
   const saveDue = async () => {
@@ -69,6 +76,24 @@ export function OldDuesTab({
     setBusy(false)
     if (err) { setError('Could not save the due.'); return }
     setShowAdd(false); setAddForm({ resident_id: '', amount: '', reason: '' }); onChanged()
+  }
+
+  const saveEditDue = async () => {
+    const amount = parseFloat(editDue.amount)
+    if (!amount || amount <= 0) { setError('Enter the amount owed.'); return }
+    if (amount < editDue.paid) { setError(`Already ${formatCurrency(editDue.paid)} paid against this - amount can't be lower.`); return }
+    setBusy(true); setError('')
+    const { error: err } = await supabase.from('old_dues').update({ original_amount: amount, reason: editDue.reasonText || null }).eq('id', editDue.id)
+    setBusy(false)
+    if (err) { setError('Could not save.'); return }
+    setEditDue(null); onChanged()
+  }
+
+  // Undo a payment that was logged by mistake (wrong amount / wrong person).
+  const removePayment = async (p: OldDuePayment) => {
+    if (!confirm(`Remove the ${formatCurrency(Number(p.amount))} payment logged on ${formatDate(p.paid_at)}? The balance goes back up by that amount.`)) return
+    await supabase.from('old_due_payments').delete().eq('id', p.id)
+    onChanged()
   }
 
   const modal = (title: string, onClose: () => void, children: React.ReactNode) => (
@@ -124,16 +149,24 @@ export function OldDuesTab({
             {history.length > 0 && (
               <div style={{ marginTop: 10, borderTop: '1px solid rgba(255,255,255,0.06)', paddingTop: 8 }}>
                 {history.map(p => (
-                  <div key={p.id} style={{ display: 'flex', justifyContent: 'space-between', fontSize: 12, color: 'var(--text-muted)', padding: '2px 0' }}>
-                    <span>{formatDate(p.paid_at)}{p.payment_mode ? ` · ${p.payment_mode.replace('_', ' ')}` : ''}</span>
-                    <span style={{ color: '#34d399' }}>+ {formatCurrency(Number(p.amount))}</span>
+                  <div key={p.id} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 8, fontSize: 12, color: 'var(--text-muted)', padding: '2px 0' }}>
+                    <span>{formatDate(p.paid_at)}{p.payment_mode ? ` · ${p.payment_mode.replace('_', ' ')}` : ''}{(p as any).received_by_name || admins.find(a => a.id === (p as any).collected_by)?.name ? ` · ${(p as any).received_by_name || admins.find(a => a.id === (p as any).collected_by)?.name}` : ''}{p.notes ? ` · ${p.notes}` : ''}</span>
+                    <span style={{ display: 'flex', alignItems: 'center', gap: 8, flexShrink: 0 }}>
+                      <span style={{ color: '#34d399' }}>+ {formatCurrency(Number(p.amount))}</span>
+                      <button onClick={() => removePayment(p)} title="Remove this payment" style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--text-muted)', padding: 0, display: 'flex' }}><Trash2 size={12} /></button>
+                    </span>
                   </div>
                 ))}
               </div>
             )}
+            <div style={{ display: 'flex', gap: 8, marginTop: 12, flexWrap: 'wrap' }}>
+              <button onClick={() => { setError(''); setEditDue({ ...d, amount: String(d.original), reasonText: d.reason || '' }) }}
+                style={{ display: 'flex', alignItems: 'center', gap: 4, padding: '6px 12px', borderRadius: 6, border: '1px solid var(--border)', background: 'transparent', color: 'var(--text-secondary)', fontSize: 12, fontWeight: 600, cursor: 'pointer' }}>
+                <Pencil size={11} /> Edit
+              </button>
             {d.balance > 0 && (
-              <div style={{ display: 'flex', gap: 8, marginTop: 12, flexWrap: 'wrap' }}>
-                <button onClick={() => { setError(''); setPayFor(d); setPayForm({ amount: String(d.balance), mode: 'upi', notes: '' }) }}
+              <>
+                <button onClick={() => { setError(''); setPayFor(d); setPayForm({ amount: String(d.balance), mode: 'upi', notes: '', date: toDateInput() }); setPayBy({ collected_by: adminId || admins[0]?.id || '', received_by_name: '' }) }}
                   style={{ padding: '6px 12px', borderRadius: 6, border: '1px solid rgba(0,212,200,0.3)', background: 'rgba(0,212,200,0.08)', color: 'var(--teal-500)', fontSize: 12, fontWeight: 600, cursor: 'pointer' }}>
                   Log payment
                 </button>
@@ -143,8 +176,9 @@ export function OldDuesTab({
                     <MessageCircle size={12} /> WhatsApp
                   </a>
                 )}
-              </div>
+              </>
             )}
+            </div>
           </div>
         )
       })}
@@ -165,12 +199,34 @@ export function OldDuesTab({
               <option value="upi">UPI / GPay</option><option value="bank_transfer">Bank Transfer</option><option value="cash">Cash</option>
             </select>
           </div>
+          <div style={{ marginBottom: 14 }}>
+            <label style={labelStyle}>Date received</label>
+            <input className="bb-input" type="date" value={payForm.date} onChange={e => setPayForm(f => ({ ...f, date: e.target.value }))} />
+          </div>
+          <ReceivedByField value={payBy} onChange={setPayBy} admins={admins} currentAdminId={adminId} />
           <div style={{ marginBottom: 18 }}>
             <label style={labelStyle}>Notes</label>
             <input className="bb-input" value={payForm.notes} onChange={e => setPayForm(f => ({ ...f, notes: e.target.value }))} />
           </div>
           <button className="bb-btn-primary" style={{ width: '100%' }} disabled={busy} onClick={savePayment}>
             {busy ? <Loader2 size={14} style={{ animation: 'spin 1s linear infinite' }} /> : 'Save payment'}
+          </button>
+        </>
+      ))}
+
+      {editDue && modal('Edit old due', () => setEditDue(null), (
+        <>
+          <div style={{ fontSize: 13, color: 'var(--text-muted)', marginBottom: 14 }}>{byId[editDue.resident_id]?.name} · paid so far {formatCurrency(editDue.paid)}</div>
+          <div style={{ marginBottom: 14 }}>
+            <label style={labelStyle}>Amount owed (₹)</label>
+            <input className="bb-input" type="number" value={editDue.amount} onChange={e => setEditDue((d: any) => ({ ...d, amount: e.target.value }))} />
+          </div>
+          <div style={{ marginBottom: 18 }}>
+            <label style={labelStyle}>What is it for?</label>
+            <input className="bb-input" value={editDue.reasonText} onChange={e => setEditDue((d: any) => ({ ...d, reasonText: e.target.value }))} />
+          </div>
+          <button className="bb-btn-primary" style={{ width: '100%' }} disabled={busy} onClick={saveEditDue}>
+            {busy ? <Loader2 size={14} style={{ animation: 'spin 1s linear infinite' }} /> : 'Save'}
           </button>
         </>
       ))}

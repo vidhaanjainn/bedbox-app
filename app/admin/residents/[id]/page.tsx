@@ -15,6 +15,8 @@ import { APP_URL } from '@/lib/config'
 import { missingOnboardingFields } from '@/lib/onboardingCompleteness'
 import { oldDueBalances, dedupeInvoices } from '@/lib/dues'
 import { closeoutItems } from '@/lib/residents'
+import { EditPaymentModal } from '@/components/admin/EditPaymentModal'
+import { receivedByLabel } from '@/lib/rent'
 
 export default function ResidentDetailPage() {
   const { id } = useParams()
@@ -24,6 +26,8 @@ export default function ResidentDetailPage() {
   const [resident, setResident] = useState<any>(null)
   const [rentPayments, setRentPayments] = useState<any[]>([])
   const [oldDueRows, setOldDueRows] = useState<any[]>([])
+  const [editPayment, setEditPayment] = useState<any>(null)
+  const [adminList, setAdminList] = useState<{ id: string; name: string }[]>([])
   const [electricityReadings, setElectricityReadings] = useState<any[]>([])
   const [maintenance, setMaintenance] = useState<any[]>([])
   const [notice, setNotice] = useState<any>(null)
@@ -220,7 +224,7 @@ export default function ResidentDetailPage() {
       { data: noticeData },
     ] = await Promise.all([
       supabase.from('residents').select('*, bed:beds(bed_number, room:rooms(room_number, type, floor)), onboarded_by_admin:admins!residents_onboarded_by_fkey(name)').eq('id', id).single(),
-      supabase.from('rent_payments').select('*').eq('resident_id', id).order('year', { ascending: false }).order('month', { ascending: false }),
+      supabase.from('rent_payments').select('*, collected_admin:admins!rent_payments_collected_by_fkey(name)').eq('resident_id', id).order('year', { ascending: false }).order('month', { ascending: false }),
       supabase.from('electricity_readings').select('*').eq('resident_id', id).order('year', { ascending: false }).order('month', { ascending: false }),
       supabase.from('maintenance_requests').select('*').eq('resident_id', id).order('created_at', { ascending: false }),
       supabase.from('notice_periods').select('*').eq('resident_id', id).eq('status', 'active').maybeSingle(),
@@ -233,6 +237,8 @@ export default function ResidentDetailPage() {
       supabase.from('old_due_payments').select('*').eq('resident_id', id),
     ])
     setOldDueRows(oldDueBalances(dues || [], duePays || []))
+    const { data: admins } = await supabase.from('admins').select('id, name').eq('is_active', true).order('name')
+    setAdminList(admins || [])
     setElectricityReadings(elec || [])
     setMaintenance(maint || [])
     setNotice(noticeData)
@@ -877,15 +883,18 @@ export default function ResidentDetailPage() {
                     <span>{p.electricity_logged_at ? (p.electricity_amount > 0 ? formatCurrency(p.electricity_amount) : '-') : 'Not logged'}</span>
                   </div>
                   <div className="bb-row-card-detail-row"><span>Late Fee</span><span>{p.late_fee > 0 ? formatCurrency(p.late_fee) : '-'}</span></div>
-                  <div className="bb-row-card-detail-row"><span>Mode</span><span style={{ textTransform: 'capitalize' }}>{p.payment_mode?.replace('_', ' ') || '-'}</span></div>
+                  <div className="bb-row-card-detail-row"><span>Mode</span><span style={{ textTransform: 'capitalize' }}>{p.payment_mode?.replace('_', ' ') || '-'}{receivedByLabel(p) ? ` · ${receivedByLabel(p)}` : ''}</span></div>
+                  {p.paid_at && <div className="bb-row-card-detail-row"><span>Received on</span><span>{formatDate(p.paid_at)}</span></div>}
+                  {p.notes && <div className="bb-row-card-detail-row"><span>Notes</span><span style={{ textAlign: 'right' }}>{p.notes}</span></div>}
                 </details>
+                <div className="bb-row-card-actions"><button className="bb-btn-secondary" style={{ fontSize: 12 }} onClick={() => setEditPayment({ ...p, resident })}>Edit</button></div>
               </div>
             ))}
           </div>
         ) : (
           <div style={{ overflowX: 'auto' }}>
           <table className="bb-table">
-            <thead><tr><th>Month</th><th>Rent</th><th>Electricity</th><th>Late Fee</th><th>Total</th><th>Paid</th><th>Mode</th><th>Status</th></tr></thead>
+            <thead><tr><th>Month</th><th>Rent</th><th>Electricity</th><th>Late Fee</th><th>Total</th><th>Paid</th><th>Received</th><th>Status</th><th></th></tr></thead>
             <tbody>
               {rentPayments.map(p => (
                 <tr key={p.id}>
@@ -901,8 +910,15 @@ export default function ResidentDetailPage() {
                   <td style={{ color: p.late_fee > 0 ? '#fbbf24' : 'inherit' }}>{p.late_fee > 0 ? formatCurrency(p.late_fee) : '-'}</td>
                   <td style={{ fontWeight: '600', color: 'var(--text-primary)' }}>{formatCurrency(p.total_amount)}</td>
                   <td style={{ color: '#34d399' }}>{formatCurrency(p.amount_paid)}</td>
-                  <td style={{ textTransform: 'capitalize' }}>{p.payment_mode?.replace('_', ' ') || '-'}</td>
+                  <td style={{ fontSize: 12 }}>
+                    {Number(p.amount_paid) > 0 ? <>
+                      <div style={{ textTransform: 'capitalize' }}>{p.payment_mode?.replace('_', ' ') || '-'}{receivedByLabel(p) ? ` · ${receivedByLabel(p)}` : ''}</div>
+                      {p.paid_at && <div style={{ color: 'var(--text-muted)' }}>{formatDate(p.paid_at)}</div>}
+                    </> : '-'}
+                    {p.notes && <div title={p.notes} style={{ color: 'var(--text-muted)', maxWidth: 180, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>📝 {p.notes}</div>}
+                  </td>
                   <td><span className="status-badge" style={{ background: p.status === 'paid' ? 'rgba(52,211,153,0.1)' : p.status === 'partial' ? 'rgba(251,191,36,0.1)' : 'rgba(239,68,68,0.1)', color: p.status === 'paid' ? '#34d399' : p.status === 'partial' ? '#fbbf24' : '#f87171', borderColor: p.status === 'paid' ? 'rgba(52,211,153,0.3)' : p.status === 'partial' ? 'rgba(251,191,36,0.3)' : 'rgba(239,68,68,0.3)' }}>{p.status}</span></td>
+                  <td><button className="bb-btn-secondary" style={{ fontSize: 11, padding: '4px 10px' }} onClick={() => setEditPayment({ ...p, resident })}>Edit</button></td>
                 </tr>
               ))}
             </tbody>
@@ -1179,6 +1195,14 @@ export default function ResidentDetailPage() {
             {settling ? <Loader2 size={14} style={{ animation: 'spin 1s linear infinite' }} /> : <CheckCircle size={14} />} Confirm Settlement
           </button>
         </Modal>
+      )}
+
+      {editPayment && (
+        <EditPaymentModal
+          payment={editPayment} admins={adminList}
+          onClose={() => setEditPayment(null)}
+          onSaved={() => { setEditPayment(null); fetchAll() }}
+        />
       )}
 
       <DocViewerModal doc={previewDoc} onClose={() => setPreviewDoc(null)} />
