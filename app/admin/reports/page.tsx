@@ -1,5 +1,6 @@
 'use client'
 
+import { dedupeInvoices, invoiceBalance, oldDueBalances, oldDueCashInMonth } from '@/lib/dues'
 import { useEffect, useState } from 'react'
 import { createClient } from '@/lib/supabase/client'
 import { formatCurrency, formatDate } from '@/lib/utils'
@@ -49,35 +50,52 @@ export default function ReportsPage() {
         { data: maintenance },
         { data: notices },
         { data: shortStays },
+        { data: oldDues },
+        { data: oldDuePays },
       ] = await Promise.all([
         supabase.from('beds').select('id, status'),
-        supabase.from('residents').select('id, status, rent_amount, date_of_joining, created_at'),
-        supabase.from('rent_payments').select('*').eq('month', selectedMonth).eq('year', selectedYear),
+        supabase.from('residents').select('id, status, rent_amount, date_of_joining, created_at, vacated_at, is_test_account'),
+        supabase.from('rent_payments').select('*, resident:residents(is_test_account, status)').eq('month', selectedMonth).eq('year', selectedYear),
         supabase.from('maintenance_requests').select('id, status, created_at'),
         supabase.from('notice_periods').select('id, status, created_at'),
         supabase.from('short_stays').select('*').gte('checkin_date', `${selectedYear}-${String(selectedMonth).padStart(2,'0')}-01`).lt('checkin_date', `${selectedYear}-${String(selectedMonth + 1).padStart(2,'0')}-01`),
+        supabase.from('old_dues').select('*, resident:residents(is_test_account, status)'),
+        supabase.from('old_due_payments').select('*'),
       ])
 
       const totalBeds = beds?.length || 0
       const occupiedBeds = beds?.filter(b => b.status === 'occupied').length || 0
-      const activeResidents = residents?.filter(r => r.status === 'active').length || 0
-      const onNotice = residents?.filter(r => r.status === 'notice').length || 0
+      // Same rules as the rest of the app (lib/residents.ts, lib/dues.ts):
+      // test accounts never count; one invoice per resident per month; pending
+      // dues exclude vacated residents (that's their close-out); revenue is all
+      // cash actually received in the month, incl. old-due payments.
+      const realResidents = (residents || []).filter(r => !r.is_test_account)
+      const monthRows = dedupeInvoices((rentPayments || []) as any[]).filter((r: any) => !r.resident?.is_test_account)
+      const activeResidents = realResidents.filter(r => r.status === 'active').length
+      const onNotice = realResidents.filter(r => r.status === 'notice').length
 
       const monthStart = new Date(selectedYear, selectedMonth - 1, 1)
       const monthEnd = new Date(selectedYear, selectedMonth, 1)
-      const newResidents = residents?.filter(r => {
-        const d = new Date(r.created_at)
+      const newResidents = realResidents.filter(r => {
+        const d = new Date(r.date_of_joining || r.created_at)
         return d >= monthStart && d < monthEnd
-      }).length || 0
-      const vacated = residents?.filter(r => r.status === 'vacated').length || 0
+      }).length
+      // Moved out during this month (not "everyone who ever left").
+      const vacated = realResidents.filter(r => r.status === 'vacated' && r.vacated_at && new Date(r.vacated_at) >= monthStart && new Date(r.vacated_at) < monthEnd).length
 
-      const totalRevenue = rentPayments?.filter(r => r.status === 'paid').reduce((s, r) => s + r.amount_paid, 0) || 0
-      const totalDue = rentPayments?.reduce((s, r) => s + r.total_amount, 0) || 0
-      const pendingDues = rentPayments?.filter(r => r.status !== 'paid').reduce((s, r) => s + (r.total_amount - r.amount_paid), 0) || 0
-      const collectionRate = totalDue > 0 ? Math.round((totalRevenue / totalDue) * 100) : 0
+      const realOldDues = (oldDues || []).filter((d: any) => !d.resident?.is_test_account)
+      const realOldDueIds = new Set(realOldDues.map((d: any) => d.id))
+      const realOldDuePays = (oldDuePays || []).filter((p: any) => realOldDueIds.has(p.old_due_id))
+      const totalRevenue = monthRows.reduce((s, r: any) => s + Number(r.amount_paid || 0), 0) + oldDueCashInMonth(realOldDuePays, selectedMonth, selectedYear)
+      const currentRows = monthRows.filter((r: any) => r.resident?.status !== 'vacated')
+      const totalDue = currentRows.reduce((s, r: any) => s + Number(r.total_amount), 0)
+      const pendingDues = currentRows.reduce((s, r: any) => s + invoiceBalance(r), 0)
+        + oldDueBalances(realOldDues.filter((d: any) => d.resident?.status !== 'vacated'), realOldDuePays).reduce((s, d) => s + d.balance, 0)
+      const collectedOnCurrent = currentRows.reduce((s, r: any) => s + Math.min(Number(r.amount_paid || 0), Number(r.total_amount)), 0)
+      const collectionRate = totalDue > 0 ? Math.round((collectedOnCurrent / totalDue) * 100) : 0
 
       const avgRent = activeResidents > 0
-        ? Math.round((residents?.filter(r => r.status === 'active').reduce((s, r) => s + r.rent_amount, 0) || 0) / activeResidents)
+        ? Math.round(realResidents.filter(r => r.status === 'active').reduce((s, r) => s + Number(r.rent_amount || 0), 0) / activeResidents)
         : 0
 
       const openMaintenance = maintenance?.filter(m => m.status === 'open' || m.status === 'in_progress').length || 0

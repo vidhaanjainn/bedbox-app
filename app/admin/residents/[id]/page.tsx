@@ -13,6 +13,8 @@ import { useIsMobile } from '@/lib/useIsMobile'
 import { DocViewerModal, DocPreview } from '@/components/ui/DocViewerModal'
 import { APP_URL } from '@/lib/config'
 import { missingOnboardingFields } from '@/lib/onboardingCompleteness'
+import { oldDueBalances, dedupeInvoices } from '@/lib/dues'
+import { closeoutItems } from '@/lib/residents'
 
 export default function ResidentDetailPage() {
   const { id } = useParams()
@@ -21,6 +23,7 @@ export default function ResidentDetailPage() {
   const [justInvited, setJustInvited] = useState(false)
   const [resident, setResident] = useState<any>(null)
   const [rentPayments, setRentPayments] = useState<any[]>([])
+  const [oldDueRows, setOldDueRows] = useState<any[]>([])
   const [electricityReadings, setElectricityReadings] = useState<any[]>([])
   const [maintenance, setMaintenance] = useState<any[]>([])
   const [notice, setNotice] = useState<any>(null)
@@ -223,7 +226,13 @@ export default function ResidentDetailPage() {
       supabase.from('notice_periods').select('*').eq('resident_id', id).eq('status', 'active').maybeSingle(),
     ])
     setResident(res)
-    setRentPayments(rent || [])
+    // One invoice per month - a stray ₹0 duplicate never shows as owed.
+    setRentPayments(dedupeInvoices((rent || []) as any[]))
+    const [{ data: dues }, { data: duePays }] = await Promise.all([
+      supabase.from('old_dues').select('*').eq('resident_id', id),
+      supabase.from('old_due_payments').select('*').eq('resident_id', id),
+    ])
+    setOldDueRows(oldDueBalances(dues || [], duePays || []))
     setElectricityReadings(elec || [])
     setMaintenance(maint || [])
     setNotice(noticeData)
@@ -413,7 +422,9 @@ export default function ResidentDetailPage() {
     vacated: { bg: 'rgba(100,116,139,0.1)', color: '#94a3b8', border: 'rgba(100,116,139,0.3)' },
   }
   const sc = statusColors[resident.status] || statusColors.active
-  const totalArrears = rentPayments.reduce((sum, p) => sum + Math.max(0, Number(p.total_amount) - Number(p.amount_paid || 0)), 0)
+  const invoiceArrears = rentPayments.reduce((sum, p) => sum + Math.max(0, Number(p.total_amount) - Number(p.amount_paid || 0)), 0)
+  const oldDuesPending = oldDueRows.reduce((sum, d) => sum + d.balance, 0)
+  const totalArrears = invoiceArrears + oldDuesPending
 
   return (
     <div style={{ padding: '32px', maxWidth: '1100px' }} className="animate-fade-in">
@@ -443,6 +454,27 @@ export default function ResidentDetailPage() {
               </div>
             </div>
           </div>
+
+          {/* Close-out: what's still open for this vacated resident. Hiding it
+              only removes it from pending-action lists (dashboard, Past
+              residents) - it always stays visible here. */}
+          {(() => {
+            const items = closeoutItems(resident, totalArrears)
+            if (items.length === 0) return (
+              <div style={{ marginBottom: 14, fontSize: 12, fontWeight: 600, color: '#34d399' }}>✓ Fully closed out - nothing pending.</div>
+            )
+            const hidden = !!resident.closeout_hidden_at
+            return (
+              <div style={{ marginBottom: 14, padding: '12px 14px', borderRadius: 10, background: 'rgba(251,191,36,0.06)', border: '1px solid rgba(251,191,36,0.25)', display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 10, flexWrap: 'wrap' }}>
+                <div style={{ fontSize: 13, color: '#fbbf24', fontWeight: 600 }}>Pending close-out: {items.join(' · ')}{hidden ? ' (hidden from pending lists)' : ''}</div>
+                <button className="bb-btn-secondary" style={{ fontSize: 12 }} onClick={async () => {
+                  const value = hidden ? null : new Date().toISOString()
+                  await supabase.from('residents').update({ closeout_hidden_at: value }).eq('id', resident.id)
+                  setResident((r: any) => ({ ...r, closeout_hidden_at: value }))
+                }}>{hidden ? 'Show in pending again' : 'Hide from pending'}</button>
+              </div>
+            )
+          })()}
 
           <div style={{ marginBottom: '14px' }}>
             {resident.move_out_ready_notified_at ? (
@@ -821,7 +853,7 @@ export default function ResidentDetailPage() {
           {totalArrears > 0 && (
             <div style={{ display: 'flex', alignItems: 'center', gap: 6, padding: '6px 12px', borderRadius: 8, background: 'rgba(239,68,68,0.08)', border: '1px solid rgba(239,68,68,0.25)' }}>
               <AlertTriangle size={13} color="#f87171" />
-              <span style={{ fontSize: 12, fontWeight: 700, color: '#f87171' }}>Arrears: {formatCurrency(totalArrears)}</span>
+              <span style={{ fontSize: 12, fontWeight: 700, color: '#f87171' }}>Arrears: {formatCurrency(totalArrears)}{oldDuesPending > 0 ? ` (incl. ${formatCurrency(oldDuesPending)} old dues)` : ''}</span>
             </div>
           )}
         </div>

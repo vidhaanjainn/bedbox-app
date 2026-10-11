@@ -8,6 +8,8 @@ import Link from 'next/link'
 import { useRouter } from 'next/navigation'
 import { useIsMobile } from '@/lib/useIsMobile'
 import { missingOnboardingFields } from '@/lib/onboardingCompleteness'
+import { closeoutItems, needsCloseout } from '@/lib/residents'
+import { dedupeInvoices, invoiceBalance, oldDueOutstandingByResident } from '@/lib/dues'
 
 // "101" sorts before "102" before ... before "307" numerically, not as
 // strings (which would put "2" before "10"); anything without a leading
@@ -31,6 +33,11 @@ export default function ResidentsPage() {
   const [loading, setLoading] = useState(true)
   const [search, setSearch] = useState('')
   const [statusFilter, setStatusFilter] = useState('all')
+  // Current residents and past (vacated) residents are two separate views -
+  // vacated people never appear in, or count toward, the everyday list.
+  const [view, setView] = useState<'current' | 'past'>('current')
+  const [owedByResident, setOwedByResident] = useState<Record<string, number>>({})
+  const [showHiddenCloseouts, setShowHiddenCloseouts] = useState(false)
   // Room-ascending (101 -> 307) is the default view - the one the owner
   // actually wants most of the time - with the rest offered as options
   // rather than the only way to look at this list.
@@ -38,7 +45,12 @@ export default function ResidentsPage() {
   const supabase = createClient()
   const isMobile = useIsMobile()
 
-  useEffect(() => { fetchResidents() }, [])
+  useEffect(() => {
+    fetchResidents()
+    // ?tab=past deep link (dashboard "close-out" banner). Read directly instead
+    // of useSearchParams so this static page needs no Suspense boundary.
+    if (new URLSearchParams(window.location.search).get('tab') === 'past') setView('past')
+  }, [])
 
   const fetchResidents = async () => {
     setLoading(true)
@@ -47,6 +59,16 @@ export default function ResidentsPage() {
       supabase.from('notice_periods').select('resident_id, last_day_of_stay, last_day_per_agreement').eq('status', 'active'),
     ])
     setResidents(data || [])
+    // What each resident still owes (deduped invoices + old dues) - only used
+    // to show a vacated resident's open close-out items in the Past view.
+    const [{ data: rentRows }, { data: dues }, { data: duePays }] = await Promise.all([
+      supabase.from('rent_payments').select('id, resident_id, month, year, total_amount, amount_paid, created_at'),
+      supabase.from('old_dues').select('id, resident_id, original_amount'),
+      supabase.from('old_due_payments').select('id, old_due_id, resident_id, amount, paid_at'),
+    ])
+    const owed: Record<string, number> = { ...oldDueOutstandingByResident((dues || []) as any, (duePays || []) as any) }
+    for (const r of dedupeInvoices((rentRows || []) as any[])) owed[r.resident_id] = (owed[r.resident_id] || 0) + invoiceBalance(r)
+    setOwedByResident(owed)
     const noticeMap: Record<string, any> = {}
     noticeData?.forEach(n => { noticeMap[n.resident_id] = n })
     setNotices(noticeMap)
@@ -103,20 +125,32 @@ export default function ResidentsPage() {
     return { days: Math.max(0, days), date: target }
   }
 
-  const pendingApprovals = residents.filter(r => r.onboarding_status === 'submitted')
+  const currentResidents = residents.filter(r => r.status !== 'vacated')
+  const pastResidents = residents.filter(r => r.status === 'vacated')
+    .sort((a, b) => (b.vacated_at || b.updated_at || '').localeCompare(a.vacated_at || a.updated_at || ''))
+  const closeoutPending = pastResidents.filter(r => needsCloseout(r, owedByResident[r.id] || 0))
+
+  const toggleCloseoutHidden = async (r: any) => {
+    const value = r.closeout_hidden_at ? null : new Date().toISOString()
+    await supabase.from('residents').update({ closeout_hidden_at: value }).eq('id', r.id)
+    setResidents(list => list.map(x => x.id === r.id ? { ...x, closeout_hidden_at: value } : x))
+  }
+
+  const pendingApprovals = currentResidents.filter(r => r.onboarding_status === 'submitted')
 
   // "Has portal access at all" - pending/submitted residents haven't been
   // approved yet so there's no meaningful "installed the app" answer for
   // them; only active/notice residents have ever been able to log in.
   const hasPortalAccess = (r: any) => r.status === 'active' || r.status === 'notice'
-  const notInstalled = residents.filter(r => hasPortalAccess(r) && !r.pwa_installed_at)
+  const notInstalled = currentResidents.filter(r => hasPortalAccess(r) && !r.pwa_installed_at)
   // Onboarded before Aadhaar/signature/affiliation proof were required (or
   // missing a mobile number entirely) - see lib/onboardingCompleteness.ts
   // and the "Send Link to Complete" panel on their own page.
-  const incompleteDocs = residents.filter(r => r.onboarding_status === 'active' && missingOnboardingFields(r).length > 0)
+  const incompleteDocs = currentResidents.filter(r => r.onboarding_status === 'active' && missingOnboardingFields(r).length > 0)
 
-  const filtered = residents.filter(r => {
-    const matchesSearch = r.name.toLowerCase().includes(search.toLowerCase()) || r.mobile.includes(search) || r.room_number?.includes(search)
+  const matchesSearchFor = (r: any) => r.name.toLowerCase().includes(search.toLowerCase()) || (r.mobile || '').includes(search) || (r.room_number || '').includes(search)
+  const filtered = currentResidents.filter(r => {
+    const matchesSearch = matchesSearchFor(r)
     if (statusFilter === 'submitted') return r.onboarding_status === 'submitted' && matchesSearch
     if (statusFilter === 'not_installed') return hasPortalAccess(r) && !r.pwa_installed_at && matchesSearch
     if (statusFilter === 'incomplete_docs') return r.onboarding_status === 'active' && missingOnboardingFields(r).length > 0 && matchesSearch
@@ -136,11 +170,10 @@ export default function ResidentsPage() {
   })
 
   const counts: Record<string, number> = {
-    all: residents.length,
-    active: residents.filter(r => r.status === 'active').length,
-    pending: residents.filter(r => r.status === 'pending').length,
-    notice: residents.filter(r => r.status === 'notice').length,
-    vacated: residents.filter(r => r.status === 'vacated').length,
+    all: currentResidents.length,
+    active: currentResidents.filter(r => r.status === 'active').length,
+    pending: currentResidents.filter(r => r.status === 'pending').length,
+    notice: currentResidents.filter(r => r.status === 'notice').length,
     submitted: pendingApprovals.length,
     not_installed: notInstalled.length,
     incomplete_docs: incompleteDocs.length,
@@ -169,6 +202,53 @@ export default function ResidentsPage() {
         </div>
       </div>
 
+      {/* Current vs past residents */}
+      <div style={{ display: 'flex', gap: 6, marginBottom: 20, background: 'var(--surface-1)', border: '1px solid var(--border)', borderRadius: 10, padding: 4, width: 'fit-content', flexWrap: 'wrap' }}>
+        {([['current', `Current residents (${currentResidents.length})`], ['past', `Past residents (${pastResidents.length})${closeoutPending.length ? ` · ${closeoutPending.length} to close out` : ''}`]] as const).map(([k, label]) => (
+          <button key={k} onClick={() => setView(k)} style={{ padding: '7px 14px', borderRadius: 7, border: 'none', fontSize: 12, fontWeight: 600, cursor: 'pointer', background: view === k ? 'var(--teal-500)' : 'transparent', color: view === k ? 'var(--navy-900)' : k === 'past' && closeoutPending.length ? '#fbbf24' : 'var(--text-muted)' }}>{label}</button>
+        ))}
+      </div>
+
+      {view === 'past' ? (
+        <div>
+          <div style={{ display: 'flex', gap: 12, alignItems: 'center', marginBottom: 16, flexWrap: 'wrap' }}>
+            <div style={{ position: 'relative', flex: 1, minWidth: 200, maxWidth: 360 }}>
+              <Search size={16} color="var(--text-muted)" style={{ position: 'absolute', left: 12, top: '50%', transform: 'translateY(-50%)' }} />
+              <input className="bb-input" style={{ paddingLeft: 38 }} placeholder="Search past residents..." value={search} onChange={e => setSearch(e.target.value)} />
+            </div>
+            <label style={{ fontSize: 12, color: 'var(--text-muted)', display: 'flex', alignItems: 'center', gap: 6, cursor: 'pointer' }}>
+              <input type="checkbox" checked={showHiddenCloseouts} onChange={e => setShowHiddenCloseouts(e.target.checked)} /> Show hidden close-outs
+            </label>
+          </div>
+          {pastResidents.filter(matchesSearchFor).length === 0 ? (
+            <div className="glass-card" style={{ padding: 48, textAlign: 'center', color: 'var(--text-muted)', fontSize: 14 }}>No past residents.</div>
+          ) : pastResidents.filter(matchesSearchFor).map(r => {
+            const items = closeoutItems(r, owedByResident[r.id] || 0)
+            const hidden = !!r.closeout_hidden_at
+            if (hidden && items.length > 0 && !showHiddenCloseouts) return null
+            return (
+              <div key={r.id} className="bb-row-card" onClick={() => router.push(`/admin/residents/${r.id}`)} style={{ cursor: 'pointer' }}>
+                <div className="bb-row-card-top">
+                  <div>
+                    <div className="bb-row-card-title">{r.name}</div>
+                    <div className="bb-row-card-sub">Room {r.room_number || '-'}{r.vacated_at ? ` · left ${formatDate(r.vacated_at)}` : ''}</div>
+                  </div>
+                  {items.length === 0 ? (
+                    <span className="status-badge" style={statusStyle('vacated')}>closed out</span>
+                  ) : (
+                    <div style={{ display: 'flex', gap: 6, alignItems: 'center', flexWrap: 'wrap', justifyContent: 'flex-end' }}>
+                      {items.map(i => <span key={i} style={{ fontSize: 11, fontWeight: 600, padding: '3px 8px', borderRadius: 999, background: hidden ? 'rgba(100,116,139,0.1)' : 'rgba(251,191,36,0.1)', color: hidden ? '#94a3b8' : '#fbbf24' }}>{i}</span>)}
+                      <button onClick={e => { e.stopPropagation(); toggleCloseoutHidden(r) }} className="bb-btn-secondary" style={{ fontSize: 11, padding: '4px 10px' }}>
+                        {hidden ? 'Show in pending' : 'Hide from pending'}
+                      </button>
+                    </div>
+                  )}
+                </div>
+              </div>
+            )
+          })}
+        </div>
+      ) : <>
       {/* Pending approvals banner */}
       {pendingApprovals.length > 0 && (
         <div style={{ padding: '14px 20px', borderRadius: '12px', marginBottom: '20px', background: 'rgba(52,211,153,0.06)', border: '1px solid rgba(52,211,153,0.25)', display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '12px' }}>
@@ -199,7 +279,7 @@ export default function ResidentsPage() {
           <option value="rent_asc">Rent: Low → High</option>
         </select>
         <div style={{ display: 'flex', gap: '6px', background: 'var(--surface-1)', border: '1px solid var(--border)', borderRadius: '10px', padding: '4px', flexWrap: 'wrap' }}>
-          {(['all', 'active', 'pending', 'notice', 'vacated', 'submitted', 'not_installed', 'incomplete_docs'] as const).map(s => (
+          {(['all', 'active', 'pending', 'notice', 'submitted', 'not_installed', 'incomplete_docs'] as const).map(s => (
             <button key={s} onClick={() => setStatusFilter(s)} style={{ padding: '6px 12px', borderRadius: '7px', border: 'none', fontSize: '12px', fontWeight: '600', cursor: 'pointer', textTransform: 'capitalize', whiteSpace: 'nowrap', transition: 'all 0.15s', background: statusFilter === s ? 'var(--teal-500)' : 'transparent', color: statusFilter === s ? 'var(--navy-900)' : s === 'submitted' && counts.submitted > 0 ? '#34d399' : 'var(--text-muted)' }}>
               {s === 'submitted' ? `✓ Approvals` : s === 'not_installed' ? 'App Not Installed' : s === 'incomplete_docs' ? 'Docs Incomplete' : s}{counts[s] > 0 ? ` (${counts[s]})` : ''}
             </button>
@@ -322,6 +402,7 @@ export default function ResidentsPage() {
           </div>
       </div>
       )}
+      </>}
     </div>
   )
 }

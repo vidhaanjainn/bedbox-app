@@ -4,6 +4,8 @@ import { sendEmail, emailShell, moneyINR } from '@/lib/notify'
 import { syncNoticeFormSubmissions } from '@/lib/notice-form-sync'
 import { sendPushToAdmins, sendPushToResident } from '@/lib/push'
 import { computeTotalAmount } from '@/lib/prorata'
+import { dedupeInvoices } from '@/lib/dues'
+import { CURRENT_STATUSES } from '@/lib/residents'
 import { APP_URL } from '@/lib/config'
 
 // AUTO-01 + AUTO-02 + AUTO-03 (daily): runs once a day via Vercel Cron (see vercel.json).
@@ -34,19 +36,23 @@ async function ensureCurrentMonthRows(supabase: ReturnType<typeof adminClient>, 
   const { data: residents, error } = await supabase
     .from('residents')
     .select('id, rent_amount, prorata_status, prorata_credit_amount')
-    .eq('status', 'active')
+    .in('status', [...CURRENT_STATUSES])
+    .eq('is_test_account', false)
   if (error || !residents) return { created: 0, error }
 
   let created = 0
   for (const r of residents) {
+    // limit(1), not maybeSingle(): maybeSingle() ERRORS when more than one
+    // row matches, which left `existing` empty and made this loop insert yet
+    // another invoice - that is how duplicate rows used to multiply.
     const { data: existing } = await supabase
       .from('rent_payments')
       .select('id')
       .eq('resident_id', r.id)
       .eq('month', month)
       .eq('year', year)
-      .maybeSingle()
-    if (existing) continue
+      .limit(1)
+    if (existing && existing.length > 0) continue
     if (dryRun) { created++; continue }
     const rent = Number(r.rent_amount) || 0
 
@@ -101,6 +107,14 @@ function lateFeeDaysForRow(month: number, year: number, now: Date): number {
 
 const LATE_FEE_PER_DAY = 200
 
+// Ids of the one invoice per resident+month that counts (lib/dues.ts). Late
+// fees and reminders skip anything else, so a ₹0 duplicate row is never
+// charged a late fee or chased by email.
+async function countedInvoiceIds(supabase: ReturnType<typeof adminClient>): Promise<Set<string>> {
+  const { data } = await supabase.from('rent_payments').select('id, resident_id, month, year, amount_paid, created_at')
+  return new Set(dedupeInvoices((data || []) as any[]).map(r => r.id))
+}
+
 // AUTO-11: grows the late fee on every unpaid rent_payments row daily,
 // exactly matching the agreement's Rs. 200/day-past-the-5th clause - this
 // column has existed since the schema was first written but nothing has
@@ -118,8 +132,10 @@ async function accrueLateFees(supabase: ReturnType<typeof adminClient>, dryRun: 
 
   const now = new Date()
   let updated = 0
+  const counted = await countedInvoiceIds(supabase)
 
   for (const row of rows as any[]) {
+    if (!counted.has(row.id)) continue
     if (row.residents?.is_test_account) continue
     // A resident who has already vacated shouldn't keep accumulating a
     // per-day penalty for a month they're no longer living through - their
@@ -151,8 +167,10 @@ async function sendReminders(supabase: ReturnType<typeof adminClient>, dryRun: b
 
   const today = new Date()
   let sent = 0
+  const counted = await countedInvoiceIds(supabase)
 
   for (const row of rows as any[]) {
+    if (!counted.has(row.id)) continue
     const resident = row.residents
     if (!resident?.email) continue
     // A resident who has already vacated has moved past "chase them for
@@ -261,7 +279,7 @@ async function sendAdminMonthlyDigest(supabase: ReturnType<typeof adminClient>, 
 
   const [{ data: admins }, { data: rentRows }, { data: staffRows }, { data: payouts }] = await Promise.all([
     supabase.from('admins').select('email, name').eq('is_active', true).not('email', 'is', null),
-    supabase.from('rent_payments').select('status, total_amount, amount_paid, residents(is_test_account, status)').eq('month', month).eq('year', year),
+    supabase.from('rent_payments').select('id, resident_id, month, year, created_at, status, total_amount, amount_paid, residents(is_test_account, status)').eq('month', month).eq('year', year),
     supabase.from('staff').select('id, name, monthly_salary').eq('is_active', true),
     supabase.from('staff_payouts').select('staff_id, status').eq('month', month).eq('year', year),
   ])
@@ -271,7 +289,7 @@ async function sendAdminMonthlyDigest(supabase: ReturnType<typeof adminClient>, 
   // totals, and neither does a vacated resident's stale row - this digest
   // is "chase current tenants for rent," not a place a departed resident's
   // final-dues balance should keep inflating "outstanding" forever.
-  const realRentRows = (rentRows || []).filter((r: any) => !r.residents?.is_test_account && r.residents?.status !== 'vacated')
+  const realRentRows = dedupeInvoices((rentRows || []) as any[]).filter((r: any) => !r.residents?.is_test_account && r.residents?.status !== 'vacated')
   const paidCount = realRentRows.filter(r => r.status === 'paid').length
   const totalCount = realRentRows.length
   const outstanding = realRentRows.reduce((s, r) => s + Math.max(0, Number(r.total_amount) - Number(r.amount_paid || 0)), 0)
@@ -377,7 +395,7 @@ async function sendElectricityReminders(supabase: ReturnType<typeof adminClient>
   const { data: residents } = await supabase
     .from('residents')
     .select('id, name, portal_user_id, last_electricity_reminded_at')
-    .eq('status', 'active')
+    .in('status', [...CURRENT_STATUSES])
     .not('portal_user_id', 'is', null)
   if (!residents?.length) return { sent: 0 }
 

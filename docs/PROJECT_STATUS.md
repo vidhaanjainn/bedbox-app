@@ -109,6 +109,8 @@ per room (type, bed rates, block/remove vacant beds, "Make single occupancy"). S
 ## Open question for owner
 - Room 204: Bed B is blocked (maintenance), not yet deleted - remove it via Rooms → 204 → Edit →
   Remove. Also confirm whether resident Pradyuman Garg's rent (₹5,500, on notice) should move to ₹9,000.
+- (2026-10-11) Screens/cron now ignore duplicate invoices (lib/dues.ts). The 14 Sept ghost rows were deleted + UNIQUE(resident_id, month, year) added by a parallel session (backup table rent_payments_dup_backup_20261010). Close-outs to decide (Past residents tab): Taukeer ₹5,500, Pradyuman ₹5,500, Nikhil ₹8,800 unpaid while deposits were returned in full — waive or hide. Also: Rohit (201) Sept invoice says ₹8,500 vs his rent ₹7,500 (₹1,000 shows short) — correct or waive? Code changes (old dues tab etc.) are uncommitted.
+- (2026-10-10) October rent entered. Need: confirm Hassan (305) rent ₹6500 + real details; confirm Aaryan (101) rent is now ₹8200; Amit/Dhanendra (105) October status; whether to delete the duplicate pending September ghost rows (see 18_ImplementationLog 2026-10-10) BEFORE the cron's late-fee pass runs; whether to build a proper "old dues" ledger.
 - Room 205 and Room 304 both need real names from the owner when known.
 - The 5 pending Google Form submissions above need a decision (apply with a confirmed last day,
   or dismiss if already resolved/superseded).

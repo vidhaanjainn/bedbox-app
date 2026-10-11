@@ -374,3 +374,62 @@ remaining work.
 - **Testing:** n/a (docs only).
 - **Remaining:** deep specs (10_FeatureSpecifications.md) get written per-task before coding;
   next code task = SEC-01.
+
+## 2026-10-10 · DATA · October 2026 rent records entered from owner's message (no code changes)
+- **What:** Wrote October 2026 `rent_payments` rows directly to the live DB (`rskbrdzbbfyyhaxucmgg`) for
+  rooms 101, 102, 104 (Shivam, Shourya), 201, 206, 207, 301, 302, 304, 305, 307. Paid rows have
+  `rent_paid` / `electricity_paid` split per the owner's numbers (rent first, remainder = electricity);
+  `electricity_logged_at` set only where electricity was actually given (102, 207, 304 left unlogged so the
+  caution badge stays on 304). 302 Nikhil and 305 Hassan left `pending`.
+- **Judgement calls (owner to confirm):**
+  - Room 101 Aaryan: standing rent amended ₹8000 → ₹8200 on `residents.rent_amount` too, so the cron
+    stops billing 8000 next month. `beds.rate_monthly` for 101 left at 8000.
+  - Room 305: no resident existed. Created "Hassan" (bed A, ₹6500 = bed rate, placeholder join date 2026-10-01,
+    bed → occupied, room → partial). Rent amount and details are assumptions.
+  - Old dues (Shivam ₹3,500 pending, Shourya ₹1,000 pending; ₹1,000 each received today): there is no
+    old-dues field/ledger. Recorded in the October row `notes` and appended to `residents.notes`. The ₹1,000 each
+    is NOT in `amount_paid` (invoice invariant kept), so dashboard "collected" is ₹2,000 short of real cash.
+- **Not touched:** Amit Yadav, Dhanendra (105) — no October row yet (owner didn't mention them).
+- **Found, not fixed:** Every September invoice has a duplicate `pending` ghost row created 2026-09-21 19:57
+  (the cron's `.maybeSingle()` idempotency check errors when it finds >1 row, so it re-inserts). These inflate
+  arrears in portal/admin and will accrue ₹200/day late fees (up to ₹5000 each) when the cron's late-fee pass
+  runs. The cron also did not create October rows on 1–10 Oct (only Vinay's, via approval) — check Vercel
+  cron/`CRON_SECRET`.
+- **Files:** none (data only).
+
+## 2026-10-10 · FIN · Old dues tab + one shared definition of "pending" / "cash received"
+- **Why:** Dashboard showed ₹1,17,850 / 16 pending while Rent Tracker (October) showed ₹15,300. Dashboard summed
+  unpaid rows from ALL months (incl. 14 duplicate September ghost rows); Rent Tracker only the selected month.
+- **What:** `lib/dues.ts` is now the single definition: pending = this month's unpaid invoices + earlier months'
+  unpaid invoices + outstanding old dues; cash received in a month = invoice payments + old-due payments dated in
+  that month. Used by dashboard, Rent Tracker, resident detail (arrears incl. old dues) and portal "Past dues".
+- **New tables** (`supabase/migrations/20261010_old_dues.sql`, applied): `old_dues`, `old_due_payments` (RLS:
+  admin-all, resident read-own). Seeded Shivam (₹4,500, ₹1,000 paid → ₹3,500 pending) and Shourya (₹2,000,
+  ₹1,000 paid → ₹1,000 pending), payments dated 2026-10-10 so they count as October cash.
+- **UI:** Rent Tracker has a "Monthly Rent | Old Dues" tab (`components/admin/OldDuesTab.tsx`: add due, log payment,
+  WhatsApp, history); cards "Cash received" (includes old dues; breakdown has an Old dues row) and "Past months + old dues".
+- **Bugs fixed:** cron `ensureCurrentMonthRows` used `.maybeSingle()` which errors on >1 match and then re-inserts
+  (now `limit(1)`); "Generate Monthly" used the on-screen list (stale → duplicates), now asks the DB.
+- **NOT applied (blocked by tool permission, needs owner go-ahead):** `supabase/migrations/20261010_dedupe_invoices.sql`
+  — delete 14 explicit duplicate Sept rows, unique index on (resident_id, month, year), backfill rent_paid split.
+  Until applied the dashboard still includes the ghost rows.
+- **Not committed/deployed:** code changes are local only.
+
+## 2026-10-11 · FIN/UX · Vacated residents separated everywhere + duplicate-proof totals
+- **Rules (one place each):** `lib/residents.ts` — current = active + notice (test accounts never count);
+  vacated only in "Past residents" + their own page, and in pending actions only while something is open
+  (deposit unsettled / dues unpaid) and not hidden (`residents.closeout_hidden_at`, new column).
+  `lib/dues.ts` — `dedupeInvoices()`: one invoice per resident per month (keeps the row with money on it), applied
+  before any total. Cash received = all real money in the month (incl. people who later vacated) + old-due payments;
+  pending excludes vacated.
+- **Applied in:** Residents (Current | Past tabs, close-out chips + Hide/Show), dashboard (Total Pending, income,
+  close-out banner → /admin/residents?tab=past), Rent Tracker (list current only, cash incl. vacated, old dues of
+  vacated go to close-out), resident page (close-out panel + hide toggle, deduped history/arrears), portal (deduped
+  history + past dues), reports (deduped, test excluded, "vacated" = moved out that month, revenue incl. old dues),
+  cron (rows for active+notice, non-test; late fees/reminders/digest skip duplicates; electricity reminders incl.
+  notice), electricity/maintenance pickers (active+notice).
+- **Data:** the 14 ghost Sept rows were removed and a UNIQUE(resident_id, month, year) constraint added by a parallel
+  session (see its 2026-10-11 entry); `dedupeInvoices()` stays as a cheap guard.
+- **Remaining real balances:** Rohit Sept ₹1,000 (invoice ₹8,500 vs rent ₹7,500); old dues ₹4,500; close-outs:
+  Taukeer ₹5,500 (Sept), Pradyuman ₹5,500 (Sept), Nikhil ₹8,800 (Oct) — all deposits already returned in full.
+- **Sync note:** this checkout was 4 commits behind origin/main (another session); fast-forwarded first, no code overlap.

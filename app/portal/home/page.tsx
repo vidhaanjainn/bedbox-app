@@ -7,6 +7,7 @@ import Link from 'next/link'
 import { Wrench, Receipt, ClipboardList, Phone, Wifi, MapPin, Cross, Pill, ShoppingCart, UtensilsCrossed, TreePine, TrainFront, ChevronDown, Star, Upload, X, Loader2, Check, IndianRupee, Copy, Zap, Video, Users, PartyPopper, ChevronRight, Download } from 'lucide-react'
 import InstallGuideSheet from '@/components/ui/InstallGuideSheet'
 import WelcomeWalkthrough from '@/components/portal/WelcomeWalkthrough'
+import { oldDueBalances, dedupeInvoices } from '@/lib/dues'
 
 const CATEGORY_META: Record<string, { label: string; Icon: typeof MapPin }> = {
   hospital: { label: 'Hospitals', Icon: Cross },
@@ -86,20 +87,25 @@ export default function PortalHomePage() {
 
     const { data: rents } = await supabase
       .from('rent_payments')
-      .select('id, month, year, total_amount, amount_paid, status, electricity_amount, late_fee, late_fee_forgiven_at, prorata_credit_applied, paid_at, resident_reported_at, resident_reported_amount')
+      .select('id, resident_id, created_at, month, year, total_amount, amount_paid, status, electricity_amount, late_fee, late_fee_forgiven_at, prorata_credit_applied, paid_at, resident_reported_at, resident_reported_amount')
       .eq('resident_id', res.id)
       .order('year', { ascending: false })
       .order('month', { ascending: false })
-      .limit(6)
-    setRentRecords(rents || [])
+      .limit(12)
+    setRentRecords(dedupeInvoices((rents || []) as any[]).slice(0, 6))
 
     const { data: unpaid } = await supabase
       .from('rent_payments')
-      .select('total_amount, amount_paid, month, year')
+      .select('id, resident_id, total_amount, amount_paid, month, year, created_at')
       .eq('resident_id', res.id)
-      .neq('status', 'paid')
-    const past = (unpaid || []).filter(r => r.year < currentYear || (r.year === currentYear && r.month < currentMonth))
-    setPastArrears(past.reduce((sum, r) => sum + Math.max(0, Number(r.total_amount) - Number(r.amount_paid || 0)), 0))
+    // All rows, deduped to one per month, then only what's actually owed.
+    const past = dedupeInvoices((unpaid || []) as any[]).filter(r => Number(r.total_amount) - Number(r.amount_paid || 0) > 0).filter(r => r.year < currentYear || (r.year === currentYear && r.month < currentMonth))
+    const [{ data: oDues }, { data: oPays }] = await Promise.all([
+      supabase.from('old_dues').select('id, resident_id, original_amount').eq('resident_id', res.id),
+      supabase.from('old_due_payments').select('id, old_due_id, resident_id, amount, paid_at').eq('resident_id', res.id),
+    ])
+    const oldDueTotal = oldDueBalances((oDues || []) as any, (oPays || []) as any).reduce((sum, d) => sum + d.balance, 0)
+    setPastArrears(past.reduce((sum, r) => sum + Math.max(0, Number(r.total_amount) - Number(r.amount_paid || 0)), 0) + oldDueTotal)
 
     const { data: settingsRows } = await supabase.from('settings').select('key, value').in('key', ['wifi_password', 'wifi_network_name', 'upi_id', 'upi_payee_name', 'property_phone', 'whatsapp_group_1_name', 'whatsapp_group_1_link', 'whatsapp_group_2_name', 'whatsapp_group_2_link'])
     const settingsMap: Record<string, string> = {}
@@ -571,7 +577,7 @@ export default function PortalHomePage() {
             <span style={{ fontSize: 18 }}>⚠️</span>
             <div>
               <div style={{ fontSize: 13, fontWeight: 700, color: '#ff6b6b' }}>Past dues: ₹{pastArrears.toLocaleString('en-IN')}</div>
-              <div style={{ fontSize: 11, color: 'rgba(255,255,255,0.45)', marginTop: 1 }}>Outstanding from previous months, in addition to this month's rent.</div>
+              <div style={{ fontSize: 11, color: 'rgba(255,255,255,0.45)', marginTop: 1 }}>Outstanding from previous months and older dues, in addition to this month's rent.</div>
             </div>
           </div>
         )}

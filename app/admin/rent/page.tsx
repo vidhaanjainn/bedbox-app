@@ -7,6 +7,9 @@ import { formatCurrency, formatDate } from '@/lib/utils'
 import { useIsMobile } from '@/lib/useIsMobile'
 import { DocViewerModal, DocPreview } from '@/components/ui/DocViewerModal'
 import { computeTotalAmount } from '@/lib/prorata'
+import { OldDuesTab } from '@/components/admin/OldDuesTab'
+import { OldDue, OldDuePayment, oldDueBalances, oldDueCashInMonth, invoiceBalance, isBefore, dedupeInvoices } from '@/lib/dues'
+import { CURRENT_STATUSES } from '@/lib/residents'
 import { CreditCard, Plus, Search, CheckCircle, Clock, AlertCircle, Loader2, X, Upload, MessageCircle, FileSpreadsheet } from 'lucide-react'
 
 function waReminderLink(mobile: string, name: string, room: string, outstanding: number) {
@@ -35,6 +38,15 @@ export default function RentPage() {
   const [previewDoc, setPreviewDoc] = useState<DocPreview | null>(null)
   const [loadingDoc, setLoadingDoc] = useState<string | null>(null)
   const [showCollectedBreakdown, setShowCollectedBreakdown] = useState(false)
+  const [tab, setTab] = useState<'rent' | 'olddues'>('rent')
+  const [oldDues, setOldDues] = useState<OldDue[]>([])
+  const [oldDuePayments, setOldDuePayments] = useState<OldDuePayment[]>([])
+  const [dueResidents, setDueResidents] = useState<any[]>([])
+  const [pastRows, setPastRows] = useState<any[]>([])
+  // Every real invoice this month incl. residents who've since vacated - used
+  // only for cash received (money in is money in). The list itself (payments)
+  // shows current residents only.
+  const [monthCashRows, setMonthCashRows] = useState<any[]>([])
   const supabase = createClient()
   const isMobile = useIsMobile()
 
@@ -62,15 +74,40 @@ export default function RentPage() {
     // settlement flow on their own page, not the month-to-month collection
     // list (which is for "who do I need to chase this month," not a
     // departed resident whose bed is already someone else's problem).
-    setPayments((data || []).filter((p: any) => !p.resident?.is_test_account && p.resident?.status !== 'vacated'))
+    const real = dedupeInvoices((data || []) as any[]).filter((p: any) => !p.resident?.is_test_account)
+    setMonthCashRows(real)
+    setPayments(real.filter((p: any) => p.resident?.status !== 'vacated'))
+    await fetchOldDues()
     setLoading(false)
+  }
+
+  // Old dues (carried-forward balances) + unpaid invoices from earlier
+  // months. Both are part of what a resident "owes" but neither belongs to the
+  // selected month's invoice list, so they're fetched alongside it and fed to
+  // the shared definitions in lib/dues.ts.
+  const fetchOldDues = async () => {
+    const [{ data: dues }, { data: duePays }, { data: res }, { data: unpaid }] = await Promise.all([
+      supabase.from('old_dues').select('*'),
+      supabase.from('old_due_payments').select('*'),
+      supabase.from('residents').select('id, name, room_number, mobile, status, is_test_account').neq('status', 'vacated').eq('is_test_account', false).order('room_number'),
+      // All rows (not just unpaid) so dedupeInvoices can see the paid original.
+      supabase.from('rent_payments').select('id, month, year, total_amount, amount_paid, resident_id, created_at, resident:residents(is_test_account, status)'),
+    ])
+    // A vacated resident's old dues belong to their close-out (Past residents),
+    // not this list - same rule as everywhere else (lib/residents.ts).
+    const currentIds = new Set((res || []).map((r: any) => r.id))
+    setOldDues((dues || []).filter((d: any) => currentIds.has(d.resident_id)))
+    setOldDuePayments(duePays || [])
+    setDueResidents(res || [])
+    setPastRows(dedupeInvoices((unpaid || []) as any[]).filter((r: any) => !r.resident?.is_test_account && r.resident?.status !== 'vacated' && invoiceBalance(r) > 0))
   }
 
   const generateMonthlyRent = async () => {
     const { data: activeResidents } = await supabase
       .from('residents')
       .select('id, rent_amount, prorata_status, prorata_credit_amount')
-      .eq('status', 'active')
+      .in('status', [...CURRENT_STATUSES])
+      .eq('is_test_account', false)
 
     if (!activeResidents?.length) return
 
@@ -263,11 +300,22 @@ export default function RentPage() {
     partial: payments.filter(p => p.status === 'partial').length,
     // Money actually in hand, whether or not the invoice is fully settled yet -
     // a partial payment is still real money collected, not zero.
-    totalCollected: payments.reduce((s, p) => s + Number(p.amount_paid || 0), 0),
+    invoiceCollected: monthCashRows.reduce((s, p) => s + Number(p.amount_paid || 0), 0),
+    oldDuesCollected: oldDueCashInMonth(oldDuePayments, monthFilter, yearFilter),
+    // Actual cash received in the month: invoice payments + old-due payments.
+    totalCollected: monthCashRows.reduce((s, p) => s + Number(p.amount_paid || 0), 0) + oldDueCashInMonth(oldDuePayments, monthFilter, yearFilter),
+    pastMonthsPending: pastRows.filter(r => isBefore(r, monthFilter, yearFilter)).reduce((s, r) => s + invoiceBalance(r), 0),
+    oldDuesPending: oldDueBalances(oldDues, oldDuePayments).reduce((s, d) => s + d.balance, 0),
     totalOutstanding: payments.filter(p => p.status !== 'paid').reduce((s, p) => s + (p.total_amount - p.amount_paid), 0),
-    rentCollected: payments.reduce((s, p) => s + Number(p.rent_paid || 0), 0),
-    electricityCollected: payments.reduce((s, p) => s + Number(p.electricity_paid || 0), 0),
-    lateFeeCollected: payments.reduce((s, p) => s + Number(p.late_fee_paid || 0), 0),
+    // Rows logged before the rent/electricity/late-fee split existed (or
+    // created by approval) have amount_paid but an all-zero split - count
+    // those as rent so the breakdown always adds up to the total collected.
+    rentCollected: monthCashRows.reduce((s, p) => {
+      const split = Number(p.rent_paid || 0) + Number(p.electricity_paid || 0) + Number(p.late_fee_paid || 0)
+      return s + (split === 0 ? Number(p.amount_paid || 0) : Number(p.rent_paid || 0))
+    }, 0),
+    electricityCollected: monthCashRows.reduce((s, p) => s + Number(p.electricity_paid || 0), 0),
+    lateFeeCollected: monthCashRows.reduce((s, p) => s + Number(p.late_fee_paid || 0), 0),
   }
 
   const months = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec']
@@ -366,7 +414,7 @@ export default function RentPage() {
             Rent Tracker
           </h1>
           <p style={{ color: 'var(--text-muted)', fontSize: '14px', margin: 0 }}>
-            {months[monthFilter - 1]} {yearFilter} · {stats.paid}/{stats.total} paid · {formatCurrency(stats.totalOutstanding)} outstanding
+            {months[monthFilter - 1]} {yearFilter} · {stats.paid}/{stats.total} paid · {formatCurrency(stats.totalOutstanding)} outstanding this month · {formatCurrency(stats.pastMonthsPending + stats.oldDuesPending)} past &amp; old dues
           </p>
         </div>
         <div style={{ display: 'flex', gap: '8px', alignItems: 'center' }}>
@@ -394,19 +442,36 @@ export default function RentPage() {
       {/* Stats */}
       <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(150px, 1fr))', gap: '12px', marginBottom: '24px' }}>
         {[
-          { label: 'Collected', value: formatCurrency(stats.totalCollected), color: '#34d399', clickable: true },
-          { label: 'Outstanding', value: formatCurrency(stats.totalOutstanding), color: '#fbbf24' },
+          { label: 'Cash received', value: formatCurrency(stats.totalCollected), color: '#34d399', clickable: true },
+          { label: 'Outstanding (this month)', value: formatCurrency(stats.totalOutstanding), color: '#fbbf24' },
+          { label: 'Past months + old dues', value: formatCurrency(stats.pastMonthsPending + stats.oldDuesPending), color: '#f87171', goto: 'olddues' },
           { label: 'Paid', value: `${stats.paid} residents`, color: '#34d399' },
           { label: 'Pending', value: `${stats.pending} residents`, color: '#f87171' },
           { label: 'Partial', value: `${stats.partial} residents`, color: '#fbbf24' },
         ].map(s => (
-          <div key={s.label} className="stat-card" onClick={s.clickable ? () => setShowCollectedBreakdown(true) : undefined} style={{ padding: '16px', cursor: s.clickable ? 'pointer' : 'default' }}>
+          <div key={s.label} className="stat-card" onClick={s.clickable ? () => setShowCollectedBreakdown(true) : (s as any).goto ? () => setTab('olddues') : undefined} style={{ padding: '16px', cursor: s.clickable || (s as any).goto ? 'pointer' : 'default' }}>
             <div style={{ fontSize: '20px', fontWeight: '700', color: s.color, fontFamily: 'Syne, sans-serif' }}>{s.value}</div>
             <div style={{ fontSize: '12px', color: 'var(--text-muted)', marginTop: '4px', display: 'flex', alignItems: 'center', gap: 4 }}>{s.label}{s.clickable && <span style={{ color: 'var(--teal-500)', fontSize: 11 }}>· breakdown</span>}</div>
           </div>
         ))}
       </div>
 
+      {/* Tabs */}
+      <div style={{ display: 'flex', gap: 6, marginBottom: 16, background: 'var(--surface-1)', border: '1px solid var(--border)', borderRadius: 10, padding: 4, width: 'fit-content' }}>
+        {([['rent', 'Monthly Rent'], ['olddues', `Old Dues${stats.oldDuesPending > 0 ? ` (${formatCurrency(stats.oldDuesPending)})` : ''}`]] as const).map(([k, label]) => (
+          <button key={k} onClick={() => setTab(k)} style={{ padding: '6px 14px', borderRadius: 7, border: 'none', fontSize: 12, fontWeight: 600, cursor: 'pointer', background: tab === k ? 'var(--teal-500)' : 'transparent', color: tab === k ? 'var(--navy-900)' : 'var(--text-muted)' }}>{label}</button>
+        ))}
+      </div>
+
+      {tab === 'olddues' && (
+        <OldDuesTab
+          dues={oldDues} payments={oldDuePayments} residents={dueResidents}
+          adminId={currentAdmin?.id} monthLabel={`${months[monthFilter - 1]} ${yearFilter}`}
+          cashThisMonth={stats.oldDuesCollected} onChanged={fetchOldDues}
+        />
+      )}
+
+      {tab === 'rent' && <>
       {/* Search + status filter */}
       <div style={{ display: 'flex', gap: '12px', marginBottom: '16px', flexWrap: 'wrap', alignItems: 'center' }}>
         <div style={{ position: 'relative', maxWidth: '320px', flex: '1 1 200px' }}>
@@ -542,6 +607,7 @@ export default function RentPage() {
           </div>
       </div>
       )}
+      </>}
 
       {/* Log Payment Modal */}
       {showLogModal && selectedPayment && (
@@ -728,6 +794,7 @@ export default function RentPage() {
               { label: 'Rent', amount: stats.rentCollected, color: '#34d399' },
               { label: 'Electricity', amount: stats.electricityCollected, color: '#38bdf8' },
               { label: 'Late Fees', amount: stats.lateFeeCollected, color: '#fbbf24' },
+              { label: 'Old dues', amount: stats.oldDuesCollected, color: '#a78bfa' },
             ].map(row => (
               <div key={row.label} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '12px 0', borderBottom: '1px solid rgba(255,255,255,0.06)' }}>
                 <span style={{ fontSize: '14px', color: 'var(--text-secondary)' }}>{row.label}</span>

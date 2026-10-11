@@ -1,5 +1,6 @@
 'use client'
 
+import { CURRENT_STATUSES } from '@/lib/residents'
 import { useEffect, useState } from 'react'
 import { createClient } from '@/lib/supabase/client'
 import { formatCurrency, formatDate } from '@/lib/utils'
@@ -41,7 +42,7 @@ export default function ElectricityPage() {
     const [{ data: r }, { data: res }] = await Promise.all([
       supabase.from('electricity_readings').select('*, resident:residents(name, room_number, bed_id, initial_electricity_reading)')
         .eq('month', monthFilter).eq('year', yearFilter).order('created_at', { ascending: false }),
-      supabase.from('residents').select('id, name, room_number, initial_electricity_reading, bed_id').eq('status', 'active'),
+      supabase.from('residents').select('id, name, room_number, initial_electricity_reading, bed_id').in('status', [...CURRENT_STATUSES]),
     ])
     setReadings(r || [])
     setResidents(res || [])

@@ -1,5 +1,6 @@
 'use client'
 
+import { CURRENT_STATUSES } from '@/lib/residents'
 import { useEffect, useState } from 'react'
 import { createClient } from '@/lib/supabase/client'
 import { formatDate } from '@/lib/utils'
@@ -77,7 +78,7 @@ export default function MaintenancePage() {
     const { data: all } = await supabase.from('maintenance_requests').select('status')
     setAllTasks(all || [])
 
-    const { data: res } = await supabase.from('residents').select('id, name, room_number').eq('status', 'active')
+    const { data: res } = await supabase.from('residents').select('id, name, room_number').in('status', [...CURRENT_STATUSES])
     setResidents(res || [])
     setLoading(false)
   }

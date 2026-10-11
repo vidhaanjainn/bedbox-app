@@ -4,6 +4,8 @@ import { useEffect, useState } from 'react'
 import { useRouter } from 'next/navigation'
 import { createClient } from '@/lib/supabase/client'
 import { formatCurrency, formatDate, getStatusColor, getNoticeDaysRemaining } from '@/lib/utils'
+import { oldDueBalances, oldDueCashInMonth, invoiceBalance, isBefore, dedupeInvoices, oldDueOutstandingByResident } from '@/lib/dues'
+import { closeoutItems, needsCloseout, CURRENT_STATUSES } from '@/lib/residents'
 import { useIsMobile } from '@/lib/useIsMobile'
 import Link from 'next/link'
 import {
@@ -18,6 +20,9 @@ interface DashboardData {
   occupancyRate: number
   monthlyIncome: number
   pendingRent: number
+  pendingThisMonth: number
+  pendingPastMonths: number
+  pendingOldDues: number
   activeNotices: number
   openMaintenance: number
   recentResidents: any[]
@@ -50,9 +55,11 @@ export default function DashboardPage() {
         { data: pendingSettlements },
         { data: missingDeposits },
         { data: prorataReviews },
+        { data: oldDues },
+        { data: oldDuePayments },
       ] = await Promise.all([
         supabase.from('beds').select('*, room:rooms(room_number)'),
-        supabase.from('residents').select('*, bed:beds(bed_number, room:rooms(room_number))').eq('status', 'active').order('created_at', { ascending: false }).limit(5),
+        supabase.from('residents').select('*, bed:beds(bed_number, room:rooms(room_number))').in('status', [...CURRENT_STATUSES]).order('created_at', { ascending: false }).limit(5),
         supabase.from('notice_periods').select('*, resident:residents(name, room_number)').eq('status', 'active'),
         supabase.from('maintenance_requests').select('*, resident:residents(name)').in('status', ['open', 'in_progress']).order('created_at', { ascending: false }).limit(5),
         supabase.from('rent_payments').select('*, resident:residents(name, room_number, is_test_account, status)'),
@@ -61,17 +68,19 @@ export default function DashboardPage() {
         // this is the "close it out" step that used to have nowhere to
         // surface at all once the initial archive click was done, so it was
         // easy to just... forget about, indefinitely.
-        supabase.from('residents').select('id, name, room_number, vacated_at, move_out_ready_notified_at').eq('status', 'vacated').is('security_deposit_refund_at', null).order('vacated_at', { ascending: true }),
+        supabase.from('residents').select('id, name, room_number, status, vacated_at, move_out_ready_notified_at, security_deposit_refund_at, closeout_hidden_at').eq('status', 'vacated').is('closeout_hidden_at', null).order('vacated_at', { ascending: true }),
         // The other end of the same problem, at move-in instead of move-out -
         // an active resident with an actual agreed deposit that's never
         // been marked as received. This is exactly what let Dhanendra's
         // deposit go unrecorded: nothing ever asked, and nothing ever
         // surfaced that it hadn't been answered.
-        supabase.from('residents').select('id, name, room_number, security_deposit').eq('status', 'active').gt('security_deposit', 0).is('security_deposit_received_at', null),
+        supabase.from('residents').select('id, name, room_number, security_deposit').in('status', [...CURRENT_STATUSES]).gt('security_deposit', 0).is('security_deposit_received_at', null),
         // Residents who joined well into a month but paid a full month's
         // rent at signing (see lib/prorata.ts) - the credit is computed,
         // but never applied without an admin actually choosing to.
         supabase.from('residents').select('id, name, room_number, date_of_joining, prorata_unused_days, prorata_credit_amount').eq('status', 'active').eq('prorata_status', 'pending_review').order('date_of_joining', { ascending: true }),
+        supabase.from('old_dues').select('*, resident:residents(is_test_account, status)'),
+        supabase.from('old_due_payments').select('*'),
       ])
 
       const totalBeds = beds?.length || 0
@@ -87,7 +96,10 @@ export default function DashboardPage() {
       // is a final-dues figure the move-out settlement flow owns, not
       // something that should keep counting as "outstanding rent to chase"
       // or showing up in the Rent Due list indefinitely after they've left.
-      const realRentPayments = (rentPayments || []).filter((r: any) => !r.resident?.is_test_account && r.resident?.status !== 'vacated')
+      // One invoice per resident per month (lib/dues.ts) before anything is
+      // summed, so a ₹0 duplicate row can never inflate what's pending.
+      const allInvoices = dedupeInvoices((rentPayments || []) as any[]).filter((r: any) => !r.resident?.is_test_account)
+      const realRentPayments = allInvoices.filter((r: any) => r.resident?.status !== 'vacated')
 
       // "Monthly Income Collected" means this month, not every payment ever
       // made - the previous version summed every 'paid' row across all of
@@ -96,9 +108,17 @@ export default function DashboardPage() {
       // label said. Counts partial payments too - money received this
       // month is money received this month, whether or not the invoice is
       // fully settled yet.
-      const monthlyIncome = realRentPayments
+      // Old-due payments received this month are real cash too - same
+      // definition the Rent Tracker uses (lib/dues.ts).
+      const realOldDues = (oldDues || []).filter((d: any) => !d.resident?.is_test_account && d.resident?.status !== 'vacated')
+      const realOldDueIds = new Set(realOldDues.map((d: any) => d.id))
+      const realOldDuePayments = (oldDuePayments || []).filter((p: any) => realOldDueIds.has(p.old_due_id))
+      // Cash is cash: money received this month counts even if that resident
+      // has since moved out (only pending amounts exclude vacated residents).
+      const monthlyIncome = allInvoices
         .filter((r: any) => r.month === currentMonth && r.year === currentYear)
         .reduce((sum: number, r: any) => sum + Number(r.amount_paid || 0), 0)
+        + oldDueCashInMonth(realOldDuePayments, currentMonth, currentYear)
 
       // Only rows with an actual outstanding balance count as "pending" -
       // the raw rentPayments array includes fully-paid rows too, which
@@ -107,7 +127,13 @@ export default function DashboardPage() {
       const unpaidRent = realRentPayments
         .filter((r: any) => Number(r.total_amount) - Number(r.amount_paid || 0) > 0)
         .sort((a: any, b: any) => (Number(b.total_amount) - Number(b.amount_paid || 0)) - (Number(a.total_amount) - Number(a.amount_paid || 0)))
-      const pendingRent = unpaidRent.reduce((sum: number, r: any) => sum + (Number(r.total_amount) - Number(r.amount_paid || 0)), 0)
+      // Total pending = this month's unpaid invoices + unpaid invoices from
+      // earlier months + outstanding old dues. The Rent Tracker shows the
+      // same three parts, so the two screens always agree.
+      const pendingThisMonth = unpaidRent.filter((r: any) => !isBefore(r, currentMonth, currentYear)).reduce((sum: number, r: any) => sum + invoiceBalance(r), 0)
+      const pendingPastMonths = unpaidRent.filter((r: any) => isBefore(r, currentMonth, currentYear)).reduce((sum: number, r: any) => sum + invoiceBalance(r), 0)
+      const pendingOldDues = oldDueBalances(realOldDues, realOldDuePayments).reduce((sum, d) => sum + d.balance, 0)
+      const pendingRent = pendingThisMonth + pendingPastMonths + pendingOldDues
 
       setData({
         totalBeds,
@@ -116,6 +142,9 @@ export default function DashboardPage() {
         occupancyRate: totalBeds > 0 ? Math.round((occupiedBeds / totalBeds) * 100) : 0,
         monthlyIncome,
         pendingRent,
+        pendingThisMonth,
+        pendingPastMonths,
+        pendingOldDues,
         activeNotices: notices?.length || 0,
         openMaintenance: maintenance?.length || 0,
         recentResidents: residents || [],
@@ -123,7 +152,16 @@ export default function DashboardPage() {
         openMaintenanceList: maintenance || [],
         unpaidRent,
         pendingApprovals: pendingApprovals || [],
-        pendingSettlements: pendingSettlements || [],
+        // Vacated residents with something still open (deposit / unpaid dues)
+        // that the admin hasn't hidden - the only way a vacated resident ever
+        // appears on the dashboard.
+        pendingSettlements: (() => {
+          const owed: Record<string, number> = { ...oldDueOutstandingByResident((oldDues || []) as any, (oldDuePayments || []) as any) }
+          for (const r of allInvoices) owed[r.resident_id] = (owed[r.resident_id] || 0) + invoiceBalance(r)
+          return (pendingSettlements || [])
+            .filter((r: any) => needsCloseout(r, owed[r.id] || 0))
+            .map((r: any) => ({ ...r, items: closeoutItems(r, owed[r.id] || 0) }))
+        })(),
         missingDeposits: missingDeposits || [],
         prorataReviews: prorataReviews || [],
       })
@@ -228,15 +266,15 @@ export default function DashboardPage() {
             <AlertCircle size={20} color="#fbbf24" />
             <div>
               <div style={{ fontSize: '14px', fontWeight: '700', color: '#fbbf24' }}>
-                {data!.pendingSettlements.length} vacated resident{data!.pendingSettlements.length > 1 ? 's' : ''} awaiting deposit settlement
+                {data!.pendingSettlements.length} past resident{data!.pendingSettlements.length > 1 ? 's' : ''} to close out
               </div>
               <div style={{ fontSize: '12px', color: 'var(--text-muted)', marginTop: '2px' }}>
-                {data!.pendingSettlements.slice(0, 3).map((r: any) => `${r.name}${r.move_out_ready_notified_at ? ' (ready)' : ''}`).join(', ')}{data!.pendingSettlements.length > 3 ? ` +${data!.pendingSettlements.length - 3} more` : ''}
+                {data!.pendingSettlements.slice(0, 3).map((r: any) => `${r.name} (${r.items.join(', ')})`).join(' · ')}{data!.pendingSettlements.length > 3 ? ` +${data!.pendingSettlements.length - 3} more` : ''}
               </div>
             </div>
           </div>
-          <Link href={`/admin/residents/${data!.pendingSettlements[0].id}`} className="bb-btn-secondary" style={{ fontSize: '13px' }}>
-            Settle Now <ChevronRight size={14} />
+          <Link href="/admin/residents?tab=past" className="bb-btn-secondary" style={{ fontSize: '13px' }}>
+            Review <ChevronRight size={14} />
           </Link>
         </div>
       )}
@@ -373,14 +411,19 @@ export default function DashboardPage() {
                 fontSize: '11px', fontWeight: '700', color: '#fbbf24',
                 background: 'rgba(251,191,36,0.1)', padding: '3px 8px', borderRadius: '999px'
               }}>
-                {data!.unpaidRent.length} pending
+                {data!.unpaidRent.length + (data!.pendingOldDues > 0 ? 1 : 0) > 0 ? `${data!.unpaidRent.length} invoices${data!.pendingOldDues > 0 ? ' + old dues' : ''}` : ''}
               </span>
             )}
           </div>
           <div style={{ fontSize: '28px', fontWeight: '700', color: data!.pendingRent > 0 ? '#fbbf24' : 'var(--text-primary)', fontFamily: 'Syne, sans-serif', lineHeight: 1 }}>
             {formatCurrency(data!.pendingRent)}
           </div>
-          <div style={{ fontSize: '13px', color: 'var(--text-muted)', marginTop: '6px' }}>Rent Outstanding</div>
+          <div style={{ fontSize: '13px', color: 'var(--text-muted)', marginTop: '6px' }}>Total Pending</div>
+          {data!.pendingRent > 0 && (
+            <div style={{ fontSize: '11px', color: 'var(--text-muted)', marginTop: '4px', lineHeight: 1.5 }}>
+              This month {formatCurrency(data!.pendingThisMonth)} · Past months {formatCurrency(data!.pendingPastMonths)} · Old dues {formatCurrency(data!.pendingOldDues)}
+            </div>
+          )}
         </div>
 
         {/* Active Notices */}
