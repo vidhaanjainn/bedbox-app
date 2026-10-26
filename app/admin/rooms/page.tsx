@@ -18,7 +18,8 @@ export default function RoomsPage() {
   const [roomForm, setRoomForm] = useState({ room_number: '', floor: '1', type: 'double', total_beds: '2' })
   const [bedForm, setBedForm] = useState({ bed_number: '', rate_monthly: '', rate_daily: '' })
   const [editRoom, setEditRoom] = useState<any>(null)
-  const [editForm, setEditForm] = useState({ type: 'double', floor: '1' })
+  const [editForm, setEditForm] = useState({ type: 'double', floor: '1', geyser: false, geyserCharge: '' })
+  const [facilityFilter, setFacilityFilter] = useState<'all' | 'geyser'>('all')
   const [editBeds, setEditBeds] = useState<any[]>([])
   const [editError, setEditError] = useState('')
   const supabase = createClient()
@@ -27,7 +28,7 @@ export default function RoomsPage() {
 
   const openEditRoom = (room: any) => {
     setEditRoom(room)
-    setEditForm({ type: room.type || 'double', floor: String(room.floor ?? '1') })
+    setEditForm({ type: room.type || 'double', floor: String(room.floor ?? '1'), geyser: (room.facilities || []).includes('geyser'), geyserCharge: room.geyser_charge != null ? String(room.geyser_charge) : '' })
     setEditError('')
     setEditBeds((room.beds || []).map((b: any) => ({
       id: b.id,
@@ -82,6 +83,8 @@ export default function RoomsPage() {
         type: editForm.type,
         floor: parseInt(editForm.floor) || editRoom.floor,
         total_beds: kept.length,
+        facilities: editForm.geyser ? ['geyser'] : [],
+        geyser_charge: editForm.geyser && editForm.geyserCharge !== '' ? parseFloat(editForm.geyserCharge) : null,
         status: occupied === 0 ? 'available' : occupied >= kept.length ? 'full' : 'partial',
       }).eq('id', editRoom.id)
       if (error) throw error
@@ -162,9 +165,15 @@ export default function RoomsPage() {
             {rooms.length} rooms · {rooms.reduce((s, r) => s + (r.beds?.length || 0), 0)} total beds · {rooms.reduce((s, r) => s + (r.beds?.filter((b: any) => b.status === 'available').length || 0), 0)} available
           </p>
         </div>
-        <button onClick={() => setShowRoomModal(true)} className="bb-btn-primary">
-          <Plus size={16} /> Add Room
-        </button>
+        <div style={{ display: 'flex', gap: '8px', alignItems: 'center' }}>
+          <select className="bb-input" value={facilityFilter} onChange={e => setFacilityFilter(e.target.value as 'all' | 'geyser')} style={{ width: 'auto' }} title="Filter rooms by facility">
+            <option value="all">All rooms</option>
+            <option value="geyser">Geyser rooms</option>
+          </select>
+          <button onClick={() => setShowRoomModal(true)} className="bb-btn-primary">
+            <Plus size={16} /> Add Room
+          </button>
+        </div>
       </div>
 
       {loading ? (
@@ -179,7 +188,7 @@ export default function RoomsPage() {
         </div>
       ) : (
         <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(300px, 1fr))', gap: '16px' }}>
-          {rooms.map(room => {
+          {rooms.filter(r => facilityFilter === 'all' || (r.facilities || []).includes(facilityFilter)).map(room => {
             const beds = room.beds || []
             const occupied = beds.filter((b: any) => b.status === 'occupied').length
             const occupancy = beds.length > 0 ? Math.round((occupied / beds.length) * 100) : 0
@@ -194,6 +203,12 @@ export default function RoomsPage() {
                     <div style={{ fontSize: '12px', color: 'var(--text-muted)', marginTop: '2px', textTransform: 'capitalize' }}>
                       Floor {room.floor} · {room.type} · {beds.length} beds
                     </div>
+                    {(room.facilities || []).includes('geyser') && (
+                      <div title={room.geyser_charge ? `Geyser adds ${formatCurrency(room.geyser_charge)}/mo to rent (admin record only)` : 'Geyser room'}
+                        style={{ display: 'inline-block', marginTop: '6px', fontSize: '11px', fontWeight: 600, padding: '2px 8px', borderRadius: '999px', background: 'rgba(249,115,22,0.1)', color: '#f97316', textTransform: 'none' }}>
+                        🔥 Geyser{room.geyser_charge ? ` · +${formatCurrency(room.geyser_charge)}` : ''}
+                      </div>
+                    )}
                   </div>
                   <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
                   <button onClick={() => openEditRoom(room)} title="Edit room type, beds and rates" className="bb-btn-secondary" style={{ padding: '4px 10px', fontSize: '12px', display: 'flex', alignItems: 'center', gap: '4px' }}>
@@ -306,6 +321,17 @@ export default function RoomsPage() {
                 <input className="bb-input" type="number" value={editForm.floor} onChange={e => setEditForm(f => ({ ...f, floor: e.target.value }))} />
               </div>
             </div>
+
+            <div style={{ display: 'flex', alignItems: 'center', gap: '12px', marginBottom: '14px', flexWrap: 'wrap' }}>
+              <label style={{ display: 'flex', alignItems: 'center', gap: '8px', fontSize: '13px', color: 'var(--text-primary)' }}>
+                <input type="checkbox" checked={editForm.geyser} onChange={e => setEditForm(f => ({ ...f, geyser: e.target.checked }))} /> Geyser room
+              </label>
+              {editForm.geyser && (
+                <input className="bb-input" type="number" placeholder="Geyser charge in rent (optional)" value={editForm.geyserCharge}
+                  onChange={e => setEditForm(f => ({ ...f, geyserCharge: e.target.value }))} style={{ flex: 1, minWidth: '160px' }} />
+              )}
+            </div>
+            <p style={{ fontSize: '11px', color: 'var(--text-muted)', margin: '-6px 0 14px' }}>Admin record only. Residents never see this as a separate charge; it&apos;s already part of the rent.</p>
 
             {editBeds.length > 1 && (
               <button onClick={makeSingleOccupancy} className="bb-btn-secondary" style={{ width: '100%', justifyContent: 'center', marginBottom: '14px', fontSize: '13px' }}>

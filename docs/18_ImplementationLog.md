@@ -448,3 +448,9 @@ remaining work.
 - **Electricity:** server already stored a first reading as baseline (prev = current). UI still previewed
   dial × ₹10 on the portal (fell back to initial reading / 0). New `lib/electricity.ts` (previewBill, isBaselineReading):
   portal + admin now show "Starting reading - no bill"; bills only = (latest − last recorded) × ₹10.
+
+## 2026-10-26 - Geyser rooms (admin-only facility)
+- Owner's father upgraded rooms with geysers mid-agreement: +₹250/month baked into rent, informed once by WhatsApp, never a separate line for residents.
+- Migration `20261026_room_facilities.sql`: `rooms.facilities text[]`, `rooms.geyser_charge numeric` (applied live). Rooms page: Geyser badge, Edit checkbox + charge, "Geyser rooms" filter.
+- Data: facilities=geyser on 102,103,202,204,207,208,302,307; geyser_charge=250 on the six occupied-by-opt-in rooms. Resident rent_amount +250 for 204,207,208,302,307 and their Oct 2026 invoices +250 (now partial, ₹250 due each). 102 Viplav's ₹8,750 already includes it. Vacant 202/103 are geyser rooms with no add-on.
+- 202 and 103 made single occupancy: extra vacant bed B removed, bed A rate ₹9,000 (202) and ₹9,500 (103), both geyser rooms with no add-on charge.

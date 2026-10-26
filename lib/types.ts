@@ -19,6 +19,8 @@ export interface Room {
   type: 'single' | 'double' | 'dorm'
   total_beds: number
   status: 'available' | 'partial' | 'full' | 'maintenance'
+  facilities?: string[]
+  geyser_charge?: number | null
   created_at: string
 }
 
