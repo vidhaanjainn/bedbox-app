@@ -2,6 +2,7 @@
 
 ## [Unreleased]
 ### Added
+- 2026-10-27 - Fix: admin app and login could hang forever on a black screen if the saved login was stuck or corrupted; they now time out after 6s and show the login form
 - 2026-10-26 - Rooms: admin-only facilities (geyser) + geyser charge record, filter on Rooms page. Geyser rooms 102,103,202,204,207,208,302,307. Rent +₹250 (Oct onward) for 204,207,208,302,307; 102 already paid it. Never shown to residents as a separate charge.
 - 2026-10-11 - Fix: onboarding uploads are compressed, retried, have a server fallback, skip already-uploaded files on retry, and typed answers survive a reload
 - 2026-10-11 - Edit any rent payment (who received it, date, mode, amounts, notes, screenshot); electricity first reading shown as starting reading, no bill

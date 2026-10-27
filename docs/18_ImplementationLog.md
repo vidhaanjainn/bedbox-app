@@ -454,3 +454,9 @@ remaining work.
 - Migration `20261026_room_facilities.sql`: `rooms.facilities text[]`, `rooms.geyser_charge numeric` (applied live). Rooms page: Geyser badge, Edit checkbox + charge, "Geyser rooms" filter.
 - Data: facilities=geyser on 102,103,202,204,207,208,302,307; geyser_charge=250 on the six occupied-by-opt-in rooms. Resident rent_amount +250 for 204,207,208,302,307 and their Oct 2026 invoices +250 (now partial, ₹250 due each). 102 Viplav's ₹8,750 already includes it. Vacant 202/103 are geyser rooms with no add-on.
 - 202 and 103 made single occupancy: extra vacant bed B removed, bed A rate ₹9,000 (202) and ₹9,500 (103), both geyser rooms with no add-on charge.
+
+## 2026-10-27 - Admin app stuck on black screen
+- Reported: admin app hangs on a black screen. Vercel (latest prod deploy READY, no runtime errors), Supabase (bedbox ACTIVE_HEALTHY, migration columns present, 2 active admins) were all healthy, so the fault is client-side.
+- Cause: `/admin` layout and `/login` both gate the whole UI on `supabase.auth.getSession()` with no timeout and no catch. A hung auth lock or corrupted stored session = "Loading..." forever.
+- Fix: `lib/supabase/safe-session.ts` (`getSessionSafe` = 6s timeout + catch -> null; `clearStoredAuth` wipes `sb-*` storage/cookies). Admin layout redirects to /login on null; login shows the form and clears broken stored auth.
+- Not verified in a real browser (sandbox cannot reach the live host); verified by tsc + `next build`.

@@ -4,6 +4,7 @@ import { useState, useEffect } from 'react'
 import Link from 'next/link'
 import { usePathname, useRouter } from 'next/navigation'
 import { createClient } from '@/lib/supabase/client'
+import { getSessionSafe } from '@/lib/supabase/safe-session'
 import NotificationPrompt from '@/components/ui/NotificationPrompt'
 import InstallPrompt from '@/components/ui/InstallPrompt'
 import {
@@ -57,8 +58,8 @@ export default function AdminLayoutClient({ children }: { children: React.ReactN
   // No persisted session (e.g. never logged in on this device, or explicitly
   // logged out) - send to login instead of rendering an empty dashboard.
   useEffect(() => {
-    supabase.auth.getSession().then(({ data }) => {
-      if (!data.session) { router.replace('/login') } else { setCheckingSession(false) }
+    getSessionSafe(supabase).then(session => {
+      if (!session) { router.replace('/login') } else { setCheckingSession(false) }
     })
   }, [])
 

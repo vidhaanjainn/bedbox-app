@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from 'react'
 import { createClient } from '@/lib/supabase/client'
+import { getSessionSafe, clearStoredAuth } from '@/lib/supabase/safe-session'
 import { useRouter } from 'next/navigation'
 import { Mail, Lock, Eye, EyeOff, Loader2, ArrowRight } from 'lucide-react'
 import Image from 'next/image'
@@ -21,8 +22,8 @@ export default function LoginPageClient() {
   // Already signed in (e.g. opening the installed Admin icon with a persisted
   // session) - skip the form entirely instead of asking to log in again.
   useEffect(() => {
-    supabase.auth.getSession().then(({ data }) => {
-      if (data.session) { router.replace('/admin/dashboard') } else { setCheckingSession(false) }
+    getSessionSafe(supabase).then(session => {
+      if (session) { router.replace('/admin/dashboard') } else { clearStoredAuth(); setCheckingSession(false) }
     })
   }, [])
 
