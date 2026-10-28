@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from 'react'
 import { createClient } from '@/lib/supabase/client'
+import { describeError } from '@/lib/supabase/errors'
 import { getSessionSafe, clearStoredAuth } from '@/lib/supabase/safe-session'
 import { useRouter } from 'next/navigation'
 import { Mail, Lock, Eye, EyeOff, Loader2, ArrowRight } from 'lucide-react'
@@ -16,6 +17,7 @@ export default function LoginPageClient() {
   const [loading, setLoading] = useState(false)
   const [checkingSession, setCheckingSession] = useState(true)
   const [error, setError] = useState('')
+  const [networkProblem, setNetworkProblem] = useState(false)
   const router = useRouter()
   const supabase = createClient()
 
@@ -32,10 +34,23 @@ export default function LoginPageClient() {
     setLoading(true)
     setError('')
 
-    const { error } = await supabase.auth.signInWithPassword({ email, password })
+    // Hard limit so the button can never spin forever (the network layer
+    // already times out each attempt; this covers the whole sign-in).
+    let error: unknown = null
+    try {
+      const res = await Promise.race([
+        supabase.auth.signInWithPassword({ email, password }),
+        new Promise<never>((_, reject) => setTimeout(() => reject(new Error('Sign-in timed out')), 40000)),
+      ])
+      error = res.error
+    } catch (err) {
+      error = err
+    }
 
     if (error) {
-      setError(error.message)
+      const d = describeError(error)
+      setError(d.message)
+      setNetworkProblem(d.kind === 'network')
       setLoading(false)
       return
     }
@@ -129,6 +144,7 @@ export default function LoginPageClient() {
             {error && (
               <div style={{ background: 'rgba(239,68,68,0.08)', border: '1px solid rgba(239,68,68,0.25)', borderRadius: '10px', padding: '10px 14px', marginBottom: '16px', fontSize: '13px', color: '#f87171' }}>
                 {error}
+                {networkProblem && <> <Link href="/status" style={{ color: 'inherit', textDecoration: 'underline' }}>Run connection check</Link></>}
               </div>
             )}
 

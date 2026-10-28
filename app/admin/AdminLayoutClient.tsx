@@ -1,12 +1,13 @@
 'use client'
 
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useRef } from 'react'
 import Link from 'next/link'
 import { usePathname, useRouter } from 'next/navigation'
 import { createClient } from '@/lib/supabase/client'
 import { getSessionSafe } from '@/lib/supabase/safe-session'
 import NotificationPrompt from '@/components/ui/NotificationPrompt'
 import InstallPrompt from '@/components/ui/InstallPrompt'
+import ConnectionBanner from '@/components/ui/ConnectionBanner'
 import {
   LayoutDashboard, Users, BookOpen, Hotel, Bed,
   CreditCard, Zap, Bell, Wrench, BarChart3,
@@ -54,6 +55,17 @@ export default function AdminLayoutClient({ children }: { children: React.ReactN
   // Close the drawer automatically on navigation - otherwise it stays open
   // over the new page after tapping a nav link.
   useEffect(() => { setMobileOpen(false) }, [pathname])
+
+  // Navigation guard: a sidebar tap normally swaps the page in well under a
+  // second. If it hasn't happened after 4s (a stalled client-side route
+  // fetch), force a normal full page load instead of leaving the user stuck.
+  const navTimer = useRef<ReturnType<typeof setTimeout> | undefined>(undefined)
+  useEffect(() => () => clearTimeout(navTimer.current), [pathname])
+  const guardNav = (href: string) => {
+    if (href === pathname) return
+    clearTimeout(navTimer.current)
+    navTimer.current = setTimeout(() => window.location.assign(href), 4000)
+  }
 
   // No persisted session (e.g. never logged in on this device, or explicitly
   // logged out) - send to login instead of rendering an empty dashboard.
@@ -179,6 +191,7 @@ export default function AdminLayoutClient({ children }: { children: React.ReactN
             const active = pathname.startsWith(item.href)
             return (
               <Link key={item.href} href={item.href} className={`nav-item ${active ? 'active' : ''}`}
+                onClick={() => guardNav(item.href)}
                 style={{
                   marginBottom: '2px',
                   justifyContent: showLabels ? 'flex-start' : 'center',
@@ -231,6 +244,7 @@ export default function AdminLayoutClient({ children }: { children: React.ReactN
           </button>
           <span style={{ fontFamily: 'Syne, sans-serif', fontSize: '15px', fontWeight: '700', color: 'var(--text-primary)' }}>TheBedBox</span>
         </div>
+        <ConnectionBanner />
         <div className="bb-page">
           <div style={{ padding: '20px 32px 0' }}>
             <InstallPrompt dark={false} />

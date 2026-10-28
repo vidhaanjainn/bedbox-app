@@ -1,0 +1,21 @@
+# Pings the live app + its database health every 30 minutes. A failed run emails
+# the repo owner (GitHub does this for failed scheduled workflows), so an
+# outage is noticed in minutes instead of when someone hits a black screen.
+name: Uptime
+on:
+  schedule:
+    - cron: '*/30 * * * *'
+  workflow_dispatch:
+jobs:
+  health:
+    runs-on: ubuntu-latest
+    steps:
+      - name: App login page is up
+        run: curl -fsS -o /dev/null --max-time 25 https://app.thebedbox.in/login
+      - name: Database (Auth + data API) is healthy
+        run: |
+          for i in 1 2 3; do
+            if curl -fsS --max-time 25 https://app.thebedbox.in/api/health; then echo; exit 0; fi
+            echo "attempt $i failed"; sleep 20
+          done
+          exit 1

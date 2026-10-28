@@ -1,9 +1,13 @@
-const CACHE = 'bedbox-v1'
-self.addEventListener('install', e => { e.waitUntil(caches.open(CACHE).then(c => c.addAll(['/portal','/manifest.json']))); self.skipWaiting() })
-self.addEventListener('activate', e => { e.waitUntil(caches.keys().then(ks => Promise.all(ks.filter(k=>k!==CACHE).map(k=>caches.delete(k))))); self.clients.claim() })
-self.addEventListener('fetch', e => {
-  if (e.request.method!=='GET'||e.request.url.includes('supabase.co')) return
-  e.respondWith(fetch(e.request).then(r=>{ if(r.ok&&e.request.mode==='navigate'){const c=r.clone();caches.open(CACHE).then(ca=>ca.put(e.request,c))} return r }).catch(()=>caches.match(e.request).then(c=>c||caches.match('/portal'))))
+// Push notifications + installability only. This worker deliberately does NOT
+// intercept fetches: the old version wrapped every GET in fetch().catch(->
+// cached /portal), which could hand portal HTML to a failed data/page request
+// and wedge navigation. Pass-through means the browser talks to the network
+// directly, with nothing in between to hang.
+self.addEventListener('install', () => { self.skipWaiting() })
+self.addEventListener('activate', e => {
+  e.waitUntil(
+    caches.keys().then(ks => Promise.all(ks.map(k => caches.delete(k)))).then(() => self.clients.claim())
+  )
 })
 
 self.addEventListener('push', e => {

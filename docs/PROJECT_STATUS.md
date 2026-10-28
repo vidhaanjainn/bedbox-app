@@ -107,6 +107,7 @@ per room (type, bed rates, block/remove vacant beds, "Make single occupancy"). S
 18_ImplementationLog.md.
 
 ## Open question for owner
+- 🔴 (2026-10-28) Admin app was hanging because Supabase's free Nano instance stalls (services showed Unhealthy; see 18_ImplementationLog). Client now self-heals + monitors, but the platform fix is yours: (1) Supabase > Settings > General > Restart project; (2) upgrade bedbox to Pro - dedicated compute AND daily backups (it currently has NO backups, with real tenant/Aadhaar data). Run `node scripts/resilience-check.cjs` after touching lib/supabase, proxy.ts, login, admin layout or dashboard.
 - Room 204: Bed B is blocked (maintenance), not yet deleted - remove it via Rooms → 204 → Edit →
   Remove. Also confirm whether resident Pradyuman Garg's rent (₹5,500, on notice) should move to ₹9,000.
 - (2026-10-11) Screens/cron now ignore duplicate invoices (lib/dues.ts). The 14 Sept ghost rows were deleted + UNIQUE(resident_id, month, year) added by a parallel session (backup table rent_payments_dup_backup_20261010). Close-outs to decide (Past residents tab): Taukeer ₹5,500, Pradyuman ₹5,500, Nikhil ₹8,800 unpaid while deposits were returned in full — waive or hide. Also: Rohit (201) Sept invoice says ₹8,500 vs his rent ₹7,500 (₹1,000 shows short) — correct or waive? Code changes (old dues tab etc.) are uncommitted.

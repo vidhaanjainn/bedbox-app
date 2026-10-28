@@ -29,3 +29,6 @@ stay authoritative for RLS-protected data.
 ## D-006 · 2026-07-12 · Phase order: security → automation → resident value → ops → SaaS
 Rationale: real residents' Aadhaar data is at stake (P0), automations deliver the owner's biggest
 pain relief per hour of work, SaaS scaffolding too early would slow everything.
+
+## D-007 · 2026-10-28 · Stay on Supabase; harden the client instead of migrating (e.g. to Neon)
+The 2026-10-28 outage was Supabase's free Nano instance stalling (see 18_ImplementationLog), not region or code alone. Migrating to Neon was rejected: it is Postgres only - Auth, Storage and RLS-through-API (29+ files, real Aadhaar documents) would need rewriting mid-incident. Instead: resilient client (lib/supabase/net.ts), same-origin fallback route, health endpoint + uptime monitor, regression test `scripts/resilience-check.cjs` (needs Playwright; no test framework added to package.json). Recommended infra change: Supabase Pro (compute + backups).

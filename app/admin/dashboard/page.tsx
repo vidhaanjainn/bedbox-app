@@ -3,6 +3,7 @@
 import { useEffect, useState } from 'react'
 import { useRouter } from 'next/navigation'
 import { createClient } from '@/lib/supabase/client'
+import { describeError } from '@/lib/supabase/errors'
 import { formatCurrency, formatDate, getStatusColor, getNoticeDaysRemaining } from '@/lib/utils'
 import { oldDueBalances, oldDueCashInMonth, invoiceBalance, isBefore, dedupeInvoices, oldDueOutstandingByResident } from '@/lib/dues'
 import { closeoutItems, needsCloseout, CURRENT_STATUSES } from '@/lib/residents'
@@ -38,26 +39,16 @@ interface DashboardData {
 export default function DashboardPage() {
   const [data, setData] = useState<DashboardData | null>(null)
   const [loading, setLoading] = useState(true)
+  const [loadError, setLoadError] = useState<string | null>(null)
   const supabase = createClient()
   const router = useRouter()
   const isMobile = useIsMobile()
 
   const fetchDashboard = async () => {
     setLoading(true)
+    setLoadError(null)
     try {
-      const [
-        { data: beds },
-        { data: residents },
-        { data: notices },
-        { data: maintenance },
-        { data: rentPayments },
-        { data: pendingApprovals },
-        { data: pendingSettlements },
-        { data: missingDeposits },
-        { data: prorataReviews },
-        { data: oldDues },
-        { data: oldDuePayments },
-      ] = await Promise.all([
+      const results = await Promise.all([
         supabase.from('beds').select('*, room:rooms(room_number)'),
         supabase.from('residents').select('*, bed:beds(bed_number, room:rooms(room_number))').in('status', [...CURRENT_STATUSES]).order('created_at', { ascending: false }).limit(5),
         supabase.from('notice_periods').select('*, resident:residents(name, room_number)').eq('status', 'active'),
@@ -82,6 +73,24 @@ export default function DashboardPage() {
         supabase.from('old_dues').select('*, resident:residents(is_test_account, status)'),
         supabase.from('old_due_payments').select('*'),
       ])
+
+      // A failed query used to come back as "no rows" and render as real
+      // zeros (0 beds, ₹0). Any failure now stops here and is shown as an error.
+      const failed = results.find(r => r.error)
+      if (failed) throw failed.error
+      const [
+        { data: beds },
+        { data: residents },
+        { data: notices },
+        { data: maintenance },
+        { data: rentPayments },
+        { data: pendingApprovals },
+        { data: pendingSettlements },
+        { data: missingDeposits },
+        { data: prorataReviews },
+        { data: oldDues },
+        { data: oldDuePayments },
+      ] = results
 
       const totalBeds = beds?.length || 0
       const occupiedBeds = beds?.filter(b => b.status === 'occupied').length || 0
@@ -167,6 +176,7 @@ export default function DashboardPage() {
       })
     } catch (err) {
       console.error(err)
+      setLoadError(describeError(err).message)
     } finally {
       setLoading(false)
     }
@@ -205,8 +215,27 @@ export default function DashboardPage() {
     )
   }
 
+  // Never show numbers we failed to load. First load failed: error card only.
+  if (loadError && !data) {
+    return (
+      <div style={{ padding: '40px', maxWidth: 560, margin: '60px auto', textAlign: 'center' }}>
+        <h2 style={{ fontFamily: 'Syne, sans-serif', color: 'var(--text-primary)', margin: '0 0 10px' }}>Couldn&apos;t load the dashboard</h2>
+        <p style={{ color: 'var(--text-muted)', fontSize: 14, margin: '0 0 20px' }}>{loadError}</p>
+        <div style={{ display: 'flex', gap: 10, justifyContent: 'center', flexWrap: 'wrap' }}>
+          <button onClick={fetchDashboard} className="bb-btn-primary">Try again</button>
+          <Link href="/status" className="bb-btn-secondary">Connection check</Link>
+        </div>
+      </div>
+    )
+  }
+
   return (
     <div style={{ padding: '32px', maxWidth: '1400px' }} className="animate-fade-in">
+      {loadError && (
+        <div role="alert" style={{ marginBottom: 16, padding: '12px 16px', borderRadius: 12, fontSize: 13, background: 'rgba(239,68,68,0.12)', border: '1px solid rgba(239,68,68,0.35)', color: '#fca5a5' }}>
+          Refresh failed - the numbers below are from the last successful load and may be out of date. {loadError}
+        </div>
+      )}
       {/* Header */}
       <div style={{ marginBottom: '32px', display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between' }}>
         <div>

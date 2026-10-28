@@ -19,6 +19,14 @@ export async function proxy(request: NextRequest) {
   const hasSession = request.cookies.getAll().some(c => c.name.startsWith('sb-') && c.name.includes('auth-token'))
   if (!hasSession) return NextResponse.next({ request })
 
+  // Page-to-page navigations and link prefetches (RSC requests) don't need a
+  // session check: the sidebar alone prefetches 14 routes, which fired 14
+  // Supabase auth calls on every page load and hammered a small database.
+  // Real page loads (documents) still refresh the session below.
+  if (request.headers.get('rsc') || request.headers.get('next-router-prefetch')) {
+    return NextResponse.next({ request })
+  }
+
   let response = NextResponse.next({ request })
 
   const supabase = createServerClient(
@@ -40,7 +48,15 @@ export async function proxy(request: NextRequest) {
 
   // Do not add logic between createServerClient and getUser() - this call
   // is what actually triggers the refresh-and-recookie side effect above.
-  await supabase.auth.getUser()
+  // Never let this block a page load: if Supabase is slow or down, every
+  // navigation used to wait on it with no limit. Cap it and carry on - the
+  // browser client refreshes the session itself.
+  try {
+    await Promise.race([
+      supabase.auth.getUser(),
+      new Promise(resolve => setTimeout(resolve, 3000)),
+    ])
+  } catch {}
 
   return response
 }
@@ -50,6 +66,7 @@ export const config = {
     // Skip static assets, images, and the service worker/manifest - no
     // auth-cookie refresh needed for those, and it avoids extra latency on
     // every single asset request.
-    '/((?!_next/static|_next/image|favicon.ico|sw.js|manifest.*\\.json|icons/|.*\\.(?:svg|png|jpg|jpeg|gif|webp)$).*)',
+    // sb/ is the Supabase fallback route - it must pass straight through.
+    '/((?!_next/static|_next/image|favicon.ico|sw.js|manifest.*\\.json|icons/|sb/|.*\\.(?:svg|png|jpg|jpeg|gif|webp)$).*)',
   ],
 }
