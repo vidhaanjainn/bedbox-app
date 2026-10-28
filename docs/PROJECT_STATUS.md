@@ -108,6 +108,8 @@ per room (type, bed rates, block/remove vacant beds, "Make single occupancy"). S
 
 ## Open question for owner
 - ✅ (2026-10-28) Admin app was hanging because Supabase's free Nano instance stalled for a while (see 18_ImplementationLog); it recovered on its own (health 150ms) and the client now self-heals + is monitored. NO PAID PLAN (owner's decision) - free path: Supabase > Settings > General > Restart project if services show Unhealthy again; check https://app.thebedbox.in/status and /api/health first. Still open: the free plan has NO BACKUPS (real tenant/Aadhaar data) - build a free nightly dump (GitHub Action + pg_dump, needs a read-only DB connection string stored as a GitHub secret). Run `node scripts/resilience-check.cjs` after touching lib/supabase, proxy.ts, login, admin layout or dashboard.
+- 🔴 (2026-10-28) THE GITHUB REPO IS PUBLIC. Docs here contain tenant names/dues (history is already public) and once contained CRON_SECRET (now redacted but LEAKED: rotate it in Vercel; the cron route is open to anyone if CRON_SECRET is unset). Make the repo private (GitHub > Settings > General > Danger Zone). No service_role key was ever committed (scanned). Keep PII and secrets out of docs.
+- 🟡 (2026-10-28) Free nightly encrypted DB backup built (`.github/workflows/backup.yml`, `docs/BACKUP_RESTORE.md`); needs owner to add 2 GitHub secrets (SUPABASE_BACKUP_DB_URL, BACKUP_PASSPHRASE) then Run workflow once. Storage files (Aadhaar/photos) still NOT backed up.
 - ✅ (2026-10-28) Supabase CRITICAL advisor fixed: `public.pending_approvals` was a SECURITY DEFINER view readable by the public `anon` key (name/email/mobile of onboarding residents; 0 rows at the time, nothing in the app uses it). Now security_invoker + anon revoked, verified (`permission denied` for anon). Remaining advisor WARNs left alone on purpose: anon/authenticated GraphQL visibility of tables (RLS still protects rows), `is_admin` search_path, leaked-password protection toggle (Auth settings).
 - Room 204: Bed B is blocked (maintenance), not yet deleted - remove it via Rooms → 204 → Edit →
   Remove. Also confirm whether resident Pradyuman Garg's rent (₹5,500, on notice) should move to ₹9,000.
@@ -122,7 +124,7 @@ expenses) → resident announcements feed.
 
 ## Blocked By (OWNER ACTIONS NEEDED) - round 2
 - **Add to Vercel (Production) env vars:**
-  - `CRON_SECRET` = `c0ea58ff11090174d90a4a7bb9347e415a1ee9302bdaa0a3` (generated 2026-09-03; this
+  - `CRON_SECRET` = `<REDACTED - was committed to this public repo and must be treated as leaked; set a NEW random value in Vercel, never write it here>` (generated 2026-09-03; this
     protects the cron endpoint from being triggered by randoms - Vercel automatically sends it
     as `Authorization: Bearer <value>` when it fires the cron)
   - `REMINDERS_DRY_RUN` = `1` **to start** (logs what it would send instead of sending - flip to

@@ -1,0 +1,75 @@
+# Nightly encrypted backup of the Supabase database (the free plan has none).
+#
+# This repository is PUBLIC, and artifacts of a public repo can be downloaded by
+# anyone - so the dump is encrypted (AES-256, key derived from BACKUP_PASSPHRASE)
+# BEFORE it is uploaded. Without the passphrase the file is unreadable.
+# Restore steps: docs/BACKUP_RESTORE.md
+#
+# Secrets needed (Settings > Secrets and variables > Actions):
+#   SUPABASE_BACKUP_DB_URL  session-pooler URL for the read-only `backup_ro` login
+#   BACKUP_PASSPHRASE       long random passphrase (20+ chars). Keep a copy in a password
+#                           manager: lose it and every backup is permanently unreadable.
+#
+# Covers: all tables/data/policies/functions in `public` + login accounts (auth.users and
+# auth.identities as CSV). Does NOT cover uploaded files in Storage (Aadhaar/payment photos).
+name: Database backup
+on:
+  schedule:
+    - cron: '30 20 * * *'   # 02:00 IST every day
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  backup:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - name: Check secrets
+        env:
+          DB: ${{ secrets.SUPABASE_BACKUP_DB_URL }}
+          PASS: ${{ secrets.BACKUP_PASSPHRASE }}
+        run: |
+          [ -n "$DB" ] && [ -n "$PASS" ] || { echo "::error::Missing secret: SUPABASE_BACKUP_DB_URL and/or BACKUP_PASSPHRASE"; exit 1; }
+          [ "${#PASS}" -ge 20 ] || { echo "::error::BACKUP_PASSPHRASE must be 20+ characters (this repo is public)"; exit 1; }
+
+      - name: Install PostgreSQL 17 client
+        run: |
+          sudo install -d /usr/share/postgresql-common/pgdg
+          sudo curl -fsSL -o /usr/share/postgresql-common/pgdg/apt.postgresql.org.asc https://www.postgresql.org/media/keys/ACCC4CF8.asc
+          echo "deb [signed-by=/usr/share/postgresql-common/pgdg/apt.postgresql.org.asc] https://apt.postgresql.org/pub/repos/apt $(lsb_release -cs)-pgdg main" | sudo tee /etc/apt/sources.list.d/pgdg.list >/dev/null
+          sudo apt-get update -qq
+          sudo apt-get install -y -qq postgresql-client-17
+          pg_dump --version
+
+      - name: Dump, verify, encrypt
+        env:
+          DB: ${{ secrets.SUPABASE_BACKUP_DB_URL }}
+          PASS: ${{ secrets.BACKUP_PASSPHRASE }}
+        run: |
+          set -euo pipefail
+          D=$(date -u +%F)
+          mkdir out
+          pg_dump "$DB" --no-owner --no-privileges --schema=public -Fc -f out/public.dump
+          # Login accounts: the backup login cannot read the `auth` schema directly, so it reads two
+          # read-only views in the private `backup` schema (not reachable through the public API).
+          psql "$DB" -v ON_ERROR_STOP=1 -c "\copy (select * from backup.auth_users) to 'out/auth_users.csv' csv header"
+          psql "$DB" -v ON_ERROR_STOP=1 -c "\copy (select * from backup.auth_identities) to 'out/auth_identities.csv' csv header"
+          # Never store a bad backup: the data must really be there and the files readable.
+          RES=$(psql "$DB" -Atc "select count(*) from public.residents")
+          [ "$RES" -gt 0 ] || { echo "::error::residents table is empty - refusing to store this backup"; exit 1; }
+          pg_restore -l out/public.dump >/dev/null
+          [ "$(wc -l < out/auth_users.csv)" -gt 1 ] || { echo "::error::auth users export is empty - refusing to store this backup"; exit 1; }
+          echo "OK: backup contains $RES residents and $(( $(wc -l < out/auth_users.csv) - 1 )) login accounts"
+          tar -C out -czf "bedbox-$D.tar.gz" public.dump auth_users.csv auth_identities.csv
+          openssl enc -aes-256-cbc -pbkdf2 -iter 600000 -salt -in "bedbox-$D.tar.gz" -out "bedbox-$D.tar.gz.enc" -pass env:PASS
+          rm -rf out "bedbox-$D.tar.gz"
+          ls -l bedbox-*.enc
+          echo "DATE=$D" >> "$GITHUB_ENV"
+
+      - name: Store encrypted backup (30 days)
+        uses: actions/upload-artifact@v4
+        with:
+          name: bedbox-backup-${{ env.DATE }}
+          path: bedbox-*.enc
+          retention-days: 30
+          if-no-files-found: error
