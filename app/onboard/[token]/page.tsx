@@ -378,15 +378,15 @@ export default function OnboardPage() {
       {step === 'details' && (
         <div style={{ animation: 'fadeIn 0.3s ease' }}>
           <h2 style={{ fontFamily: "'Syne',sans-serif", fontWeight: 700, fontSize: 24, margin: '0 0 6px' }}>Your details</h2>
-          <p style={{ color: 'rgba(255,255,255,0.4)', fontSize: 14, margin: '0 0 24px' }}>We need a few things from you</p>
+          <p style={{ color: 'rgba(255,255,255,0.4)', fontSize: 14, margin: '0 0 24px' }}>All fields on this page are required</p>
           <SectionLabel>Your contact</SectionLabel>
-          <Field label="Your mobile number" value={form.mobile} onChange={v => setForm(f => ({ ...f, mobile: v.replace(/\D/g, '').slice(0, 10) }))} placeholder="10-digit mobile number" type="tel" required />
+          <Field label="Your mobile number" value={form.mobile} onChange={v => setForm(f => ({ ...f, mobile: v.replace(/\D/g, '').slice(0, 10) }))} placeholder="10-digit mobile number" type="tel" />
           <SectionLabel>Emergency contact</SectionLabel>
           <Field label="Contact person name" value={form.emergency_contact_name} onChange={v => setForm(f => ({ ...f, emergency_contact_name: v }))} placeholder="Parent / sibling / friend" />
           <Field label="Their mobile number" value={form.emergency_contact_phone} onChange={v => setForm(f => ({ ...f, emergency_contact_phone: v }))} placeholder="+91 98765 43210" type="tel" />
           <SectionLabel>Background</SectionLabel>
           <Field label="Hometown" value={form.hometown} onChange={v => setForm(f => ({ ...f, hometown: v }))} placeholder="Indore, Delhi, Mumbai..." />
-          <Field label="Institution / Company" value={form.institution} onChange={v => setForm(f => ({ ...f, institution: v }))} placeholder="College or employer name" required />
+          <Field label="Institution / Company" value={form.institution} onChange={v => setForm(f => ({ ...f, institution: v }))} placeholder="College or employer name" />
           <div style={{ marginBottom: 14 }}>
             <label style={{ display: 'block', fontSize: 12, color: 'rgba(255,255,255,0.5)', marginBottom: 6 }}>Occupation</label>
             <select value={form.occupation} onChange={e => setForm(f => ({ ...f, occupation: e.target.value }))}
@@ -495,10 +495,10 @@ function SectionLabel({ children }: { children: React.ReactNode }) {
   return <div style={{ fontSize: 11, fontWeight: 600, letterSpacing: '0.08em', textTransform: 'uppercase', color: '#00d4c8', marginBottom: 10, marginTop: 4 }}>{children}</div>
 }
 
-function Field({ label, value, onChange, placeholder, type = 'text', required = false }: { label: string; value: string; onChange: (v: string) => void; placeholder?: string; type?: string; required?: boolean }) {
+function Field({ label, value, onChange, placeholder, type = 'text' }: { label: string; value: string; onChange: (v: string) => void; placeholder?: string; type?: string }) {
   return (
     <div style={{ marginBottom: 14 }}>
-      <label style={{ display: 'block', fontSize: 12, color: 'rgba(255,255,255,0.5)', marginBottom: 6 }}>{label}{required && <span style={{ color: '#ff8080' }}> *</span>}</label>
+      <label style={{ display: 'block', fontSize: 12, color: 'rgba(255,255,255,0.5)', marginBottom: 6 }}>{label}</label>
       <input type={type} value={value} onChange={e => onChange(e.target.value)} placeholder={placeholder}
         style={{ width: '100%', padding: '12px 14px', borderRadius: 10, fontSize: 14, background: 'rgba(255,255,255,0.06)', border: '1px solid rgba(255,255,255,0.1)', color: '#fff', outline: 'none', boxSizing: 'border-box' }}
         onFocus={e => e.target.style.borderColor = '#00d4c8'} onBlur={e => e.target.style.borderColor = 'rgba(255,255,255,0.1)'} />

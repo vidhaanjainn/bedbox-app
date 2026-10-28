@@ -483,3 +483,6 @@ remaining work.
 - NOT covered: Storage files (Aadhaar/payment photos).
 - Found: the repo is PUBLIC and `docs/PROJECT_STATUS.md` had CRON_SECRET in plaintext (redacted now; must be rotated). Scan: no service_role key ever committed; only the public anon key.
 - (2026-10-28, owner-requested) Reset password of vijay010768@gmail.com (super_admin) so the owner can hand over a login on Vijay's phone; temp password given in chat only, to be changed in Settings > Team. Same effect as Settings > Team > Reset password.
+
+## 2026-10-28 (part 4) - Onboarding required-field labels
+- `app/onboard/[token]/page.tsx`: every details field (mobile, emergency name+phone, hometown, occupation, institution) and all 3 documents are enforced by `canStep1/canStep2`, but only mobile + institution showed `*`, implying the rest were optional. Removed the asterisk (and the `required` prop on `Field`); subtitle now reads "All fields on this page are required". No validation logic changed. Admin "Add resident" (`app/admin/residents/new`) is separate and keeps its own "(opt)" labels.

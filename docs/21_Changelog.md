@@ -2,6 +2,7 @@
 
 ## [Unreleased]
 ### Added
+- 2026-10-28 - Resident onboarding: removed the lone asterisks (only 2 of 9 required fields had one, which implied the rest were optional); the details step now says "All fields on this page are required"
 - 2026-10-28 - Admin: clear "this isn't an admin account" screen instead of empty data when signed in with a non-admin (e.g. resident) login; start-up watchdog + error screens so the app can never be a silent black screen; resident portal session checks bounded
 - 2026-10-28 - Security: closed Supabase critical advisory (pending_approvals view readable by the public key); migration 20261028_secure_pending_approvals_view.sql
 - 2026-10-28 - Resilience: every database call now has timeouts, retries and an automatic backup route; failed loads show a clear error + Retry instead of zeros or endless loading; connection banner; /status connection check; /api/health; uptime monitor (GitHub Action); sidebar navigation guard; fewer auth calls per page; service worker no longer intercepts requests
