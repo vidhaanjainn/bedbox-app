@@ -3,6 +3,7 @@
 import { useState } from 'react'
 import { useRouter } from 'next/navigation'
 import { createClient } from '@/lib/supabase/client'
+import { getSessionSafe } from '@/lib/supabase/safe-session'
 import { Zap, Droplet, Armchair, Tv, Sparkles, FileText, Check } from 'lucide-react'
 
 const CATS = [{id:'electrical',label:'Electrical',Icon:Zap,desc:'Lights, switches, sockets'},{id:'plumbing',label:'Plumbing',Icon:Droplet,desc:'Taps, drainage, geyser'},{id:'furniture',label:'Furniture',Icon:Armchair,desc:'Bed, chair, wardrobe'},{id:'appliance',label:'Appliance',Icon:Tv,desc:'Fan, AC, fridge'},{id:'cleanliness',label:'Cleanliness',Icon:Sparkles,desc:'Common area, room'},{id:'other',label:'Other',Icon:FileText,desc:'Anything else'}]
@@ -21,7 +22,7 @@ export default function MaintenancePage() {
     if (desc.trim().length<10) { setError('Please add a few more details (at least 10 characters).'); return }
     setError('')
     setSubmitting(true)
-    const {data:{session}} = await supabase.auth.getSession()
+    const session = await getSessionSafe(supabase)
     if (!session) { router.replace('/portal'); return }
     const {data:res} = await supabase.from('residents').select('id,room_number').eq('portal_user_id',session.user.id).single()
     if (!res) { setError('Session error. Please login again.'); setSubmitting(false); return }

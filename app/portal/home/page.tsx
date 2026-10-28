@@ -3,6 +3,7 @@
 import { useEffect, useState } from 'react'
 import { useRouter } from 'next/navigation'
 import { createClient } from '@/lib/supabase/client'
+import { getSessionSafe } from '@/lib/supabase/safe-session'
 import Link from 'next/link'
 import { Wrench, Receipt, ClipboardList, Phone, Wifi, MapPin, Cross, Pill, ShoppingCart, UtensilsCrossed, TreePine, TrainFront, ChevronDown, Star, Upload, X, Loader2, Check, IndianRupee, Copy, Zap, Video, Users, PartyPopper, ChevronRight, Download } from 'lucide-react'
 import InstallGuideSheet from '@/components/ui/InstallGuideSheet'
@@ -61,7 +62,7 @@ export default function PortalHomePage() {
   const currentYear = now.getFullYear()
 
   const load = async () => {
-    const { data: { session } } = await supabase.auth.getSession()
+    const session = await getSessionSafe(supabase)
     if (!session) { router.replace('/portal'); return }
 
     const { data: res } = await supabase.from('residents').select('*').eq('portal_user_id', session.user.id).single()

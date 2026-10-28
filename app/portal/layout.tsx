@@ -3,6 +3,7 @@
 import { useEffect, useState } from 'react'
 import { useRouter, usePathname } from 'next/navigation'
 import { createClient } from '@/lib/supabase/client'
+import { getSessionSafe } from '@/lib/supabase/safe-session'
 import NotificationPrompt from '@/components/ui/NotificationPrompt'
 import InstallPrompt from '@/components/ui/InstallPrompt'
 import { initPwaInstallTracking } from '@/lib/pwaInstallTracking'
@@ -29,10 +30,10 @@ export default function PortalLayout({ children }: { children: React.ReactNode }
 
   useEffect(() => {
     if (pathname==='/portal') { setChecking(false); return }
-    supabase.auth.getSession().then(async ({data})=>{
-      if (!data.session) { router.replace('/portal'); return }
+    getSessionSafe(supabase).then(async (session)=>{
+      if (!session) { router.replace('/portal'); return }
 
-      const { data: res } = await supabase.from('residents').select('status, vacated_at').eq('portal_user_id', data.session.user.id).maybeSingle()
+      const { data: res } = await supabase.from('residents').select('status, vacated_at').eq('portal_user_id', session.user.id).maybeSingle()
       if (res?.status === 'vacated' && res.vacated_at) {
         const daysSince = (Date.now() - new Date(res.vacated_at).getTime()) / 86400000
         if (daysSince > VACATE_GRACE_DAYS) {

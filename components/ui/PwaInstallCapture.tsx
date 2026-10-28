@@ -16,6 +16,8 @@ import '@/lib/pwaInstall'
 
 export default function PwaInstallCapture() {
   useEffect(() => {
+    // React is running: cancel the start-up watchdog (lib/bootWatchdog.ts).
+    ;(window as unknown as { __bbBooted?: () => void }).__bbBooted?.()
     if ('serviceWorker' in navigator) { navigator.serviceWorker.register('/sw.js').catch(() => {}) }
   }, [])
   return null

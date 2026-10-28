@@ -36,6 +36,10 @@ export default function AdminLayoutClient({ children }: { children: React.ReactN
   const [mobileOpen, setMobileOpen] = useState(false)
   const [isMobile, setIsMobile] = useState(false)
   const [checkingSession, setCheckingSession] = useState(true)
+  // Signed in, but not as an admin (e.g. a resident-portal account autofilled
+  // by the browser): the database then correctly shows an empty app. Say so
+  // instead of leaving the user staring at zeros.
+  const [notAdminEmail, setNotAdminEmail] = useState<string | null>(null)
   const pathname = usePathname()
   const router = useRouter()
   const supabase = createClient()
@@ -71,7 +75,13 @@ export default function AdminLayoutClient({ children }: { children: React.ReactN
   // logged out) - send to login instead of rendering an empty dashboard.
   useEffect(() => {
     getSessionSafe(supabase).then(session => {
-      if (!session) { router.replace('/login') } else { setCheckingSession(false) }
+      if (!session) { router.replace('/login'); return }
+      setCheckingSession(false)
+      // Only an explicit `false` blocks. A failed/slow check never locks an
+      // admin out - the connection banner covers that case.
+      supabase.rpc('is_admin').then(({ data, error }) => {
+        if (!error && data === false) setNotAdminEmail(session.user.email ?? 'this account')
+      })
     })
   }, [])
 
@@ -81,6 +91,25 @@ export default function AdminLayoutClient({ children }: { children: React.ReactN
   const handleLogout = async () => {
     await supabase.auth.signOut()
     router.push('/login')
+  }
+
+  if (notAdminEmail) {
+    return (
+      <div style={{ minHeight: '100vh', background: 'var(--navy-900)', display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 24 }}>
+        <div style={{ maxWidth: 460, textAlign: 'center' }}>
+          <h1 style={{ fontFamily: 'Syne, sans-serif', fontSize: 22, color: 'var(--text-primary)', margin: '0 0 12px' }}>This isn&apos;t an admin account</h1>
+          <p style={{ color: 'var(--text-muted)', fontSize: 14, lineHeight: 1.6, margin: '0 0 8px' }}>
+            You&apos;re signed in as <strong style={{ color: 'var(--text-primary)' }}>{notAdminEmail}</strong>, which doesn&apos;t have admin access, so no residents or rent data can be shown.
+            Your data is safe - sign out and sign in with your admin account.
+          </p>
+          <p style={{ color: 'var(--text-muted)', fontSize: 12, margin: '0 0 20px' }}>Tip: your browser may have auto-filled a different saved login.</p>
+          <div style={{ display: 'flex', gap: 10, justifyContent: 'center', flexWrap: 'wrap' }}>
+            <button onClick={handleLogout} className="bb-btn-primary">Sign out and switch account</button>
+            <Link href="/portal" className="bb-btn-secondary">Go to resident portal</Link>
+          </div>
+        </div>
+      </div>
+    )
   }
 
   if (checkingSession) {

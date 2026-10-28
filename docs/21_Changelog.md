@@ -2,6 +2,7 @@
 
 ## [Unreleased]
 ### Added
+- 2026-10-28 - Admin: clear "this isn't an admin account" screen instead of empty data when signed in with a non-admin (e.g. resident) login; start-up watchdog + error screens so the app can never be a silent black screen; resident portal session checks bounded
 - 2026-10-28 - Security: closed Supabase critical advisory (pending_approvals view readable by the public key); migration 20261028_secure_pending_approvals_view.sql
 - 2026-10-28 - Resilience: every database call now has timeouts, retries and an automatic backup route; failed loads show a clear error + Retry instead of zeros or endless loading; connection banner; /status connection check; /api/health; uptime monitor (GitHub Action); sidebar navigation guard; fewer auth calls per page; service worker no longer intercepts requests
 - 2026-10-27 - Fix: admin app and login could hang forever on a black screen if the saved login was stuck or corrupted; they now time out after 6s and show the login form

@@ -1,5 +1,6 @@
 import type { Metadata, Viewport } from 'next'
 import PwaInstallCapture from '@/components/ui/PwaInstallCapture'
+import { BOOT_WATCHDOG } from '@/lib/bootWatchdog'
 import { APP_URL } from '@/lib/config'
 import './globals.css'
 
@@ -61,6 +62,7 @@ export default function RootLayout({
         />
       </head>
       <body>
+        <script dangerouslySetInnerHTML={{ __html: BOOT_WATCHDOG }} />
         <PwaInstallCapture />
         {children}
       </body>

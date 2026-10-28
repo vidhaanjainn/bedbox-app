@@ -3,6 +3,7 @@
 import { useEffect, useState } from 'react'
 import { useRouter } from 'next/navigation'
 import { createClient } from '@/lib/supabase/client'
+import { getSessionSafe } from '@/lib/supabase/safe-session'
 import { Check, AlertTriangle } from 'lucide-react'
 
 export default function NoticePage() {
@@ -23,7 +24,7 @@ export default function NoticePage() {
 
   useEffect(() => {
     async function load() {
-      const { data: { session } } = await supabase.auth.getSession()
+      const session = await getSessionSafe(supabase)
       if (!session) { router.replace('/portal'); return }
       const { data: res } = await supabase.from('residents').select('id, name').eq('portal_user_id', session.user.id).single()
       if (!res) { setLoading(false); return }

@@ -4,6 +4,7 @@ import { previewBill, ELECTRICITY_RATE } from '@/lib/electricity'
 import { useEffect, useState } from 'react'
 import { useRouter } from 'next/navigation'
 import { createClient } from '@/lib/supabase/client'
+import { getSessionSafe } from '@/lib/supabase/safe-session'
 import { Zap, Camera, Loader2, Check, X } from 'lucide-react'
 
 const MONTH_NAMES = ['January', 'February', 'March', 'April', 'May', 'June', 'July', 'August', 'September', 'October', 'November', 'December']
@@ -31,7 +32,7 @@ export default function ElectricityPage() {
   useEffect(() => { load() }, [])
 
   const load = async () => {
-    const { data: { session } } = await supabase.auth.getSession()
+    const session = await getSessionSafe(supabase)
     if (!session) { router.replace('/portal'); return }
 
     const { data: res } = await supabase.from('residents').select('id, initial_electricity_reading').eq('portal_user_id', session.user.id).single()
