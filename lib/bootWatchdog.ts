@@ -22,7 +22,7 @@ export const BOOT_WATCHDOG = `(function(){
     document.body.appendChild(el);
     document.getElementById('bb-boot-reload').onclick=function(){location.reload()};
     document.getElementById('bb-boot-reset').onclick=function(){
-      var done=function(){try{localStorage.removeItem('bb-sb-route')}catch(e){}location.replace(location.pathname)};
+      var done=function(){try{localStorage.removeItem('bb-sb-route');localStorage.removeItem('bb-sb-avoid')}catch(e){}location.replace(location.pathname)};
       try{
         var jobs=[];
         if(navigator.serviceWorker&&navigator.serviceWorker.getRegistrations)jobs.push(navigator.serviceWorker.getRegistrations().then(function(rs){return Promise.all(rs.map(function(r){return r.unregister()}))}));

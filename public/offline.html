@@ -1,0 +1,52 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="theme-color" content="#070d1a">
+<title>TheBedBox - reconnecting</title>
+<style>
+  html, body { margin: 0; height: 100%; background: #070d1a; color: #e8eaf0;
+    font-family: -apple-system, system-ui, sans-serif; }
+  main { min-height: 100%; display: flex; flex-direction: column; align-items: center;
+    justify-content: center; padding: 28px; box-sizing: border-box; text-align: center; }
+  h1 { font-size: 19px; margin: 0 0 10px; }
+  p { font-size: 14px; opacity: .72; max-width: 330px; line-height: 1.55; margin: 0 0 18px; }
+  .dot { width: 10px; height: 10px; border-radius: 50%; background: #00d4c8; margin: 0 auto 18px;
+    animation: pulse 1.4s ease-in-out infinite; }
+  @keyframes pulse { 50% { opacity: .25; transform: scale(.7); } }
+  button { padding: 12px 22px; border-radius: 12px; border: 0; font-size: 14px; font-weight: 700;
+    background: #00d4c8; color: #04120f; }
+  small { display: block; margin-top: 14px; font-size: 12px; opacity: .45; }
+</style>
+</head>
+<body>
+<main>
+  <div class="dot" aria-hidden="true"></div>
+  <h1>Can't reach TheBedBox right now</h1>
+  <p>This phone isn't getting through to the internet or to the app. Your data is safe. The app will open by itself as soon as the connection is back.</p>
+  <button id="retry" type="button">Try now</button>
+  <small id="hint">Checking again every few seconds&hellip;</small>
+</main>
+<script>
+  // Served by the service worker (sw.js) when a page could not load.
+  // Keeps checking our own site; reloads the page the user was opening once it answers.
+  (function () {
+    var busy = false;
+    function check() {
+      if (busy) return; busy = true;
+      var ctrl = window.AbortController ? new AbortController() : null;
+      var t = setTimeout(function () { if (ctrl) ctrl.abort(); }, 8000);
+      fetch('/offline.html?ping=' + Date.now(), { cache: 'no-store', signal: ctrl ? ctrl.signal : undefined })
+        .then(function (r) { if (r.ok) location.reload(); })
+        .catch(function () {})
+        .then(function () { clearTimeout(t); busy = false; });
+    }
+    document.getElementById('retry').onclick = function () { location.reload(); };
+    window.addEventListener('online', check);
+    document.addEventListener('visibilitychange', function () { if (!document.hidden) check(); });
+    setInterval(check, 5000);
+  })();
+</script>
+</body>
+</html>

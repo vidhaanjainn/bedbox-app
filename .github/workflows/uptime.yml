@@ -1,4 +1,6 @@
-# Pings the live app + its database health every 30 minutes. A failed run emails
+# Pings the live app + its database health (asks for every 30 minutes, but
+# GitHub throttles scheduled workflows - in practice it runs every ~4-8 h, so
+# this is a backstop, not an alarm; use an external monitor for real alerts). A failed run emails
 # the repo owner (GitHub does this for failed scheduled workflows), so an
 # outage is noticed in minutes instead of when someone hits a black screen.
 name: Uptime

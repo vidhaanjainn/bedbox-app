@@ -12,6 +12,10 @@
  *   C. database returns temporary 500s   -> reads retry and recover
  *   D. signed in with a non-admin account -> clear "not an admin" screen, not empty data
  *   E. app scripts fail to load (what a black screen is) -> visible recovery message after 10s
+ *   F. our own /sb route blocked          -> login + dashboard still work via the direct route
+ *   G. normal load                         -> data goes through our domain only; prefetches don't
+ *                                             each fire a Supabase Auth call
+ *   H. no internet when opening the app    -> "reconnecting" page, then opens by itself
  * Exits non-zero if any case fails.
  */
 const http = require('http')
@@ -79,7 +83,8 @@ async function login(page) {
   console.log('building...')
   if (!process.env.SKIP_BUILD) execSync('npx next build', { env, stdio: 'ignore' })
   // detached => own process group, so the whole tree (npx -> next-server) can be killed
-  const server = spawn('npx', ['next', 'start', '-p', String(APP)], { env, stdio: 'ignore', detached: true })
+  const startServer = () => spawn('npx', ['next', 'start', '-p', String(APP)], { env, stdio: 'ignore', detached: true })
+  let server = startServer()
   await new Promise(r => setTimeout(r, 6000))
   const browser = await chromium.launch()
 
@@ -93,7 +98,7 @@ async function login(page) {
       await page.waitForURL('**/admin/dashboard', { timeout: 30000 }).catch(() => {})
       check('A1 login succeeds with direct route blocked', page.url().includes('/admin/dashboard'))
       const greeted = await page.getByText(/Good (morning|afternoon|evening)/).first().waitFor({ timeout: 30000 }).then(() => true).catch(() => false)
-      check('A2 dashboard loads data through the backup route', greeted)
+      check('A2 dashboard loads data through our own domain', greeted)
       check('A3 requests reached the database via /sb', seen.some(p => p.startsWith('/auth/v1/token')) && seen.some(p => p.startsWith('/rest/v1/')))
       await ctx.close()
     }
@@ -151,6 +156,53 @@ async function login(page) {
       const buttons = shown && (await page2.locator('#bb-boot-reload').count()) === 1 && (await page2.locator('#bb-boot-reset').count()) === 1
       check('E2 failed start shows a recovery message with Reload + Reset, not a black screen', shown && buttons)
       await ctx2.close()
+    }
+    // F. our own /sb route blocked -> falls back to direct
+    {
+      const ctx = await browser.newContext(); const page = await ctx.newPage(); watch(page, 'F')
+      await ctx.route(`http://localhost:${APP}/sb/**`, r => r.abort())
+      seen.length = 0; mode = 'ok'
+      await login(page)
+      await page.waitForURL('**/admin/dashboard', { timeout: 60000 }).catch(() => {})
+      const greeted = await page.getByText(/Good (morning|afternoon|evening)/).first().waitFor({ timeout: 60000 }).then(() => true).catch(() => false)
+      check('F1 login + dashboard work when our /sb route is blocked (direct fallback)', greeted)
+      await ctx.close()
+    }
+    // G. normal load: browser talks only to our domain; prefetches don't hammer Auth
+    {
+      const ctx = await browser.newContext(); const page = await ctx.newPage(); watch(page, 'G')
+      let directHits = 0
+      await ctx.route(`http://127.0.0.1:${FAKE}/**`, r => { directHits++; r.continue() })
+      mode = 'ok'
+      await login(page)
+      await page.waitForURL('**/admin/dashboard', { timeout: 30000 }).catch(() => {})
+      await page.getByText(/Good (morning|afternoon|evening)/).first().waitFor({ timeout: 30000 }).catch(() => {})
+      seen.length = 0
+      await page.reload()
+      await page.getByText(/Good (morning|afternoon|evening)/).first().waitFor({ timeout: 30000 }).catch(() => {})
+      await page.waitForTimeout(6000)   // let the sidebar prefetch every route
+      const authUser = seen.filter(p => p.startsWith('/auth/v1/user')).length
+      check('G1 browser never needs the direct Supabase domain on a healthy network', directHits === 0, `${directHits} direct requests`)
+      check('G2 one page load = a handful of Auth calls, not one per prefetched link', authUser <= 4, `${authUser} /auth/v1/user calls`)
+      await ctx.close()
+    }
+    // H. phone can't reach our site when opening the app (simulated by stopping the server;
+    //    Playwright's setOffline does not apply to service-worker fetches)
+    {
+      const ctx = await browser.newContext(); const page = await ctx.newPage(); watch(page, 'H')
+      await page.goto(`http://localhost:${APP}/login`)
+      const ready = await page.evaluate(() => navigator.serviceWorker.ready.then(() => true)).catch(() => false)
+      await page.reload()   // page is now controlled by the service worker
+      await page.waitForTimeout(1500)
+      try { process.kill(-server.pid) } catch {}
+      killPort(APP); await new Promise(r => setTimeout(r, 1500))
+      await page.goto(`http://localhost:${APP}/admin/dashboard`).catch(() => {})
+      const shown = await page.getByText("Can't reach TheBedBox right now").waitFor({ timeout: 25000 }).then(() => true).catch(() => false)
+      check('H1 site unreachable on open -> reconnecting page, not a blank/error screen', ready && shown)
+      server = startServer()
+      const back = await page.waitForFunction(() => document.title !== 'TheBedBox - reconnecting' && !!document.querySelector('input[type=email]'), null, { timeout: 45000 }).then(() => true).catch(() => false)
+      check('H2 app opens by itself once the site is reachable again', back)
+      await ctx.close()
     }
   } finally {
     await browser.close(); try { process.kill(-server.pid) } catch {} killPort(APP); fake.close()

@@ -13,6 +13,9 @@ staff & expense tracking, security hardening, UI/UX polish pass, multi-property/
 **Phase 0 - Foundation Hardening** (see 02_ProductRoadmap.md)
 
 ## Last Completed Task
+**2026-11-06 - reliability: app now only needs to reach app.thebedbox.in (Supabase calls go through our domain first), sidebar prefetches no longer fire 63 Supabase Auth calls per page load, and the app shows a self-retrying "reconnecting" screen instead of failing to open.** See 18_ImplementationLog.md 2026-11-06. Owner to-do: set up UptimeRobot on /api/health (GitHub's scheduled uptime check only runs every few hours).
+
+Previous:
 **Root cause found + fixed for the "prod DB unreachable" incident, AND a live critical
 vulnerability found + closed.** See full story in 18_ImplementationLog.md (2026-07-12 entries).
 Short version: the app's env vars pointed at a dead/deleted Supabase project

@@ -43,17 +43,18 @@ export default function StatusPage() {
       r.ok ? `${r.ms} ms` : r.status ? `HTTP ${r.status} after ${r.ms} ms` : `${r.error === 'TimeoutError' ? 'no answer' : 'blocked / unreachable'} after ${r.ms} ms`
     const list: Check[] = [
       { label: 'Database, as seen from our servers (Auth + data API)', state: server.ok ? 'ok' : 'fail', detail: fmt(server) },
-      { label: 'Direct connection from this device to the database', state: direct.ok ? 'ok' : 'fail', detail: fmt(direct) },
-      { label: 'Backup route (through this website)', state: backup.ok ? 'ok' : 'fail', detail: fmt(backup) },
+      { label: 'Backup route: direct connection from this device to the database', state: direct.ok ? 'ok' : 'fail', detail: fmt(direct) },
+      { label: 'Main route (through this website)', state: backup.ok ? 'ok' : 'fail', detail: fmt(backup) },
       { label: 'Saved login on this device', state: session ? 'ok' : 'fail', detail: session ? 'signed in' : 'not signed in (or expired)' },
     ]
     setChecks(list)
 
     if (!server.ok) setVerdict('The database is not answering properly on our side (Supabase is slow or restarting). This is not your device or internet. Wait a few minutes and retry; if it continues, restart the project in Supabase.')
-    else if (!direct.ok && backup.ok) { setRoute('proxy'); setVerdict('Your network blocks the direct database route. The app has switched to the backup route and will work normally.') }
+    else if (!direct.ok && backup.ok) { setRoute('proxy'); setVerdict('Your network blocks the direct database route. That is fine: the app talks to the database through this website, so everything works normally.') }
+    else if (direct.ok && !backup.ok) { setRoute('direct'); setVerdict('The route through this website is having trouble, so the app is using the direct route for now. Everything still works.') }
     else if (!direct.ok && !backup.ok) setVerdict('This device cannot reach the database at all. Check the internet connection, turn off VPN/ad-blockers, or try mobile data.')
     else if (!session) setVerdict('Everything is reachable. You just need to sign in again.')
-    else { if (getRoute() === 'proxy') setRoute('direct'); setVerdict('Everything is working.') }
+    else { if (getRoute() !== 'proxy') setRoute('proxy'); setVerdict('Everything is working.') }
     setRunning(false)
   }, [])
 

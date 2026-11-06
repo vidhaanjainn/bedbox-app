@@ -20,12 +20,10 @@ export async function proxy(request: NextRequest) {
   if (!hasSession) return NextResponse.next({ request })
 
   // Page-to-page navigations and link prefetches (RSC requests) don't need a
-  // session check: the sidebar alone prefetches 14 routes, which fired 14
-  // Supabase auth calls on every page load and hammered a small database.
-  // Real page loads (documents) still refresh the session below.
-  if (request.headers.get('rsc') || request.headers.get('next-router-prefetch')) {
-    return NextResponse.next({ request })
-  }
+  // session check - they are excluded in `config.matcher` below. (Next 16
+  // strips the `rsc` / `next-router-prefetch` headers from `request`, so the
+  // old in-function header check here never matched: every sidebar prefetch
+  // fired its own Supabase Auth call, ~40 per page load.)
 
   let response = NextResponse.next({ request })
 
@@ -63,10 +61,18 @@ export async function proxy(request: NextRequest) {
 
 export const config = {
   matcher: [
-    // Skip static assets, images, and the service worker/manifest - no
-    // auth-cookie refresh needed for those, and it avoids extra latency on
-    // every single asset request.
-    // sb/ is the Supabase fallback route - it must pass straight through.
-    '/((?!_next/static|_next/image|favicon.ico|sw.js|manifest.*\\.json|icons/|sb/|.*\\.(?:svg|png|jpg|jpeg|gif|webp)$).*)',
+    {
+      // Skip static assets, images, the service worker/manifest, the offline
+      // page and the Supabase same-origin route (sb/ must pass straight through).
+      source: '/((?!_next/static|_next/image|favicon.ico|sw.js|offline.html|manifest.*\\.json|icons/|sb/|.*\\.(?:svg|png|jpg|jpeg|gif|webp)$).*)',
+      // Only real page loads refresh the session. Link prefetches and in-app
+      // navigations (RSC requests) skip the proxy entirely - matched on the raw
+      // request, before Next hides these headers from proxy code.
+      missing: [
+        { type: 'header', key: 'next-router-prefetch' },
+        { type: 'header', key: 'purpose', value: 'prefetch' },
+        { type: 'header', key: 'rsc' },
+      ],
+    },
   ],
 }
