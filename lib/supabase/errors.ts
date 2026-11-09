@@ -14,7 +14,7 @@ export function describeError(err: unknown): Described {
     return { kind: 'credentials', message: 'Wrong email or password.' }
   }
   if (NETWORK_RE.test(raw) || NETWORK_RE.test(name) || (e.status === 0 && /AuthRetryableFetchError/.test(name))) {
-    return { kind: 'network', message: "Can't reach the server. Check your internet connection and try again. If it keeps happening, open the connection check." }
+    return { kind: 'network', message: "Couldn't get through to the database. If your internet is working, it is probably still waking up - wait a minute and try again. If it keeps happening, open the connection check." }
   }
   if (e.code === '42501' || /row-level security|permission denied|jwt expired|not authorized/i.test(raw)) {
     return { kind: 'permission', message: 'Your login is not allowed to read this, or it has expired. Sign out and sign in again.' }

@@ -15,6 +15,7 @@
  *   F. our own /sb route blocked          -> login + dashboard still work via the direct route
  *   G. normal load                         -> data goes through our domain only; prefetches don't
  *                                             each fire a Supabase Auth call
+ *   I. database cold/stalled ~40 s at login -> "waking up" note, then signs in by itself
  *   H. no internet when opening the app    -> "reconnecting" page, then opens by itself
  * Exits non-zero if any case fails.
  */
@@ -108,7 +109,7 @@ async function login(page) {
       mode = 'down'
       const t = Date.now()
       await login(page)
-      const msg = await page.getByText(/Can't reach the server|timed out|went wrong/i).first().waitFor({ timeout: 60000 }).then(() => true).catch(() => false)
+      const msg = await page.getByText(/Couldn't get through|timed out|went wrong/i).first().waitFor({ timeout: 220000 }).then(() => true).catch(() => false)
       const brace = await page.getByText(/^\{\}$/).count()
       check('B1 login shows a clear error when the database is down', msg && brace === 0, `${Math.round((Date.now() - t) / 1000)}s`)
       check('B2 sign-in button is usable again (not spinning forever)', await page.locator('button[type=submit]').isEnabled())
@@ -156,6 +157,18 @@ async function login(page) {
       const buttons = shown && (await page2.locator('#bb-boot-reload').count()) === 1 && (await page2.locator('#bb-boot-reset').count()) === 1
       check('E2 failed start shows a recovery message with Reload + Reset, not a black screen', shown && buttons)
       await ctx2.close()
+    }
+    // I. database stalls for ~40 s at sign-in (cold start), then answers
+    {
+      const ctx = await browser.newContext(); const page = await ctx.newPage(); watch(page, 'I')
+      mode = 'down'
+      setTimeout(() => { mode = 'ok' }, 40000)
+      await login(page)
+      const note = await page.getByText(/waking up/i).first().waitFor({ timeout: 20000 }).then(() => true).catch(() => false)
+      await page.waitForURL('**/admin/dashboard', { timeout: 120000 }).catch(() => {})
+      check('I1 slow database at login shows a waking-up note and then signs in by itself', note && page.url().includes('/admin/dashboard'))
+      mode = 'ok'
+      await ctx.close()
     }
     // F. our own /sb route blocked -> falls back to direct
     {

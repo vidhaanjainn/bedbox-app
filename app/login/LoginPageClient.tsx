@@ -29,23 +29,38 @@ export default function LoginPageClient() {
     })
   }, [])
 
+  const [slow, setSlow] = useState(false)
+
   const handleLogin = async (e: React.FormEvent) => {
     e.preventDefault()
     setLoading(true)
     setError('')
 
-    // Hard limit so the button can never spin forever (the network layer
-    // already times out each attempt; this covers the whole sign-in).
+    // The free database can take a minute or more to answer after a quiet
+    // period (2026-11-09: login took 70-88 s and failed). Keep retrying for up
+    // to 2.5 minutes with a visible "waking up" note instead of failing. Wrong
+    // password and other definite answers stop immediately.
     let error: unknown = null
-    try {
-      const res = await Promise.race([
-        supabase.auth.signInWithPassword({ email, password }),
-        new Promise<never>((_, reject) => setTimeout(() => reject(new Error('Sign-in timed out')), 40000)),
-      ])
-      error = res.error
-    } catch (err) {
-      error = err
+    const started = Date.now()
+    const slowNote = setTimeout(() => setSlow(true), 8000)
+    for (;;) {
+      error = null
+      try {
+        const res = await Promise.race([
+          supabase.auth.signInWithPassword({ email, password }),
+          new Promise<never>((_, reject) => setTimeout(() => reject(new Error('Sign-in timed out')), 45000)),
+        ])
+        error = res.error
+      } catch (err) {
+        error = err
+      }
+      const kind = error ? describeError(error).kind : null
+      if (!error || (kind !== 'network' && kind !== 'server') || Date.now() - started > 150000) break
+      setSlow(true)
+      await new Promise(r => setTimeout(r, 3000))
     }
+    clearTimeout(slowNote)
+    setSlow(false)
 
     if (error) {
       const d = describeError(error)
@@ -148,6 +163,11 @@ export default function LoginPageClient() {
               </div>
             )}
 
+            {slow && (
+              <div role="status" style={{ fontSize: 13, color: 'rgba(255,255,255,0.6)', lineHeight: 1.5, textAlign: 'center' }}>
+                The database is waking up after a quiet period - this can take up to a minute. Keep this screen open, it will sign you in by itself.
+              </div>
+            )}
             <button type="submit" disabled={loading} style={{
               width: '100%', padding: '13px', borderRadius: '11px', fontSize: '14px', fontWeight: 700,
               background: loading ? 'rgba(255,255,255,0.08)' : 'var(--teal-500)',
